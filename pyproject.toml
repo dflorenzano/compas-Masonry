@@ -119,13 +119,7 @@ select = ["E", "F", "I"]
 [tool.ruff.lint.isort]
 force-single-line = true
 known-first-party = [
-    "compas",
-    "compas_assembly",
-    "compas_cra",
     "compas_masonry",
-    "compas_model",
-    "compas_rui",
-    "compas_session",
 ]
 
 [tool.ruff.lint.pydocstyle]
