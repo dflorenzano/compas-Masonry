@@ -10,7 +10,6 @@ from compas_viewer.scene import ViewerSceneObject
 
 from compas_masonry.elements import BlockElement
 from compas_masonry.elements import BlockMesh
-from compas_masonry.interactions import ContactInterface
 from compas_masonry.models import BlockModel
 
 

@@ -1,5 +1,4 @@
 from compas_rui.values import BoolValue
-from compas_rui.values import FloatValue
 from compas_rui.values import Settings
 
 SETTINGS = {
