@@ -1,12 +1,11 @@
-import numpy
-import pythreejs as three
-from compas_notebook.scene import ThreeSceneObject
-
 import compas.datastructures  # noqa: F401
 import compas.geometry  # noqa: F401
+import numpy
+import pythreejs as three
 from compas.geometry import Polygon
 from compas.geometry import earclip_polygon
 from compas_model.scene import BlockObject
+from compas_notebook.scene import ThreeSceneObject
 
 
 class ThreeBlockObject(ThreeSceneObject, BlockObject):
