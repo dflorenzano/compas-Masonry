@@ -1,11 +1,12 @@
 from typing import Generator
 
+from compas.datastructures import Mesh
 from compas.geometry import Box
 from compas.geometry import Polyhedron
 from compas_model.models import Model
 
 from compas_masonry.elements.block import BlockElement
-from compas_masonry.interactions.contact import ContactInterface
+from compas_masonry.interactions.contact import Contact
 from compas_masonry.templates.template import Template
 
 
@@ -141,6 +142,22 @@ class BlockModel(Model):
         raise NotImplementedError
 
     # =============================================================================
+    # Builders
+    # =============================================================================
+
+    def add_block_from_mesh(self, mesh: Mesh) -> int:
+        block = BlockElement.from_mesh(mesh)
+        block.is_support = False
+        self.add_element(block)
+        return block.graphnode
+
+    def add_support_from_mesh(self, mesh: Mesh) -> int:
+        block = BlockElement.from_mesh(mesh)
+        block.is_support = True
+        self.add_element(block)
+        return block.graphnode
+
+    # =============================================================================
     # Collisions
     # =============================================================================
 
@@ -156,17 +173,19 @@ class BlockModel(Model):
     # Contacts
     # =============================================================================
 
-    def contacts(self) -> Generator[ContactInterface, None, None]:
+    def contacts(self) -> Generator[Contact, None, None]:
         """Iterate over the contact interactions of this model.
 
         Yields
         ------
-        :class:`ContactInterface`
+        :class:`Contact`
 
         """
-        for interaction in self.interactions():
-            if isinstance(interaction, ContactInterface):
-                yield interaction
+        for edge in self.graph.edges():
+            contacts = self.graph.edge_attribute(edge, name="contacts")
+            if contacts:
+                for contact in contacts:
+                    yield contact
 
     def compute_contacts(self, tolerance=1e-6, minimum_area=1e-2, k=2) -> None:
         """Compute the contacts between the block elements of this model.
@@ -195,7 +214,7 @@ class BlockModel(Model):
                 if not self.graph.has_edge((u, v), directed=False):
                     contacts = element.contacts(nbr, tolerance=tolerance, minimum_area=minimum_area)
                     if contacts:
-                        self.graph.add_edge(u, v, interactions=contacts)
+                        self.graph.add_edge(u, v, contacts=contacts)
 
     # =============================================================================
     # Blocks & Supports
@@ -212,4 +231,17 @@ class BlockModel(Model):
         element: BlockElement
         for element in self.elements():
             if element.is_support:
+                yield element
+
+    def blocks(self) -> Generator[BlockElement, None, None]:
+        """Iterate over the regular blocks of this model.
+
+        Yields
+        ------
+        :class:`BlockElement`
+
+        """
+        element: BlockElement
+        for element in self.elements():
+            if not element.is_support:
                 yield element

@@ -1,5 +1,4 @@
 from typing import Annotated
-from typing import Optional
 
 from compas.geometry import Frame
 from compas.geometry import Line
@@ -10,7 +9,7 @@ from compas.geometry import centroid_points_weighted
 from compas.geometry import dot_vectors
 from compas.geometry import transform_points
 from compas.itertools import pairwise
-from compas_model.interactions import Interaction
+from compas_model.interactions import Contact
 
 
 def outer_product(u, v):
@@ -36,7 +35,7 @@ def sum_matrices(A, B):
     return M
 
 
-class ContactInterface(Interaction):
+class FrictionContact(Contact):
     """Class representing an interaction between two elements through surface-to-surface contact.
 
     Parameters
@@ -88,63 +87,24 @@ class ContactInterface(Interaction):
 
     @property
     def __data__(self) -> dict:
-        return {
-            "points": self.points,
-            "frame": self.frame,
-            "size": self.size,
-            "forces": self.forces,
-            "name": self.name,
-        }
+        data = super().__data__
+        data["forces"] = self.forces
+        return data
 
-    def __init__(
-        self,
-        points: list[Point],
-        frame: Frame,
-        size: Optional[float] = None,
-        name: Optional[str] = None,
-    ):
-        super().__init__(name)
-
-        self._frame = frame
-        self._points = points
-        self._polygon = None
-        self._size = size
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
         self._points2 = None
         self._polygon2 = None
         self._forces = None
 
-    @property
-    def geometry(self):
-        return self.polygon
-
-    @property
-    def points(self) -> list[Point]:
-        return self._points
-
-    @property
-    def frame(self) -> Frame:
-        return self._frame
-
-    @property
-    def size(self) -> float:
-        if not self._size:
-            self._size = self.polygon.area
-        return self._size
-
-    @property
-    def forces(self) -> float:
-        return self._forces
-
-    @property
-    def polygon(self) -> Polygon:
-        if self._polygon is None:
-            self._polygon = Polygon(self.points)
-        return self._polygon
-
     # =============================================================================
     # Structural
     # =============================================================================
+
+    @property
+    def forces(self) -> list[dict[str, float]]:
+        return self._forces
 
     @property
     def points2(self) -> list[Point]:

@@ -16,10 +16,7 @@ from compas.geometry import oriented_bounding_box_numpy
 
 # from compas.geometry import trimesh_slice
 from compas_model.elements import Element
-from compas_model.elements.element import Feature
-
-from compas_masonry.algorithms.contacts import mesh_mesh_contacts
-from compas_masonry.interactions.contact import ContactInterface
+from compas_model.elements import Feature
 
 
 class BlockMesh(Mesh):
@@ -212,6 +209,22 @@ class BlockElement(Element):
         """
         return cls(shape=BlockMesh.from_shape(polyhedron))
 
+    @classmethod
+    def from_mesh(cls, mesh: Mesh) -> "BlockElement":
+        """Construct a block element from a mesh.
+
+        Parameters
+        ----------
+        mesh : :class:`compas.datastructures.Mesh`
+            A mesh.
+
+        Returns
+        -------
+        :class:`BlockElement`
+
+        """
+        return cls(shape=mesh.copy(cls=BlockMesh))
+
     # =============================================================================
     # Implementations of abstract methods
     # =============================================================================
@@ -252,14 +265,13 @@ class BlockElement(Element):
         self._collision_mesh = mesh
         return mesh
 
+    def compute_point(self) -> Point:
+        return self.modelgeometry.centroid()
+
     # =============================================================================
     # Geometrical properties
     # perhaps these should also be added to the list of computed/managed properties
     # =============================================================================
-
-    @property
-    def centroid(self) -> Point:
-        return self.modelgeometry.centroid()
 
     # @property
     # def center(self) -> Point:
@@ -323,27 +335,3 @@ class BlockElement(Element):
 
         """
         pass
-
-    def contacts(self, other: "BlockElement", tolerance: float = 1e-6, minimum_area: float = 1e-2) -> list[ContactInterface]:
-        """Compute the contacts between this block element and another block element.
-
-        Parameters
-        ----------
-        other : :class:`BlockElement`
-            The other element.
-        tolerance : float, optional
-            A distance tolerance.
-        minimum_area : float, optional
-            The minimum area of the contact polygon.
-
-        Returns
-        -------
-        list[:class:`ContactInterface`]
-
-        """
-        return mesh_mesh_contacts(
-            self.modelgeometry,
-            other.modelgeometry,
-            tolerance=tolerance,
-            minimum_area=minimum_area,
-        )
