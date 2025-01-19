@@ -1,22 +1,18 @@
 from compas_assembly.datastructures import Assembly
 from compas_assembly.datastructures import Block
 from compas_cra.equilibrium import cra_penalty_solve as _cra_penalty_solve
-from compas_model.interactions import ContactInterface
-from compas_model.models import Model
+from compas_cra.equilibrium import rbe_solve as _rbe_solve
+
+from compas_masonry.elements import BlockElement
+from compas_masonry.interactions import FrictionContact
+from compas_masonry.models import BlockModel
 
 
-def cra_penalty_solve(
-    model: Model,
-    mu: float = 0.84,
-    density: float = 1.0,
-    d_bnd: float = 0.001,
-    eps: float = 0.0001,
-    verbose: bool = False,
-    timer: bool = False,
-):
+def _blockmodel_to_assembly(model: BlockModel) -> Assembly:
+    element: BlockElement
+    element_block: dict[int, int] = {}
+
     assembly = Assembly()
-
-    element_block = {}
 
     for element in model.elements():
         block: Block = element.modelgeometry.copy(cls=Block)
@@ -25,9 +21,37 @@ def cra_penalty_solve(
         element_block[element.graphnode] = node
 
     for edge in model.graph.edges():
-        interactions: list[ContactInterface] = model.graph.edge_interactions(edge)
         u = element_block[edge[0]]
         v = element_block[edge[1]]
-        assembly.graph.add_edge(u, v, interfaces=interactions)
 
+        contacts: list[FrictionContact] = model.graph.edge_attribute(edge, name="contacts")
+        assembly.graph.add_edge(u, v, interfaces=contacts)
+
+    return assembly
+
+
+def rbe_solve(
+    model: BlockModel,
+    mu: float = 0.84,
+    density: float = 1.0,
+    verbose: bool = False,
+    timer: bool = False,
+    return_model: bool = False,
+):
+    assembly = _blockmodel_to_assembly(model)
+    result = _rbe_solve(assembly, mu=mu, density=density, verbose=verbose, timer=timer, return_model=return_model)
+    if return_model:
+        print(result[1])
+
+
+def cra_penalty_solve(
+    model: BlockModel,
+    mu: float = 0.84,
+    density: float = 1.0,
+    d_bnd: float = 0.001,
+    eps: float = 0.0001,
+    verbose: bool = False,
+    timer: bool = False,
+):
+    assembly = _blockmodel_to_assembly(model)
     _cra_penalty_solve(assembly, mu=mu, density=density, d_bnd=d_bnd, eps=eps, verbose=verbose, timer=timer)
