@@ -266,7 +266,7 @@ class BlockElement(Element):
         return mesh
 
     def compute_point(self) -> Point:
-        return self.modelgeometry.centroid()
+        return Point(*self.modelgeometry.centroid())
 
     # =============================================================================
     # Geometrical properties
