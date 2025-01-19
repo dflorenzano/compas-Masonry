@@ -91,12 +91,12 @@ class FrictionContact(Contact):
         data["forces"] = self.forces
         return data
 
-    def __init__(self, **kwargs):
+    def __init__(self, forces=None, **kwargs):
         super().__init__(**kwargs)
 
         self._points2 = None
         self._polygon2 = None
-        self._forces = None
+        self._forces = forces
 
     # =============================================================================
     # Structural
@@ -105,6 +105,10 @@ class FrictionContact(Contact):
     @property
     def forces(self) -> list[dict[str, float]]:
         return self._forces
+
+    @forces.setter
+    def forces(self, forces: list[dict[str, float]]) -> None:
+        self._forces = forces
 
     @property
     def points2(self) -> list[Point]:

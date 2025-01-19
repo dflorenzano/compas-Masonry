@@ -6,7 +6,7 @@ from compas.geometry import Polyhedron
 from compas_model.models import Model
 
 from compas_masonry.elements.block import BlockElement
-from compas_masonry.interactions.contact import Contact
+from compas_masonry.interactions import FrictionContact
 from compas_masonry.templates.template import Template
 
 
@@ -173,7 +173,7 @@ class BlockModel(Model):
     # Contacts
     # =============================================================================
 
-    def contacts(self) -> Generator[Contact, None, None]:
+    def contacts(self) -> Generator[FrictionContact, None, None]:
         """Iterate over the contact interactions of this model.
 
         Yields
@@ -213,6 +213,8 @@ class BlockModel(Model):
                 v = nbr.graphnode
                 if not self.graph.has_edge((u, v), directed=False):
                     contacts = element.contacts(nbr, tolerance=tolerance, minimum_area=minimum_area)
+                    # this is a hack
+                    contacts = [FrictionContact(size=contact.size, points=contact.points, frame=contact.frame) for contact in contacts]
                     if contacts:
                         self.graph.add_edge(u, v, contacts=contacts)
 

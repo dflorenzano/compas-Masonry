@@ -1,5 +1,5 @@
-from .contact import Contact
+from .contact import FrictionContact
 
 __all__ = [
-    "Contact",
+    "FrictionContact",
 ]
