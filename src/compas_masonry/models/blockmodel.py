@@ -2,12 +2,15 @@ from typing import Generator
 
 from compas.datastructures import Mesh
 from compas.geometry import Box
+from compas.geometry import Frame
 from compas.geometry import Polyhedron
+from compas.geometry import Transformation
 from compas_model.models import Model
 
 from compas_masonry.elements.block import BlockElement
 from compas_masonry.interactions import FrictionContact
-from compas_masonry.templates.template import Template
+from compas_masonry.templates import BarrelVaultTemplate
+from compas_masonry.templates import Template
 
 
 class BlockModel(Model):
@@ -117,9 +120,20 @@ class BlockModel(Model):
     # def from_arch(cls):
     #     raise NotImplementedError
 
-    # @classmethod
-    # def from_barrelvault(cls):
-    #     raise NotImplementedError
+    @classmethod
+    def from_barrelvault(cls, template: BarrelVaultTemplate):
+        """"""
+        model = cls()
+        for mesh in template.blocks():
+            origin = mesh.face_polygon(5).frame.point
+            frame = Frame(origin, mesh.vertex_point(0) - mesh.vertex_point(2), mesh.vertex_point(4) - mesh.vertex_point(2))
+            xform = Transformation.from_frame_to_frame(frame, Frame.worldXY())
+            mesh_xy: Mesh = mesh.transformed(xform)
+            block: BlockElement = BlockElement.from_mesh(mesh_xy)
+            block.is_support = mesh_xy.attributes["is_support"]
+            block.transformation = xform.inverted()
+            model.add_element(block)
+        return model
 
     # @classmethod
     # def from_crossvault(cls):
