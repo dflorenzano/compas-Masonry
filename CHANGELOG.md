@@ -20,3 +20,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Removed
+
+* Removed 'frame attribute from compas_masonry.elements.BlockElement'.
