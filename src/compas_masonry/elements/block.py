@@ -2,7 +2,6 @@ from typing import Optional
 
 from compas.datastructures import Mesh
 from compas.geometry import Box
-from compas.geometry import Frame
 from compas.geometry import Plane
 from compas.geometry import Point
 from compas.geometry import Polyhedron
@@ -164,11 +163,10 @@ class BlockElement(Element):
         shape: BlockMesh,
         features: Optional[list[BlockFeature]] = None,
         is_support: bool = False,
-        frame: Optional[Frame] = None,
         transformation: Optional[Transformation] = None,
         name: Optional[str] = None,
     ) -> None:
-        super().__init__(frame=frame, transformation=transformation, features=features, name=name)
+        super().__init__(transformation=transformation, features=features, name=name)
 
         self.shape = shape
         self.is_support = is_support
