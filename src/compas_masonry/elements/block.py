@@ -240,21 +240,21 @@ class BlockElement(Element):
         self._modelgeometry = geometry
         return geometry
 
-    def compute_aabb(self) -> Box:
+    def compute_aabb(self, inflate=None) -> Box:
         box = self.modelgeometry.aabb
-        if self.inflate_aabb and self.inflate_aabb != 1.0:
-            box.xsize += self.inflate_aabb
-            box.ysize += self.inflate_aabb
-            box.zsize += self.inflate_aabb
+        if inflate and inflate != 1.0:
+            box.xsize += inflate
+            box.ysize += inflate
+            box.zsize += inflate
         self._aabb = box
         return box
 
-    def compute_obb(self) -> Box:
+    def compute_obb(self, inflate=None) -> Box:
         box = self.modelgeometry.obb
-        if self.inflate_aabb and self.inflate_aabb != 1.0:
-            box.xsize += self.inflate_obb
-            box.ysize += self.inflate_obb
-            box.zsize += self.inflate_obb
+        if inflate and inflate != 1.0:
+            box.xsize += inflate
+            box.ysize += inflate
+            box.zsize += inflate
         self._obb = box
         return box
 
