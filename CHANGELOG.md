@@ -16,9 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Added `compas_masonry.templates.Template`.
 * Added `compas_masonry.templates.ArchTemplate`.
 * Added `compas_masonry.viewers.BlockModelViewer`.
+* Added `compas_masonry.materials.Material`.
+* Added `compas.masonry.materials.Stone`.
+
 
 ### Changed
+* Changed `compute_aabb and compute_obb in compas_masonry.elements.BlockElement`.
 
 ### Removed
 
-* Removed 'frame attribute from compas_masonry.elements.BlockElement'.
+* Removed `frame attribute from compas_masonry.elements.BlockElement`.
