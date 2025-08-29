@@ -1,6 +1,4 @@
 import math
-from typing import Optional
-from typing import Union
 
 from compas.colors import Color
 from compas.geometry import Cylinder
@@ -23,7 +21,7 @@ config = Config()
 def show_blocks():
     from compas_viewer import Viewer
 
-    viewer: DEMViewer = Viewer()  # type: ignore
+    viewer: MasonryViewer = Viewer()  # type: ignore
 
     viewer.groups["supports"].show = True
     viewer.groups["blocks"].show = True
