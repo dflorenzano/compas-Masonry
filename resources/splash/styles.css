@@ -1,0 +1,89 @@
+body{
+    font-family:  Helvetica;
+    color: lightgrey;
+    margin: 0;
+    padding: 0;
+    font-size: x-small;
+    font-weight: 100;
+    overflow: hidden;
+}
+
+img{
+    position: absolute;
+    left: 0;
+    width: 100%;
+    top: 0;
+    z-index: -100;
+    -webkit-app-region: drag;
+}
+
+#content{
+    /* margin: 3%; */
+    /* line-height: 1.5; */
+    width: 100%;
+    height: 100%;
+}
+
+
+a:link{
+
+    -webkit-app-region: no-drag;
+    top: 73%;
+    color: rgb(80, 80, 80);
+    text-decoration: none;
+}
+
+a:visited{
+    color: rgb(80, 80, 80);
+}
+
+
+#links{
+    position: absolute;
+    color: rgb(80, 80, 80);
+    top: 73%;
+    right: 5%;
+    text-align: right;
+    font-size: x-small;
+    /* margin-top: 30%; */
+}
+
+#terms{
+    position: absolute;
+    color: rgb(80, 80, 80);
+    top: 83%;
+    right: 5%;
+    font-size: x-small;
+}
+
+#terms a:link{
+    color: rgb(80, 80, 80);
+    text-decoration: underline;
+}
+
+#exit{
+    position: absolute;
+    right: 5%;
+    top: 5%;
+    -webkit-app-region: no-drag;
+    cursor: pointer;
+}
+
+#agree{
+    /* font-family: Arial; */
+    right: 5%;
+    text-align: right;
+    font-size: large;
+    font-weight: bolder;
+}
+
+#agree a:link{
+    text-decoration: none;
+}
+
+
+#version{
+    position: fixed;
+    left: 6%;
+    top: 52%;
+}

@@ -1,0 +1,67 @@
+#! python3
+# venv: brg-csd
+# r: compas_masonry
+
+import pathlib
+
+import rhinoscriptsyntax as rs  # type: ignore
+
+from compas_rui import feedback
+from compas_session.lazyload import LazyLoadSession as Session
+from compas_tna.diagrams import FormDiagram
+from compas_tno.analysis import Analysis
+
+
+def RunCommand():
+    session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
+
+    formdiagram = session["formdiagram"]
+    envelope = session["envelope"]
+
+    if not formdiagram:
+        feedback.warn("There is no FormDiagram")
+        return
+
+    if not envelope:
+        feedback.warn("There is no Envelope")
+        return
+
+    # =============================================================================
+    # Create an analysis
+    # =============================================================================
+
+    rs.GetString()
+
+    analysis = Analysis.create_minthrust_analysis(formdiagram, envelope)
+    analysis.apply_selfweight()
+    analysis.apply_envelope()
+    analysis.set_up_optimiser()
+    analysis.run()
+
+    # =============================================================================
+    # Update scene
+    # =============================================================================
+
+    rs.UnselectAllObjects()
+
+    formobject = session.scene.find_all_by_itemtype(FormDiagram)
+    if not formobject:
+        session.scene.add(formdiagram, name="FormDiagram", layer="Masonry::TNA::FormDiagram")  # type: ignore
+
+    session.scene.redraw()
+    rs.Redraw()
+
+    # =============================================================================
+    # Save
+    # =============================================================================
+
+    # if session.settings.autosave:
+    #     session.record(name="Analysis")
+
+
+# =============================================================================
+# Run as main
+# =============================================================================
+
+if __name__ == "__main__":
+    RunCommand()

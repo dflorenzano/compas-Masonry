@@ -1,0 +1,89 @@
+{
+  "host": {
+    "name": "Rhino3D",
+    "version": "8.22.25217\u002B12452",
+    "os": "macOS",
+    "arch": "arm64"
+  },
+  "id": "4384e04f-2997-429b-b3fc-53e7fe78703e",
+  "identity": {
+    "name": "COMPAS-Masonry",
+    "version": "0.1.9-beta",
+    "publisher": {
+      "email": "tom.v.mele@gmail.com",
+      "name": "Tom Van Mele",
+      "company": "Block Research Group",
+      "url": "https://brg.ethz.ch/"
+    },
+    "description": "COMPAS Masonry is a plugin for Rhino for the assessment of masonry structures. The current version of this plugin is based on COMPAS 2 and is available for Rhino 8.",
+    "copyright": "ETH Zurich - Block Research Group",
+    "license": "MIT",
+    "url": "https://blockresearchgroup.gitbook.io/compas-Masonry"
+  },
+  "settings": {
+    "buildPath": "build/",
+    "buildTarget": {
+      "host": {
+        "name": "Rhino3D",
+        "version": "8"
+      },
+      "title": "Rhino3D (8.*)",
+      "slug": "rh8"
+    },
+    "publishTarget": {
+      "title": "McNeel Yak Server"
+    }
+  },
+  "codes": [
+    {
+      "id": "f858a077-7398-4570-8c00-34bf29161ba3",
+      "language": {
+        "id": "*.*.python",
+        "version": "3.*.*"
+      },
+      "title": "Masonry",
+      "uri": "commands/Masonry.py"
+    },
+    {
+      "id": "312e6b4e-766e-4928-94a5-6711da712bd5",
+      "language": {
+        "id": "*.*.python",
+        "version": "3.*.*"
+      },
+      "title": "TNA_formdiagram",
+      "uri": "commands/TNA_formdiagram.py"
+    },
+    {
+      "id": "ab46f0b7-af18-45e7-9cd2-1a47cf7dc79c",
+      "language": {
+        "id": "*.*.python",
+        "version": "3.*.*"
+      },
+      "title": "TNA_envelope",
+      "uri": "commands/TNA_envelope.py"
+    },
+    {
+      "id": "b783b68a-141a-4b2c-a373-37699e641ae3",
+      "language": {
+        "id": "*.*.python",
+        "version": "3.*.*"
+      },
+      "title": "TNA_analysis",
+      "uri": "commands/TNA_analysis.py"
+    }
+  ],
+  "resources": [
+    {
+      "id": "728daaa2-2127-452e-8ed0-3f58f9fde535",
+      "uri": "resources/splash/index.html"
+    },
+    {
+      "id": "89c012f9-f5bf-486e-876f-57bf96bfed2f",
+      "uri": "resources/splash/styles.css"
+    },
+    {
+      "id": "29ed6bcb-168d-41a7-ad8d-eb613444c349",
+      "uri": "resources/splash/compas-RV.jpg"
+    }
+  ]
+}
