@@ -30,9 +30,37 @@ def RunCommand():
     # Create an analysis
     # =============================================================================
 
-    rs.GetString()
+    objective = rs.GetString(
+        message="Objective",
+        strings=[
+            "MinimumThrust",
+            "MinimumThickness",
+            "MaximumThrust",
+            "MaximumLoad",
+            "Bestfit",
+        ],
+    )
+    if not objective:
+        return
 
-    analysis = Analysis.create_minthrust_analysis(formdiagram, envelope)
+    if objective == "MinimumThrust":
+        analysis = Analysis.create_minthrust_analysis(formdiagram, envelope)
+
+    elif objective == "MinimumThickness":
+        analysis = Analysis.create_minthk_analysis(formdiagram, envelope)
+
+    elif objective == "MaximumThrust":
+        analysis = Analysis.create_maxthrust_analysis(formdiagram, envelope)
+
+    elif objective == "MaximumLoad":
+        analysis = Analysis.create_max_load_analysis(formdiagram, envelope)
+
+    elif objective == "Bestfit":
+        analysis = Analysis.create_bestfit_analysis(formdiagram, envelope)
+
+    else:
+        raise NotImplementedError
+
     analysis.apply_selfweight()
     analysis.apply_envelope()
     analysis.set_up_optimiser()
