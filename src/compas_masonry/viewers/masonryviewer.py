@@ -209,7 +209,7 @@ class MasonryViewer(Viewer):
         elif isinstance(object, FormDiagram):
             self.add_formdiagram(object)
         else:
-            super().add(object)
+            super().scene.add(object)
 
         return
 
@@ -245,6 +245,8 @@ class MasonryViewer(Viewer):
         self.groups["formdiagram"] = self.scene.add_group(name="FormDiagram")
         self.groups["diagram"] = self.scene.add_group(name="Diagram", parent=self.groups["formdiagram"])
         self.groups["TNA supports"] = self.scene.add_group(name="Diagram Supports", parent=self.groups["formdiagram"])
+        self.groups["diagram_mesh"] = self.scene.add_group(name="Diagram mesh", parent=self.groups["formdiagram"], show=False)
+
         self.groups["cracks"] = self.scene.add_group(name="Cracks", parent=self.groups["formdiagram"])
         self.groups["reactions"] = self.scene.add_group(name="Reactions", parent=self.groups["formdiagram"])
         self.groups["selfweight"] = self.scene.add_group(name="Selfweight", parent=self.groups["formdiagram"], show=False)
@@ -349,7 +351,8 @@ class MasonryViewer(Viewer):
                 color=self.form_color,  # type: ignore
                 opacity=self.thrust_opacity,
             )  # type: ignore
-        self.groups["form"] = grp
+
+        self.groups["diagram_mesh"].add(formdiagram, show_faces=True, show_lines=True)
 
     def add_cracks(self):
         """
