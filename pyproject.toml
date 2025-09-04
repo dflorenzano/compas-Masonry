@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "compas_masonry"
-description = "COMPAS Masonry is a Rhino plugin providing a masonry assessment toolbox based on the COMPAS framework."
+description = "COMPAS Masonry is a masonry assessment toolbox for Rhino based on the COMPAS framework."
 keywords = []
 authors = [{ name = "tom van mele", email = "tom.v.mele@gmail.com" }]
 license = { file = "LICENSE" }
@@ -35,6 +35,10 @@ Repository = "https://github.com/blockresearchgroup/compas_masonry"
 Changelog = "https://github.com/blockresearchgroup/compas_masonry/blob/main/CHANGELOG.md"
 Issues = "https://github.com/blockresearchgroup/compas_masonry/issues"
 Forum = "https://forum.compas-framework.org/"
+
+# ============================================================================
+# scripts
+# ============================================================================
 
 # ============================================================================
 # setuptools config
@@ -119,7 +123,12 @@ select = ["E", "F", "I"]
 [tool.ruff.lint.isort]
 force-single-line = true
 known-first-party = [
+    "compas",
+    "compas_session",
+    "compas_rui",
     "compas_masonry",
+    "compas_tna",
+    "compas_tno",
 ]
 
 [tool.ruff.lint.pydocstyle]

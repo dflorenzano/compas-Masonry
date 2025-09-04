@@ -1,5 +1,9 @@
-compas >= 2.4
-compas_assembly
-compas_model
-compas_rui
-compas_session
+cvxpy
+compas >=2.13
+compas_cgal >=0.9.1
+compas_dem >=0.3.3
+compas_libigl >=0.7.4
+compas_rui >=0.5.1
+compas_session >=0.5.5
+compas_tna >=0.5
+tessagon
