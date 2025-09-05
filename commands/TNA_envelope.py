@@ -6,7 +6,7 @@ import pathlib
 
 import rhinoscriptsyntax as rs  # type: ignore
 
-from compas_session.lazyload import LazyLoadSession as Session
+from compas_masonry.session import MasonrySession as Session
 from compas_tna.envelope import CrossVaultEnvelope
 from compas_tna.envelope import DomeEnvelope
 from compas_tna.envelope import Envelope

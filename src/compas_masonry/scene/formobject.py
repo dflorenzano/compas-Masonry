@@ -8,19 +8,19 @@ from compas.geometry import Line
 from compas.geometry import Vector
 from compas.scene.descriptors.color import ColorAttribute
 from compas.scene.descriptors.colordict import ColorDictAttribute
+from compas_masonry.session import MasonrySession as Session
 from compas_rui.scene import RUIMeshObject
-from compas_session.lazyload import LazyLoadSession as Session
 from compas_tna.diagrams import FormDiagram
 
 
 class RhinoFormDiagramObject(RUIMeshObject):
-    session = Session()
+    session: Session = Session()
 
-    vertexcolor = ColorDictAttribute(default=Color.purple())
-    edgecolor = ColorDictAttribute(default=Color.purple().darkened(50))
-    facecolor = ColorDictAttribute(default=Color.purple().lightened(25))
+    vertexcolor = ColorDictAttribute(default=Color.white())
+    edgecolor = ColorDictAttribute(default=Color.black())
+    facecolor = ColorDictAttribute(default=Color.white())
 
-    freecolor = ColorAttribute(default=Color.pink())
+    freecolor = ColorAttribute(default=Color.white())
     supportcolor = ColorAttribute(default=Color.red())
     fixedcolor = ColorAttribute(default=Color.cyan())
 
@@ -38,7 +38,7 @@ class RhinoFormDiagramObject(RUIMeshObject):
         disjoint=True,
         show_vertices=True,
         show_edges=True,
-        show_faces=True,
+        show_faces=False,
         vertexgroup="RhinoVAULT::FormDiagram::Vertices",
         edgegroup="RhinoVAULT::FormDiagram::Edges",
         facegroup="RhinoVAULT::FormDiagram::Faces",
@@ -46,14 +46,6 @@ class RhinoFormDiagramObject(RUIMeshObject):
         show_supports=True,
         show_fixed=True,
         show_free=False,
-        show_residuals=False,
-        show_reactions=False,
-        show_pipes=False,
-        show_loads=False,
-        scale_loads=1,
-        scale_pipes=1,
-        scale_reactions=1,
-        scale_residuals=1,
         loadgroup="RhinoVAULT::FormDiagram::Loads",
         selfweightgroup="RhinoVAULT::FormDiagram::Selfweight",
         forcegroup="RhinoVAULT::FormDiagram::Forces",
@@ -76,15 +68,6 @@ class RhinoFormDiagramObject(RUIMeshObject):
         self.show_supports = show_supports
         self.show_fixed = show_fixed
         self.show_free = show_free
-        self.show_residuals = show_residuals
-        self.show_reactions = show_reactions
-        self.show_pipes = show_pipes
-        self.show_loads = show_loads
-
-        self.scale_loads = scale_loads
-        self.scale_pipes = scale_pipes
-        self.scale_reactions = scale_reactions
-        self.scale_residuals = scale_residuals
 
         self.loadgroup = loadgroup
         self.selfweightgroup = selfweightgroup
@@ -152,10 +135,14 @@ class RhinoFormDiagramObject(RUIMeshObject):
         return list(self.diagram.faces_where(_is_loaded=True))  # type: ignore
 
     def forces(self) -> list[float]:
-        return self.diagram.edges_attribute("_f", keys=self.edges())  # type: ignore
+        Q = [self.diagram.edge_attribute(edge, "q") or 0.0 for edge in self.edges()]
+        L = [self.diagram.edge_length(edge) or 0.0 for edge in self.edges()]
+        return [q * l for q, l in zip(Q, L)]  # noqa: E741
 
     def edge_force(self, edge) -> float:
-        return self.diagram.edge_attribute(edge, "_f") or 0.0
+        q = self.diagram.edge_attribute(edge, "q") or 0.0
+        l = self.diagram.edge_length(edge) or 0.0  # noqa: E741
+        return q * l
 
     def compute_vertex_color(self, vertex) -> Color:
         if self.vertex_is_support(vertex):
@@ -231,14 +218,20 @@ class RhinoFormDiagramObject(RUIMeshObject):
 
         super().draw()
 
-        if self.show_reactions:
+        if self.session.settings.formdiagram.show_reactions:
             self.draw_reactions()
 
-        if self.show_residuals:
+        if self.session.settings.formdiagram.show_residuals:
             self.draw_residuals()
 
-        if self.show_pipes:
+        if self.session.settings.formdiagram.show_pipes:
             self.draw_pipes()
+
+        if self.session.settings.formdiagram.show_loads:
+            self.draw_loads()
+
+        if self.session.settings.formdiagram.show_selfweight:
+            self.draw_selfweight()
 
         return self.guids
 
@@ -303,10 +296,8 @@ class RhinoFormDiagramObject(RUIMeshObject):
         guids = []
 
         color = self.loadcolor
-        scale = 1.0
-        tol = 1e-3
-        # scale = self.session.settings.drawing.scale_loads
-        # tol = self.session.settings.drawing.tol_vectors
+        scale = self.session.settings.formdiagram.scale_loads
+        tol = self.session.settings.formdiagram.tol_vectors
 
         for vertex in self.diagram.vertices_where(is_support=False):
             load = self.vertex_load(vertex)
@@ -334,10 +325,8 @@ class RhinoFormDiagramObject(RUIMeshObject):
         guids = []
 
         color = self.selfweightcolor
-        scale = 1.0
-        tol = 1e-3
-        # scale = self.session.settings.drawing.scale_selfweight
-        # tol = self.session.settings.drawing.tol_vectors
+        scale = self.session.settings.formdiagram.scale_selfweight
+        tol = self.session.settings.formdiagram.tol_vectors
 
         for vertex in self.diagram.vertices_where(is_support=False):
             weight = self.vertex_weight(vertex)
@@ -363,10 +352,8 @@ class RhinoFormDiagramObject(RUIMeshObject):
     def draw_pipes(self):
         guids = []
 
-        scale = 1.0
-        tol = 1e-3
-        # scale = self.session.settings.drawing.scale_pipes
-        # tol = self.session.settings.drawing.tol_pipes
+        scale = self.session.settings.formdiagram.scale_pipes
+        tol = self.session.settings.formdiagram.tol_pipes
 
         pipe_colors = self.compute_pipe_colors()
 
@@ -378,12 +365,12 @@ class RhinoFormDiagramObject(RUIMeshObject):
                 radius = abs(force) * scale
 
                 color = self.compressioncolor
-                if self.session.settings.drawing.show_forces:
+                if self.session.settings.formdiagram.show_pipes:
                     color = pipe_colors[edge]
 
                 if radius > tol:
                     pipe = Cylinder.from_line_and_radius(line, radius)
-                    name = "{}.edge.{}.force".format(self.diagram.name, edge)
+                    name = f"{self.diagram.name}.edge.{edge}.force"
                     attr = self.compile_attributes(name=name, color=color)
                     guid = sc.doc.Objects.AddBrep(compas_rhino.conversions.cylinder_to_rhino_brep(pipe), attr)
                     guids.append(guid)
@@ -400,18 +387,16 @@ class RhinoFormDiagramObject(RUIMeshObject):
     def draw_reactions(self):
         guids = []
 
-        scale = 1e-3
-        tol = 1e-3
-        # scale = self.session.settings.drawing.scale_reactions
-        # tol = self.session.settings.drawing.tol_vectors
+        scale = self.session.settings.formdiagram.scale_reactions
+        tol = self.session.settings.formdiagram.tol_vectors
 
         for vertex in self.supports():
             residual = self.vertex_residual(vertex)
-            vector = residual * scale
+            vector = residual * -scale
 
             if vector.length > tol:
-                name = "{}.vertex.{}.reaction".format(self.diagram.name, vertex)
-                attr = self.compile_attributes(name=name, color=self.reactioncolor, arrow="start")
+                name = f"{self.diagram.name}.vertex.{vertex}.reaction"
+                attr = self.compile_attributes(name=name, color=self.reactioncolor, arrow="end")
                 point = self.diagram.vertex_point(vertex)
                 line = Line.from_point_and_vector(point, vector)
                 guid = sc.doc.Objects.AddLine(compas_rhino.conversions.line_to_rhino(line), attr)
@@ -429,17 +414,15 @@ class RhinoFormDiagramObject(RUIMeshObject):
     def draw_residuals(self):
         guids = []
 
-        scale = 1e-3
-        tol = 1e-3
-        # scale = self.session.settings.drawing.scale_residuals
-        # tol = self.session.settings.drawing.tol_vectors
+        scale = self.session.settings.formdiagram.scale_residuals
+        tol = self.session.settings.formdiagram.tol_vectors
 
         for vertex in self.diagram.vertices_where(is_support=False):
             residual = self.vertex_residual(vertex)
 
             vector = residual * scale
             if vector.length > tol:
-                name = "{}.vertex.{}.residual".format(self.diagram.name, vertex)
+                name = f"{self.diagram.name}.vertex.{vertex}.residual"
                 attr = self.compile_attributes(name=name, color=self.residualcolor, arrow="end")
                 point = self.diagram.vertex_point(vertex)
                 line = Line.from_point_and_vector(point, vector)

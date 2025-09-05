@@ -6,7 +6,7 @@ import pathlib
 
 import rhinoscriptsyntax as rs  # type: ignore
 
-from compas_session.lazyload import LazyLoadSession as Session
+from compas_masonry.session import MasonrySession as Session
 from compas_tna.diagrams import FormDiagram
 
 # Would be better to differentiate between an analysis using a known typology,
@@ -87,7 +87,7 @@ def RunCommand():
             return
         x_span = (0, xsize)
 
-        ysize = rs.GetReal("XSize", number=xsize, minimum=0)
+        ysize = rs.GetReal("YSize", number=xsize, minimum=0)
         if not ysize:
             return
         y_span = (0, ysize)
@@ -113,7 +113,7 @@ def RunCommand():
             return
         x_span = (0, xsize)
 
-        ysize = rs.GetReal("XSize", number=xsize, minimum=0)
+        ysize = rs.GetReal("YSize", number=xsize, minimum=0)
         if not ysize:
             return
         y_span = (0, ysize)

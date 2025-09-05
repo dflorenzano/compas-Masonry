@@ -1,5 +1,8 @@
 from compas_session.lazyload import LazyLoadSession
 
+from .settings import MasonrySettings
 
-class PluginSession(LazyLoadSession):
-    pass
+
+class MasonrySession(LazyLoadSession):
+    settingsclass = MasonrySettings
+    settings: MasonrySettings  # type: ignore

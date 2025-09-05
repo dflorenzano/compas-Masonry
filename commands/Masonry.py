@@ -7,8 +7,8 @@ import pathlib
 import Rhino  # type: ignore
 import System  # type: ignore
 
+from compas_masonry.session import MasonrySession as Session
 from compas_masonry.splash import SplashForm
-from compas_session.lazyload import LazyLoadSession as Session
 
 pluginfile = Rhino.PlugIns.PlugIn.PathFromId(System.Guid("a6dc4669-0e8e-40ea-8d71-b9b0f4764ec1"))
 shared = pathlib.Path(str(pluginfile)).parent / "shared"
