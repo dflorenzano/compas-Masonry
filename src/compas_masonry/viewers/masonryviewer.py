@@ -13,8 +13,6 @@ from compas.geometry import Point
 from compas.geometry import Vector
 from compas.geometry import bounding_box_xy
 from compas.scene import Group
-from compas_tna.diagrams import FormDiagram
-from compas_tna.envelope import Envelope
 
 config = Config()
 
@@ -285,7 +283,7 @@ class MasonryViewer(Viewer):
         if self.formdiagram is None:
             return
         else:
-            formdiagram: FormDiagram = self.formdiagram  # type: ignore
+            formdiagram = self.formdiagram  # type: ignore
 
         grp: Group = self.groups["diagram"]
 
@@ -323,7 +321,7 @@ class MasonryViewer(Viewer):
         if self.formdiagram is None:
             return
         else:
-            formdiagram: FormDiagram = self.formdiagram  # type: ignore
+            formdiagram = self.formdiagram  # type: ignore
 
         grp: Group = self.groups["cracks"]
 
@@ -358,7 +356,7 @@ class MasonryViewer(Viewer):
         if self.formdiagram is None:
             return
         else:
-            formdiagram: FormDiagram = self.formdiagram  # type: ignore
+            formdiagram = self.formdiagram  # type: ignore
 
         grp: Group = self.groups["reactions"]
 
@@ -418,7 +416,7 @@ class MasonryViewer(Viewer):
         if self.formdiagram is None:
             return
         else:
-            formdiagram: FormDiagram = self.formdiagram  # type: ignore
+            formdiagram = self.formdiagram  # type: ignore
 
         grp: Group = self.groups["TNA supports"]
 
@@ -442,7 +440,7 @@ class MasonryViewer(Viewer):
         if self.formdiagram is None:
             return
         else:
-            formdiagram: FormDiagram = self.formdiagram  # type: ignore
+            formdiagram = self.formdiagram  # type: ignore
 
         grp: Group = self.groups["cracks"]
 
@@ -476,7 +474,7 @@ class MasonryViewer(Viewer):
     def add_envelope(self):
         if self.envelope is None:
             return
-        envelope: Envelope = self.envelope
+        envelope = self.envelope
 
         if envelope.intrados is not None:
             parent: Group = self.groups["intrados"]
@@ -524,7 +522,7 @@ class MasonryViewer(Viewer):
         if self.formdiagram is None:
             return
         else:
-            formdiagram: FormDiagram = self.formdiagram  # type: ignore
+            formdiagram = self.formdiagram  # type: ignore
 
         grp: Group = self.groups["selfweight"]
 
@@ -575,7 +573,7 @@ class MasonryViewer(Viewer):
         if self.formdiagram is None:
             return
         else:
-            formdiagram: FormDiagram = self.formdiagram  # type: ignore
+            formdiagram = self.formdiagram  # type: ignore
 
         grp: Group = self.groups["envelope_limits"]
 
