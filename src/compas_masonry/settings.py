@@ -20,6 +20,18 @@ class FormDiagramSettings(BaseModel):
     tol_pipes: float = 1e-2
 
 
+class EnvelopeSettings(BaseModel):
+    pass
+
+
+class TNOSettings(BaseModel):
+    pass
+
+
+class ModelSettings(BaseModel):
+    pass
+
+
 class MasonrySettings(Settings):
     autoupdate: bool = False
     autosave: bool = True
