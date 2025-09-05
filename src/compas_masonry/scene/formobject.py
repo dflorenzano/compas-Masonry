@@ -20,7 +20,7 @@ class RhinoFormDiagramObject(RUIMeshObject):
     edgecolor = ColorDictAttribute(default=Color.purple().darkened(50))
     facecolor = ColorDictAttribute(default=Color.purple().lightened(25))
 
-    freecolor = ColorAttribute(default=Color.white())
+    freecolor = ColorAttribute(default=Color.pink())
     supportcolor = ColorAttribute(default=Color.red())
     fixedcolor = ColorAttribute(default=Color.cyan())
 
@@ -35,23 +35,37 @@ class RhinoFormDiagramObject(RUIMeshObject):
 
     def __init__(
         self,
-        show_supports=True,
-        show_fixed=True,
-        show_free=False,
+        disjoint=True,
+        show_vertices=True,
+        show_edges=True,
+        show_faces=True,
         vertexgroup="RhinoVAULT::FormDiagram::Vertices",
         edgegroup="RhinoVAULT::FormDiagram::Edges",
         facegroup="RhinoVAULT::FormDiagram::Faces",
+        layer="RhinoVAULT::FormDiagram",
+        show_supports=True,
+        show_fixed=True,
+        show_free=False,
+        show_residuals=False,
+        show_reactions=False,
+        show_pipes=False,
+        show_loads=False,
+        scale_loads=1,
+        scale_pipes=1,
+        scale_reactions=1,
+        scale_residuals=1,
         loadgroup="RhinoVAULT::FormDiagram::Loads",
         selfweightgroup="RhinoVAULT::FormDiagram::Selfweight",
         forcegroup="RhinoVAULT::FormDiagram::Forces",
         reactiongroup="RhinoVAULT::FormDiagram::Reactions",
         residualgroup="RhinoVAULT::FormDiagram::Residuals",
-        layer="RhinoVAULT::FormDiagram",
-        disjoint=True,
         **kwargs,
     ):
         super().__init__(
             disjoint=disjoint,
+            show_vertices=show_vertices,
+            show_edges=show_edges,
+            show_faces=show_faces,
             vertexgroup=vertexgroup,
             edgegroup=edgegroup,
             facegroup=facegroup,
@@ -59,11 +73,19 @@ class RhinoFormDiagramObject(RUIMeshObject):
             **kwargs,
         )
 
-        self.show_faces = True
-        self.show_edges = False
         self.show_supports = show_supports
         self.show_fixed = show_fixed
         self.show_free = show_free
+        self.show_residuals = show_residuals
+        self.show_reactions = show_reactions
+        self.show_pipes = show_pipes
+        self.show_loads = show_loads
+
+        self.scale_loads = scale_loads
+        self.scale_pipes = scale_pipes
+        self.scale_reactions = scale_reactions
+        self.scale_residuals = scale_residuals
+
         self.loadgroup = loadgroup
         self.selfweightgroup = selfweightgroup
         self.forcegroup = forcegroup
@@ -208,6 +230,15 @@ class RhinoFormDiagramObject(RUIMeshObject):
             self.vertexcolor[vertex] = self.compute_vertex_color(vertex)
 
         super().draw()
+
+        if self.show_reactions:
+            self.draw_reactions()
+
+        if self.show_residuals:
+            self.draw_residuals()
+
+        if self.show_pipes:
+            self.draw_pipes()
 
         return self.guids
 
@@ -369,8 +400,10 @@ class RhinoFormDiagramObject(RUIMeshObject):
     def draw_reactions(self):
         guids = []
 
-        scale = self.session.settings.drawing.scale_reactions
-        tol = self.session.settings.drawing.tol_vectors
+        scale = 1e-3
+        tol = 1e-3
+        # scale = self.session.settings.drawing.scale_reactions
+        # tol = self.session.settings.drawing.tol_vectors
 
         for vertex in self.supports():
             residual = self.vertex_residual(vertex)
@@ -396,8 +429,10 @@ class RhinoFormDiagramObject(RUIMeshObject):
     def draw_residuals(self):
         guids = []
 
-        scale = self.session.settings.drawing.scale_residuals
-        tol = self.session.settings.drawing.tol_vectors
+        scale = 1e-3
+        tol = 1e-3
+        # scale = self.session.settings.drawing.scale_residuals
+        # tol = self.session.settings.drawing.tol_vectors
 
         for vertex in self.diagram.vertices_where(is_support=False):
             residual = self.vertex_residual(vertex)
