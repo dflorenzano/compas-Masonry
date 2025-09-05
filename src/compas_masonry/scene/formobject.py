@@ -1,3 +1,5 @@
+from math import sqrt
+
 import compas_rhino.conversions
 import rhinoscriptsyntax as rs  # type: ignore
 import scriptcontext as sc  # type: ignore
@@ -355,18 +357,18 @@ class RhinoFormDiagramObject(RUIMeshObject):
         scale = self.session.settings.formdiagram.scale_pipes
         tol = self.session.settings.formdiagram.tol_pipes
 
-        pipe_colors = self.compute_pipe_colors()
+        # pipe_colors = self.compute_pipe_colors()
 
         for edge in self.edges():
             force = self.edge_force(edge)
 
             if force:
                 line = self.diagram.edge_line(edge)
-                radius = abs(force) * scale
+                radius = sqrt(abs(force)) * scale
 
                 color = self.compressioncolor
-                if self.session.settings.formdiagram.show_pipes:
-                    color = pipe_colors[edge]
+                # if self.session.settings.formdiagram.show_pipes:
+                #     color = pipe_colors[edge]
 
                 if radius > tol:
                     pipe = Cylinder.from_line_and_radius(line, radius)
