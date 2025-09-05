@@ -1,5 +1,11 @@
 import math
 
+from compas_dem.models import BlockModel
+from compas_viewer.config import Config
+from compas_viewer.config import MenubarConfig
+from compas_viewer.scene import ViewerSceneObject
+from compas_viewer.viewer import Viewer
+
 from compas.colors import Color
 from compas.geometry import Cylinder
 from compas.geometry import Line
@@ -7,13 +13,8 @@ from compas.geometry import Point
 from compas.geometry import Vector
 from compas.geometry import bounding_box_xy
 from compas.scene import Group
-from compas_dem.models import BlockModel
 from compas_tna.diagrams import FormDiagram
 from compas_tna.envelope import Envelope
-from compas_viewer.config import Config
-from compas_viewer.config import MenubarConfig
-from compas_viewer.scene import ViewerSceneObject
-from compas_viewer.viewer import Viewer
 
 config = Config()
 
@@ -138,58 +139,27 @@ class MasonryViewer(Viewer):
     reaction_color: Color = Color.orange()
     reaction_opacity: float = 0.8
 
-    def __init__(self, model=None, config=config):
+    def __init__(self, blockmodel=None, formdiagram=None, envelope=None, config=config):
         super().__init__(config=config)
-        self.blockmodel = None
-        self.envelope = None
-        self.formdiagram = None
+        self.blockmodel = blockmodel
+        self.envelope = envelope
+        self.formdiagram = formdiagram
         self.groups = {}
-
-        # Auto-detect model type and assign to appropriate attribute
-        if model is not None:
-            if isinstance(model, BlockModel):
-                self.blockmodel = model
-            elif isinstance(model, Envelope):
-                self.envelope = model
-            elif isinstance(model, FormDiagram):
-                self.formdiagram = model
-            else:
-                raise TypeError(f"Model must be either BlockModel, Envelope or FormDiagram, got {type(model).__name__}")
-
-    def add_model(self, model):
-        """Add an additional model to the viewer.
-
-        Parameters
-        ----------
-        model : BlockModel, Envelope or FormDiagram
-            The model to add to the viewer.
-        """
-        if isinstance(model, BlockModel):
-            if self.blockmodel is not None:
-                print("Warning: BlockModel already exists, replacing it.")
-            self.blockmodel = model
-        elif isinstance(model, Envelope):
-            if self.envelope is not None:
-                print("Warning: Envelope already exists, replacing it.")
-            self.envelope = model
-        elif isinstance(model, FormDiagram):
-            if self.formdiagram is not None:
-                print("Warning: FormDiagram already exists, replacing it.")
-            self.formdiagram = model
-        else:
-            raise TypeError(f"Model must be either BlockModel, Envelope or FormDiagram, got {type(model).__name__}")
 
     def setup(self):
         if self.blockmodel is not None:
+            self.setup_blockmodel()
             self.add_supports()
             self.add_blocks()
             self.add_contacts()
             self.add_graph()
 
         if self.envelope is not None:
-            self.add_envelope_meshes()
+            self.setup_envelope()
+            self.add_envelope()
 
         if self.formdiagram is not None:
+            self.setup_formdiagram()
             self.add_form()
             self.add_cracks()
             self.add_reactions()
@@ -201,19 +171,7 @@ class MasonryViewer(Viewer):
     # Add elements
     # =============================================================================
 
-    def add(self, object):
-        if isinstance(object, BlockModel):
-            self.add_blockmodel(object)
-        elif isinstance(object, Envelope):
-            self.add_envelope(object)
-        elif isinstance(object, FormDiagram):
-            self.add_formdiagram(object)
-        else:
-            super().scene.add(object)
-
-        return
-
-    def add_envelope(self, envelope: Envelope):
+    def setup_envelope(self):
         """Add an envelope to the viewer.
 
         Parameters
@@ -221,16 +179,16 @@ class MasonryViewer(Viewer):
         envelope : Envelope
             The envelope to add to the viewer.
         """
-        if envelope is None:
+        if self.envelope is None:
             return
-        self.envelope = envelope
 
         self.groups["envelope"] = self.scene.add_group(name="Envelope")
         self.groups["intrados"] = self.scene.add_group(name="Intrados", parent=self.groups["envelope"])
         self.groups["extrados"] = self.scene.add_group(name="Extrados", parent=self.groups["envelope"])
         self.groups["middle"] = self.scene.add_group(name="Middle", parent=self.groups["envelope"])
+        self.groups["fill"] = self.scene.add_group(name="Fill", parent=self.groups["envelope"])
 
-    def add_formdiagram(self, formdiagram: FormDiagram):
+    def setup_formdiagram(self):
         """Add a form diagram to the viewer.
 
         Parameters
@@ -238,9 +196,8 @@ class MasonryViewer(Viewer):
         formdiagram : FormDiagram
             The form diagram to add to the viewer.
         """
-        if formdiagram is None:
+        if self.formdiagram is None:
             return
-        self.formdiagram = formdiagram
 
         self.groups["formdiagram"] = self.scene.add_group(name="FormDiagram")
         self.groups["diagram"] = self.scene.add_group(name="Diagram", parent=self.groups["formdiagram"])
@@ -252,7 +209,7 @@ class MasonryViewer(Viewer):
         self.groups["selfweight"] = self.scene.add_group(name="Selfweight", parent=self.groups["formdiagram"], show=False)
         self.groups["envelope_limits"] = self.scene.add_group(name="Envelope limits", parent=self.groups["formdiagram"], show=False)
 
-    def add_blockmodel(self, blockmodel: BlockModel):
+    def setup_blockmodel(self):
         """Add a block model to the viewer.
 
         Parameters
@@ -260,9 +217,8 @@ class MasonryViewer(Viewer):
         blockmodel : BlockModel
             The block model to add to the viewer.
         """
-        if blockmodel is None:
+        if self.blockmodel is None:
             return
-        self.blockmodel = blockmodel
 
         self.groups["blockmodel"] = self.scene.add_group(name="BlockModel")
         self.groups["supports"] = self.scene.add_group(name="Supports", parent=self.groups["blockmodel"])
@@ -469,7 +425,7 @@ class MasonryViewer(Viewer):
         supports = formdiagram.vertices_where(is_support=True)
         for vkey in supports:
             x, y, z = formdiagram.vertex_coordinates(vkey)
-            grp.add(Point(x, y, z), name=f"TNA support_{vkey}", pointsize=self.crack_size * 2, pointcolor=self.supportcolor, opacity=0.95)
+            grp.add(Point(x, y, z), name=f"TNA support_{vkey}", pointsize=self.crack_size * 1.5, pointcolor=self.supportcolor, opacity=0.95)
 
         self.groups["TNA supports"] = grp
 
@@ -517,34 +473,46 @@ class MasonryViewer(Viewer):
             return
         self.scene.add(forcediagram, show_faces=False, show_lines=True)
 
-    def add_envelope_meshes(self):
+    def add_envelope(self):
         if self.envelope is None:
             return
+        envelope: Envelope = self.envelope
 
-        if self.envelope.intrados is not None:
+        if envelope.intrados is not None:
             parent: Group = self.groups["intrados"]
             parent.add(
-                self.envelope.intrados,  # type: ignore
+                envelope.intrados,  # type: ignore
                 facecolor=self.surfacecolor,  # type: ignore
                 edgecolor=self.surfacecolor.darkened(30),
                 linewidth=self.surface_linewidth,
                 opacity=0.8,  # type: ignore
             )
 
-        if self.envelope.extrados is not None:
+        if envelope.extrados is not None:
             parent: Group = self.groups["extrados"]
             parent.add(
-                self.envelope.extrados,  # type: ignore
+                envelope.extrados,  # type: ignore
                 facecolor=self.surfacecolor,  # type: ignore
                 edgecolor=self.surfacecolor.darkened(30),
                 linewidth=self.surface_linewidth,
                 opacity=0.8,  # type: ignore
             )
 
-        if self.envelope.middle is not None:
+        if envelope.middle is not None:
             parent: Group = self.groups["middle"]
             parent.add(
-                self.envelope.middle,  # type: ignore
+                envelope.middle,  # type: ignore
+                facecolor=self.surfacecolor,  # type: ignore
+                edgecolor=self.surfacecolor.darkened(30),
+                linewidth=self.surface_linewidth,
+                opacity=0.8,  # type: ignore
+            )
+            parent.show = False
+
+        if envelope.fill is not None:
+            parent: Group = self.groups["fill"]
+            parent.add(
+                envelope.fill,  # type: ignore
                 facecolor=self.surfacecolor,  # type: ignore
                 edgecolor=self.surfacecolor.darkened(30),
                 linewidth=self.surface_linewidth,
