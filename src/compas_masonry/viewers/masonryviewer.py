@@ -1,6 +1,5 @@
 import math
 
-from compas_dem.models import BlockModel
 from compas_viewer.config import Config
 from compas_viewer.config import MenubarConfig
 from compas_viewer.scene import ViewerSceneObject
