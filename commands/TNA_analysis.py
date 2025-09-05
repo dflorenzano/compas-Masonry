@@ -10,6 +10,7 @@ from compas_rui import feedback
 from compas_session.lazyload import LazyLoadSession as Session
 from compas_tna.diagrams import FormDiagram
 from compas_tno.analysis import Analysis
+from compas_masonry.scene import RhinoFormDiagramObject
 
 
 def RunCommand():
@@ -72,11 +73,13 @@ def RunCommand():
 
     rs.UnselectAllObjects()
 
-    formobject = session.scene.find_all_by_itemtype(FormDiagram)
+    formobject: RhinoFormDiagramObject = session.scene.find_by_itemtype(FormDiagram)  # type: ignore
     if not formobject:
         session.scene.add(formdiagram, name="FormDiagram", layer="Masonry::TNA::FormDiagram")  # type: ignore
 
-    session.scene.redraw()
+    formobject.show_reactions = True
+    formobject.redraw()
+
     rs.Redraw()
 
     # =============================================================================

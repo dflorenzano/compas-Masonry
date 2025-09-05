@@ -144,7 +144,7 @@ def RunCommand():
             return
         x_span = (0, xsize)
 
-        ysize = rs.GetReal("XSize", number=xsize, minimum=0)
+        ysize = rs.GetReal("YSize", number=xsize, minimum=0)
         if not ysize:
             return
         y_span = (0, ysize)
@@ -183,7 +183,6 @@ def RunCommand():
 
     session.scene.add(formdiagram, name="FormDiagram", layer="Masonry::TNA::FormDiagram")  # type: ignore
     session.scene.redraw()
-
     rs.Redraw()
 
     # =============================================================================

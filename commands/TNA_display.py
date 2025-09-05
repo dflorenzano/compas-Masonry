@@ -13,6 +13,9 @@ from compas_session.lazyload import LazyLoadSession as Session
 def RunCommand():
     session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
+    # reaction forces
+    #
+
 
 # =============================================================================
 # Run as main
