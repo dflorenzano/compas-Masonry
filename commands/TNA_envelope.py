@@ -29,17 +29,10 @@ def RunCommand():
     envelope = None
 
     # =============================================================================
-    # Arch
-    # =============================================================================
-
-    if session["params"]["formdiagram"] == "arch":
-        raise NotImplementedError
-
-    # =============================================================================
     # Dome
     # =============================================================================
 
-    elif session["params"]["formdiagram"] == "circular_radial":
+    if session["params"]["formdiagram"] == "circular":
         center = session["params"]["center"]
         radius = session["params"]["radius"]
         n_hoops = session["params"]["n_hoops"]
@@ -64,7 +57,51 @@ def RunCommand():
     # =============================================================================
 
     elif session["params"]["formdiagram"] == "cross":
-        envelope = CrossVaultEnvelope()
+        x_span = session["params"]["x_span"]
+        y_span = session["params"]["y_span"]
+        n = session["params"]["n"]
+
+        thickness = rs.GetReal("Thickness", 0.5, 0.0, 100)
+        if not thickness:
+            return
+
+        envelope = CrossVaultEnvelope(
+            x_span=x_span,
+            y_span=y_span,
+            thickness=thickness,
+            n=n,
+        )
+
+    # =============================================================================
+    # Fan
+    # =============================================================================
+
+    elif session["params"]["formdiagram"] == "fan":
+        x_span = session["params"]["x_span"]
+        y_span = session["params"]["y_span"]
+        n_fans = session["params"]["n_fans"]
+        n_hoops = session["params"]["n_hoops"]
+
+        raise NotImplementedError
+
+    # =============================================================================
+    # Ortho
+    # =============================================================================
+
+    elif session["params"]["formdiagram"] == "ortho":
+        x_span = session["params"]["x_span"]
+        y_span = session["params"]["y_span"]
+        nx = session["params"]["nx"]
+        ny = session["params"]["ny"]
+
+        raise NotImplementedError
+
+    # =============================================================================
+    # Not supported
+    # =============================================================================
+
+    else:
+        raise NotImplementedError
 
     # =============================================================================
     # Update scene

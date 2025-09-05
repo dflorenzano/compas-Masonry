@@ -10,6 +10,7 @@ from compas_rui import feedback
 from compas_session.lazyload import LazyLoadSession as Session
 from compas_tna.diagrams import FormDiagram
 from compas_tno.analysis import Analysis
+from compas_masonry.scene import RhinoFormDiagramObject
 
 
 def RunCommand():
@@ -30,9 +31,37 @@ def RunCommand():
     # Create an analysis
     # =============================================================================
 
-    rs.GetString()
+    objective = rs.GetString(
+        message="Objective",
+        strings=[
+            "MinimumThrust",
+            "MinimumThickness",
+            "MaximumThrust",
+            "MaximumLoad",
+            "Bestfit",
+        ],
+    )
+    if not objective:
+        return
 
-    analysis = Analysis.create_minthrust_analysis(formdiagram, envelope)
+    if objective == "MinimumThrust":
+        analysis = Analysis.create_minthrust_analysis(formdiagram, envelope)
+
+    elif objective == "MinimumThickness":
+        analysis = Analysis.create_minthk_analysis(formdiagram, envelope)
+
+    elif objective == "MaximumThrust":
+        analysis = Analysis.create_maxthrust_analysis(formdiagram, envelope)
+
+    elif objective == "MaximumLoad":
+        analysis = Analysis.create_max_load_analysis(formdiagram, envelope)
+
+    elif objective == "Bestfit":
+        analysis = Analysis.create_bestfit_analysis(formdiagram, envelope)
+
+    else:
+        raise NotImplementedError
+
     analysis.apply_selfweight()
     analysis.apply_envelope()
     analysis.set_up_optimiser()
@@ -44,11 +73,13 @@ def RunCommand():
 
     rs.UnselectAllObjects()
 
-    formobject = session.scene.find_all_by_itemtype(FormDiagram)
+    formobject: RhinoFormDiagramObject = session.scene.find_by_itemtype(FormDiagram)  # type: ignore
     if not formobject:
         session.scene.add(formdiagram, name="FormDiagram", layer="Masonry::TNA::FormDiagram")  # type: ignore
 
-    session.scene.redraw()
+    formobject.show_reactions = True
+    formobject.redraw()
+
     rs.Redraw()
 
     # =============================================================================
