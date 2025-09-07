@@ -15,7 +15,10 @@ shared = pathlib.Path(str(pluginfile)).parent / "shared"
 
 
 def RunCommand():
-    session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
+    Session.delete_instance()
+    basedir = pathlib.Path().home() / ".compas_session"
+    session = Session(basedir=basedir, name="COMPAS-Masonry")
+
     print(session.basedir)
 
     form = SplashForm(title="COMPAS Masonry", url=str(shared / "index.html"))
