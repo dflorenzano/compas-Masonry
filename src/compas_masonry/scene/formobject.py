@@ -1,13 +1,14 @@
 from math import sqrt
 from typing import Optional
 
-import compas_rhino.conversions
 import rhinoscriptsyntax as rs  # type: ignore
 import scriptcontext as sc  # type: ignore
 
+import compas_rhino.conversions
 from compas.colors import Color
 from compas.geometry import Cylinder
 from compas.geometry import Line
+from compas.geometry import Sphere
 from compas.geometry import Vector
 from compas.scene.descriptors.color import ColorAttribute
 from compas.scene.descriptors.colordict import ColorDictAttribute
@@ -152,6 +153,20 @@ class RhinoFormDiagramObject(RUIMeshObject):
             b.z = lb
             return Line(a, b)
 
+    def vertex_is_on_upper_bound(self, vertex, tol=1e-6) -> bool:
+        ub = self.diagram.vertex_attribute(vertex, "ub")
+        if ub is None:
+            return False
+        point = self.diagram.vertex_point(vertex)
+        return abs(point.z - ub) < tol
+
+    def vertex_is_on_lower_bound(self, vertex, tol=1e-6) -> bool:
+        lb = self.diagram.vertex_attribute(vertex, "lb")
+        if lb is None:
+            return False
+        point = self.diagram.vertex_point(vertex)
+        return abs(point.z - lb) < tol
+
     def forces(self) -> list[float]:
         Q = [self.diagram.edge_attribute(edge, "q") or 0.0 for edge in self.edges()]
         L = [self.diagram.edge_length(edge) or 0.0 for edge in self.edges()]
@@ -228,6 +243,9 @@ class RhinoFormDiagramObject(RUIMeshObject):
 
     def vertex_bound_name(self, vertex) -> str:
         return f"{self.diagram.name}.vertex.{vertex}.bound"
+
+    def vertex_crack_name(self, vertex) -> str:
+        return f"{self.diagram.name}.vertex.{vertex}.crack"
 
     def edge_pipe_name(self, edge) -> str:
         return f"{self.diagram.name}.edge.{edge}.pipe"
@@ -477,6 +495,10 @@ class RhinoFormDiagramObject(RUIMeshObject):
                 attr = self.compile_attributes(name=name, color=self.boundscolor)
                 guid = sc.doc.Objects.AddLine(compas_rhino.conversions.line_to_rhino(bound), attr)
                 guids.append(guid)
+                guid = sc.doc.Objects.AddPoint(compas_rhino.conversions.point_to_rhino(bound.start), attr)
+                guids.append(guid)
+                guid = sc.doc.Objects.AddPoint(compas_rhino.conversions.point_to_rhino(bound.end), attr)
+                guids.append(guid)
 
         if guids:
             if self.boundsgroup:
@@ -491,4 +513,20 @@ class RhinoFormDiagramObject(RUIMeshObject):
         guids = []
 
         for vertex in self.vertices():
-            pass
+            if self.vertex_is_on_lower_bound(vertex) or self.vertex_is_on_upper_bound(vertex):
+                point = self.diagram.vertex_point(vertex)
+                radius = self.session.settings.formdiagram.crack_radius
+                sphere = Sphere(radius, point=point)
+                name = self.vertex_crack_name(vertex)
+                attr = self.compile_attributes(name=name, color=self.crackcolor)
+                guid = sc.doc.Objects.AddSphere(compas_rhino.conversions.sphere_to_rhino(sphere), attr)
+                guids.append(guid)
+
+        if guids:
+            if self.crackgroup:
+                self.add_to_group(self.crackgroup, guids)
+            elif self.group:
+                self.add_to_group(self.group, guids)
+
+        self._guids += guids
+        return guids

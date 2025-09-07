@@ -1,14 +1,14 @@
 from typing import Optional
 
 import scriptcontext as sc  # type: ignore
-from compas_rhino.conversions import transformation_to_rhino
-from compas_rhino.conversions import vertices_and_faces_to_rhino
-from compas_rhino.scene import RhinoSceneObject
 
 from compas.colors import Color
 from compas.datastructures import Mesh
 from compas.scene.descriptors.color import ColorAttribute
 from compas_masonry.session import MasonrySession as Session
+from compas_rhino.conversions import transformation_to_rhino
+from compas_rhino.conversions import vertices_and_faces_to_rhino
+from compas_rhino.scene import RhinoSceneObject
 from compas_tna.envelope import Envelope
 
 
