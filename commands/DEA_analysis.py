@@ -2,7 +2,6 @@
 # venv: brg-csd
 # r: compas_masonry
 
-import rhinoscriptsyntax as rs  # type: ignore
 
 from compas_masonry.session import MasonrySession as Session
 
