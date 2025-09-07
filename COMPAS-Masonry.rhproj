@@ -8,7 +8,7 @@
   "id": "4384e04f-2997-429b-b3fc-53e7fe78703e",
   "identity": {
     "name": "COMPAS-Masonry",
-    "version": "0.1.19-beta",
+    "version": "0.1.22-beta",
     "publisher": {
       "email": "tom.v.mele@gmail.com",
       "name": "Tom Van Mele",
@@ -79,6 +79,42 @@
       },
       "title": "TNA_settings",
       "uri": "commands/TNA_settings.py"
+    },
+    {
+      "id": "21f1413c-c463-4cec-8675-b48b63aaf1ff",
+      "language": {
+        "id": "*.*.python",
+        "version": "3.*.*"
+      },
+      "title": "DEA_analysis",
+      "uri": "commands/DEA_analysis.py"
+    },
+    {
+      "id": "2c5dfbe0-ce3e-4ff3-ad6b-93e48c5b04d7",
+      "language": {
+        "id": "*.*.python",
+        "version": "3.*.*"
+      },
+      "title": "DEA_contacts",
+      "uri": "commands/DEA_contacts.py"
+    },
+    {
+      "id": "bd67ca9a-5f12-4389-828a-927f3a046a06",
+      "language": {
+        "id": "*.*.python",
+        "version": "3.*.*"
+      },
+      "title": "DEA_model",
+      "uri": "commands/DEA_model.py"
+    },
+    {
+      "id": "5121a02a-7bab-4579-9296-0d9e52df7658",
+      "language": {
+        "id": "*.*.python",
+        "version": "3.*.*"
+      },
+      "title": "DEA_settings",
+      "uri": "commands/DEA_settings.py"
     }
   ],
   "resources": [
