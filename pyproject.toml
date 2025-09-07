@@ -130,6 +130,7 @@ known-first-party = [
   "compas_tna",
   "compas_tno",
   "compas_dem",
+  "compas_rhino",
 ]
 
 [tool.ruff.lint.pydocstyle]
