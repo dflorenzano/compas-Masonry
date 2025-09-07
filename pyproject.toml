@@ -16,16 +16,16 @@ readme = "README.md"
 requires-python = ">=3.9"
 dynamic = ['dependencies', 'optional-dependencies', 'version']
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Topic :: Scientific/Engineering",
-    "Operating System :: Unix",
-    "Operating System :: POSIX",
-    "Operating System :: Microsoft :: Windows",
-    "Programming Language :: Python",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
+  "Development Status :: 4 - Beta",
+  "Topic :: Scientific/Engineering",
+  "Operating System :: Unix",
+  "Operating System :: POSIX",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
 ]
 
 [project.urls]
@@ -66,18 +66,18 @@ minversion = "6.0"
 testpaths = ["tests", "src/compas_masonry"]
 python_files = ["test_*.py", "*_test.py", "test.py"]
 addopts = [
-    "-ra",
-    "--strict-markers",
-    "--doctest-glob=*.rst",
-    "--tb=short",
-    "--import-mode=importlib",
+  "-ra",
+  "--strict-markers",
+  "--doctest-glob=*.rst",
+  "--tb=short",
+  "--import-mode=importlib",
 ]
 doctest_optionflags = [
-    "NORMALIZE_WHITESPACE",
-    "IGNORE_EXCEPTION_DETAIL",
-    "ALLOW_UNICODE",
-    "ALLOW_BYTES",
-    "NUMBER",
+  "NORMALIZE_WHITESPACE",
+  "IGNORE_EXCEPTION_DETAIL",
+  "ALLOW_UNICODE",
+  "ALLOW_BYTES",
+  "NUMBER",
 ]
 
 # ============================================================================
@@ -123,12 +123,13 @@ select = ["E", "F", "I"]
 [tool.ruff.lint.isort]
 force-single-line = true
 known-first-party = [
-    "compas",
-    "compas_session",
-    "compas_rui",
-    "compas_masonry",
-    "compas_tna",
-    "compas_tno",
+  "compas",
+  "compas_session",
+  "compas_rui",
+  "compas_masonry",
+  "compas_tna",
+  "compas_tno",
+  "compas_dem",
 ]
 
 [tool.ruff.lint.pydocstyle]
