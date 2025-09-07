@@ -2,8 +2,6 @@
 # venv: brg-csd
 # r: compas_masonry
 
-import pathlib
-
 import rhinoscriptsyntax as rs  # type: ignore
 from pydantic import BaseModel
 
@@ -25,10 +23,15 @@ def update_settings(model, title):
             setattr(model, name, value)
 
 
-def RunCommand():
-    session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
+# =============================================================================
+# Command
+# =============================================================================
 
-    options = ["Masonry", "Model"]
+
+def RunCommand():
+    session = Session()
+
+    options = ["Masonry", "BlockModel", "DEA"]
 
     option = rs.GetString(message="Choose a settings section, or escape/cancel to exit.", strings=options)
     if not option:
@@ -37,8 +40,11 @@ def RunCommand():
     if option == "Masonry":
         update_settings(session.settings, title=option)
 
-    elif option == "Model":
-        raise NotImplementedError
+    elif option == "BlockModel":
+        update_settings(session.settings.blockmodel, title=option)
+
+    elif option == "DEA":
+        update_settings(session.settings.dea, title=option)
 
     else:
         raise NotImplementedError
