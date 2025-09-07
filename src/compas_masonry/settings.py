@@ -22,6 +22,8 @@ class FormDiagramSettings(BaseModel):
     tol_vectors: float = Field(default=1e-3, ge=1e-6, le=1e3, title="Tolerance Vectors")
     tol_pipes: float = Field(default=1e-2, ge=1e-6, le=1e3, title="Tolerance Pipes")
 
+    crack_radius: float = Field(default=0.1, ge=0.01, le=100, title="Crack Radius")
+
 
 class EnvelopeSettings(BaseModel):
     show_intrados: bool = Field(default=False, title="Show Intrados")
@@ -44,21 +46,11 @@ class BlockModelSettings(BaseModel):
     scale_reactions: float = Field(default=0.01, ge=1e-6, le=1e3, title="Scale Reactions")
 
 
-class TNASettings(BaseModel):
-    pass
-
-
-class DEASettings(BaseModel):
-    pass
-
-
 class MasonrySettings(Settings):
     autoupdate: bool = Field(default=True, title="Auto Update")
     autosave: bool = Field(default=False, title="Auto Save")
 
     formdiagram: FormDiagramSettings = FormDiagramSettings()
     envelope: EnvelopeSettings = EnvelopeSettings()
-    tna: TNASettings = TNASettings()
 
     blockmodel: BlockModelSettings = BlockModelSettings()
-    dea: DEASettings = DEASettings()

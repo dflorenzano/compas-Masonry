@@ -15,26 +15,18 @@ from compas_masonry.session import MasonrySession as Session
 def RunCommand():
     session = Session()
 
-    options = ["Masonry", "FormDiagram", "Envelope", "TNA"]
+    options = ["FormDiagram", "Envelope"]
 
     option = rs.GetString(message="Choose a settings section, or escape/cancel to exit.", strings=options)
     if not option:
         return
 
-    if option == "Masonry":
-        form = SettingsForm(session.settings, title=option)
-        form.show()
-
-    elif option == "FormDiagram":
+    if option == "FormDiagram":
         form = SettingsForm(session.settings.formdiagram, title=option)
         form.show()
 
     elif option == "Envelope":
-        form = SettingsForm(session.settings.tna, title=option)
-        form.show()
-
-    elif option == "TNA":
-        form = SettingsForm(session.settings.tna, title=option)
+        form = SettingsForm(session.settings.envelope, title=option)
         form.show()
 
     else:

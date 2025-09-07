@@ -31,20 +31,14 @@ def update_settings(model, title):
 def RunCommand():
     session = Session()
 
-    options = ["Masonry", "BlockModel", "DEA"]
+    options = ["BlockModel"]
 
     option = rs.GetString(message="Choose a settings section, or escape/cancel to exit.", strings=options)
     if not option:
         return
 
-    if option == "Masonry":
-        update_settings(session.settings, title=option)
-
-    elif option == "BlockModel":
+    if option == "BlockModel":
         update_settings(session.settings.blockmodel, title=option)
-
-    elif option == "DEA":
-        update_settings(session.settings.dea, title=option)
 
     else:
         raise NotImplementedError
