@@ -6,3 +6,5 @@ from .settings import MasonrySettings
 class MasonrySession(LazyLoadSession):
     settingsclass = MasonrySettings
     settings: MasonrySettings  # type: ignore
+
+    # set a fail message
