@@ -4,6 +4,7 @@
 
 import rhinoscriptsyntax as rs  # type: ignore
 
+import compas_rhino.layers
 from compas_dem.models import BlockModel
 from compas_dem.templates import ArchTemplate
 from compas_dem.templates import BarrelVaultTemplate
@@ -19,7 +20,12 @@ def RunCommand():
     session = Session()
 
     session.delete("blockmodel")
-    session.scene.clear()
+    compas_rhino.layers.clear_layer("Masonry::DEA::Blocks")
+
+    # move this to the base scene class
+    for obj in session.scene.objects:
+        if obj.name.startswith("Block"):
+            session.scene.remove(obj)
 
     model = None
 
@@ -148,6 +154,23 @@ def RunCommand():
         return
 
     session["blockmodel"] = model
+
+    # =============================================================================
+    # Scene
+    # =============================================================================
+
+    # group = session.scene.find_by_name("BlockModel")
+    # if not group:
+    #     group = session.scene.add_group(name="BlockModel")
+    # group.clear()
+
+    for block in model.blocks():
+        node = block.graphnode
+        session.scene.add(block.modelgeometry, disjoint=True, name=f"Block_{node}", layer="Masonry::DEA::Blocks")  # type: ignore
+
+    session.scene.redraw()
+
+    rs.Redraw()
 
 
 # =============================================================================
