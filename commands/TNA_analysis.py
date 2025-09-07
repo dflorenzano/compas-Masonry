@@ -2,8 +2,6 @@
 # venv: brg-csd
 # r: compas_masonry
 
-import pathlib
-
 import rhinoscriptsyntax as rs  # type: ignore
 
 from compas_masonry.scene import RhinoFormDiagramObject
@@ -14,7 +12,7 @@ from compas_tno.analysis import Analysis
 
 
 def RunCommand():
-    session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
+    session = Session()
 
     formdiagram = session["formdiagram"]
     envelope = session["envelope"]
@@ -77,8 +75,6 @@ def RunCommand():
     if not formobject:
         session.scene.add(formdiagram, name="FormDiagram", layer="Masonry::TNA::FormDiagram")  # type: ignore
 
-    formobject.show_reactions = True
-    formobject.show_pipes = True
     formobject.redraw()
 
     rs.Redraw()

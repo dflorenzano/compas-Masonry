@@ -2,46 +2,59 @@
 # venv: brg-csd
 # r: compas_masonry
 
-import pathlib
-
 import rhinoscriptsyntax as rs  # type: ignore
-from pydantic import BaseModel
 
+from compas_masonry.forms.settings import SettingsForm
 from compas_masonry.session import MasonrySession as Session
-from compas_rui.forms import NamedValuesForm
 
-
-def update_settings(model, title):
-    names = []
-    values = []
-    for name, info in model.model_fields.items():
-        if issubclass(info.annotation, BaseModel):
-            continue
-        names.append(name)
-        values.append(getattr(model, name))
-    form = NamedValuesForm(names, values, title=title)
-    if form.show():
-        for name, value in form.attributes.items():
-            setattr(model, name, value)
+# =============================================================================
+# Command
+# =============================================================================
 
 
 def RunCommand():
-    session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
+    session = Session()
 
-    options = ["Masonry", "FormDiagram"]
+    options = ["Masonry", "FormDiagram", "Envelope", "TNA"]
 
     option = rs.GetString(message="Choose a settings section, or escape/cancel to exit.", strings=options)
     if not option:
         return
 
     if option == "Masonry":
-        update_settings(session.settings, title=option)
+        form = SettingsForm(session.settings, title=option)
+        form.show()
 
     elif option == "FormDiagram":
-        update_settings(session.settings.formdiagram, title=option)
+        form = SettingsForm(session.settings.formdiagram, title=option)
+        form.show()
+
+    elif option == "Envelope":
+        form = SettingsForm(session.settings.tna, title=option)
+        form.show()
+
+    elif option == "TNA":
+        form = SettingsForm(session.settings.tna, title=option)
+        form.show()
 
     else:
         raise NotImplementedError
+
+    show_intrados = session.settings.envelope.show_intrados
+    show_middle = session.settings.envelope.show_middle
+    show_extrados = session.settings.envelope.show_extrados
+
+    intradosobj = session.scene.find_by_name("Intrados")
+    if intradosobj:
+        intradosobj.show = show_intrados
+
+    middleobj = session.scene.find_by_name("Middle")
+    if middleobj:
+        middleobj.show = show_middle
+
+    extradosobj = session.scene.find_by_name("Extrados")
+    if extradosobj:
+        extradosobj.show = show_extrados
 
     session.scene.redraw()
 

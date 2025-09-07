@@ -2,8 +2,6 @@
 # venv: brg-csd
 # r: compas_masonry
 
-import pathlib
-
 import rhinoscriptsyntax as rs  # type: ignore
 
 from compas_masonry.session import MasonrySession as Session
@@ -21,10 +19,9 @@ from compas_tna.diagrams import FormDiagram
 
 
 def RunCommand():
-    session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
+    session = Session()
 
     # replace by session.clear()
-
     session["params"] = {}
     session.scene.clear()
     session.delete("formdagram")
