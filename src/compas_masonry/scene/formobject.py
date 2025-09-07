@@ -1,4 +1,5 @@
 from math import sqrt
+from typing import Optional
 
 import compas_rhino.conversions
 import rhinoscriptsyntax as rs  # type: ignore
@@ -35,6 +36,9 @@ class RhinoFormDiagramObject(RUIMeshObject):
     compressioncolor = ColorAttribute(default=Color.blue())
     tensioncolor = ColorAttribute(default=Color.red())
 
+    crackcolor = ColorAttribute(default=Color.red())
+    boundscolor = ColorAttribute(default=Color.magenta())
+
     def __init__(
         self,
         disjoint=True,
@@ -53,6 +57,8 @@ class RhinoFormDiagramObject(RUIMeshObject):
         forcegroup="RhinoVAULT::FormDiagram::Forces",
         reactiongroup="RhinoVAULT::FormDiagram::Reactions",
         residualgroup="RhinoVAULT::FormDiagram::Residuals",
+        crackgroup="RhinoVAULT::FormDiagram::Cracks",
+        boundsgroup="RhinoVAULT::FormDiagram::Bounds",
         **kwargs,
     ):
         super().__init__(
@@ -76,6 +82,8 @@ class RhinoFormDiagramObject(RUIMeshObject):
         self.forcegroup = forcegroup
         self.reactiongroup = reactiongroup
         self.residualgroup = residualgroup
+        self.crackgroup = crackgroup
+        self.boundsgroup = boundsgroup
 
     # =============================================================================
     # Properties
@@ -101,6 +109,15 @@ class RhinoFormDiagramObject(RUIMeshObject):
     # Helpers
     # =============================================================================
 
+    def vertices(self, **kwargs) -> list[int]:
+        return list(self.diagram.vertices())  # type: ignore
+
+    def edges(self, **kwargs) -> list[tuple[int, int]]:
+        return list(self.diagram.edges_where(_is_edge=True))  # type: ignore
+
+    def faces(self, **kwargs) -> list[int]:
+        return list(self.diagram.faces_where(_is_loaded=True))  # type: ignore
+
     def supports(self) -> list[int]:
         return list(self.diagram.vertices_where(is_support=True))  # type: ignore
 
@@ -124,17 +141,16 @@ class RhinoFormDiagramObject(RUIMeshObject):
     def vertex_load(self, vertex) -> Vector:
         return Vector(*self.diagram.vertex_attributes(vertex, ["px", "py", "pz"]))  # type: ignore
 
-    def vertex_load_name(self, vertex) -> str:
-        return f"{self.diagram.name}.vertex.{vertex}.load"
-
-    def vertex_selfweight_name(self, vertex) -> str:
-        return f"{self.diagram.name}.vertex.{vertex}.selfweight"
-
-    def edges(self, **kwargs) -> list[tuple[int, int]]:
-        return list(self.diagram.edges_where(_is_edge=True))  # type: ignore
-
-    def faces(self, **kwargs) -> list[int]:
-        return list(self.diagram.faces_where(_is_loaded=True))  # type: ignore
+    def vertex_bound(self, vertex) -> Optional[Line]:
+        ub = self.diagram.vertex_attribute(vertex, "ub")
+        lb = self.diagram.vertex_attribute(vertex, "lb")
+        if ub and lb:
+            point = self.diagram.vertex_point(vertex)
+            a = point.copy()
+            a.z = ub
+            b = point.copy()
+            b.z = lb
+            return Line(a, b)
 
     def forces(self) -> list[float]:
         Q = [self.diagram.edge_attribute(edge, "q") or 0.0 for edge in self.edges()]
@@ -174,12 +190,7 @@ class RhinoFormDiagramObject(RUIMeshObject):
         colors = []
 
         if fmax - fmin >= tol:
-            # size of the range of forces is already checked here
-            # no need to check again in the loop
             for magnitude in magnitudes:
-                # this will need to be updated once we allow for tension forces
-                # or we have to exclude tension forces from the calculation
-                # and give tension edges their own style
                 colors.append(Color.from_i((magnitude - fmin) / (fmax - fmin)))
 
         return colors
@@ -195,10 +206,31 @@ class RhinoFormDiagramObject(RUIMeshObject):
 
         if fmax - fmin >= tol:
             for edge, force, magnitude in zip(edges, forces, magnitudes):
-                # this will need to be updated when we include tension edges
                 edge_color[edge] = Color.from_i((magnitude - fmin) / (fmax - fmin))
 
         return edge_color
+
+    # =============================================================================
+    # Names
+    # =============================================================================
+
+    def vertex_load_name(self, vertex) -> str:
+        return f"{self.diagram.name}.vertex.{vertex}.load"
+
+    def vertex_selfweight_name(self, vertex) -> str:
+        return f"{self.diagram.name}.vertex.{vertex}.selfweight"
+
+    def vertex_reaction_name(self, vertex) -> str:
+        return f"{self.diagram.name}.vertex.{vertex}.reaction"
+
+    def vertex_residual_name(self, vertex) -> str:
+        return f"{self.diagram.name}.vertex.{vertex}.residual"
+
+    def vertex_bound_name(self, vertex) -> str:
+        return f"{self.diagram.name}.vertex.{vertex}.bound"
+
+    def edge_pipe_name(self, edge) -> str:
+        return f"{self.diagram.name}.edge.{edge}.pipe"
 
     # =============================================================================
     # Clear
@@ -215,7 +247,7 @@ class RhinoFormDiagramObject(RUIMeshObject):
         if faces:
             self.show_faces = faces
 
-        for vertex in self.diagram.vertices():
+        for vertex in self.vertices():
             self.vertexcolor[vertex] = self.compute_vertex_color(vertex)
 
         super().draw()
@@ -235,26 +267,32 @@ class RhinoFormDiagramObject(RUIMeshObject):
         if self.session.settings.formdiagram.show_selfweight:
             self.draw_selfweight()
 
+        if self.session.settings.formdiagram.show_bounds:
+            self.draw_bounds()
+
+        if self.session.settings.formdiagram.show_cracks:
+            self.draw_cracks()
+
         return self.guids
 
     def draw_vertices(self):
         if self.show_vertices is True:
             self.show_vertices = self.compute_visible_vertices()
 
-        for vertex in self.diagram.vertices():
+        for vertex in self.vertices():
             self.vertexcolor[vertex] = self.compute_vertex_color(vertex)
 
         return super().draw_vertices()
 
     def draw_edges(self):
         if self.show_edges is True:
-            self.show_edges = list(self.edges())
+            self.show_edges = self.edges()
 
         return super().draw_edges()
 
     def draw_faces(self):
         if self.show_faces:
-            self.show_faces = list(self.faces())
+            self.show_faces = self.faces()
 
         return super().draw_faces()
 
@@ -296,14 +334,12 @@ class RhinoFormDiagramObject(RUIMeshObject):
 
     def draw_loads(self):
         guids = []
-
         color = self.loadcolor
         scale = self.session.settings.formdiagram.scale_loads
         tol = self.session.settings.formdiagram.tol_vectors
 
         for vertex in self.diagram.vertices_where(is_support=False):
             load = self.vertex_load(vertex)
-
             if load is not None:
                 vector = load * scale
                 if vector.length > tol:
@@ -325,7 +361,6 @@ class RhinoFormDiagramObject(RUIMeshObject):
 
     def draw_selfweight(self):
         guids = []
-
         color = self.selfweightcolor
         scale = self.session.settings.formdiagram.scale_selfweight
         tol = self.session.settings.formdiagram.tol_vectors
@@ -353,26 +388,18 @@ class RhinoFormDiagramObject(RUIMeshObject):
 
     def draw_pipes(self):
         guids = []
-
         scale = self.session.settings.formdiagram.scale_pipes
         tol = self.session.settings.formdiagram.tol_pipes
 
-        # pipe_colors = self.compute_pipe_colors()
-
         for edge in self.edges():
             force = self.edge_force(edge)
-
             if force:
                 line = self.diagram.edge_line(edge)
                 radius = sqrt(abs(force)) * scale
-
                 color = self.compressioncolor
-                # if self.session.settings.formdiagram.show_pipes:
-                #     color = pipe_colors[edge]
-
                 if radius > tol:
                     pipe = Cylinder.from_line_and_radius(line, radius)
-                    name = f"{self.diagram.name}.edge.{edge}.force"
+                    name = self.edge_pipe_name(edge)
                     attr = self.compile_attributes(name=name, color=color)
                     guid = sc.doc.Objects.AddBrep(compas_rhino.conversions.cylinder_to_rhino_brep(pipe), attr)
                     guids.append(guid)
@@ -388,16 +415,14 @@ class RhinoFormDiagramObject(RUIMeshObject):
 
     def draw_reactions(self):
         guids = []
-
         scale = self.session.settings.formdiagram.scale_reactions
         tol = self.session.settings.formdiagram.tol_vectors
 
         for vertex in self.supports():
             residual = self.vertex_residual(vertex)
             vector = residual * -scale
-
             if vector.length > tol:
-                name = f"{self.diagram.name}.vertex.{vertex}.reaction"
+                name = self.vertex_reaction_name(vertex)
                 attr = self.compile_attributes(name=name, color=self.reactioncolor, arrow="end")
                 point = self.diagram.vertex_point(vertex)
                 line = Line.from_point_and_vector(point, vector)
@@ -415,16 +440,14 @@ class RhinoFormDiagramObject(RUIMeshObject):
 
     def draw_residuals(self):
         guids = []
-
         scale = self.session.settings.formdiagram.scale_residuals
         tol = self.session.settings.formdiagram.tol_vectors
 
         for vertex in self.diagram.vertices_where(is_support=False):
             residual = self.vertex_residual(vertex)
-
             vector = residual * scale
             if vector.length > tol:
-                name = f"{self.diagram.name}.vertex.{vertex}.residual"
+                name = self.vertex_residual_name(vertex)
                 attr = self.compile_attributes(name=name, color=self.residualcolor, arrow="end")
                 point = self.diagram.vertex_point(vertex)
                 line = Line.from_point_and_vector(point, vector)
@@ -439,3 +462,33 @@ class RhinoFormDiagramObject(RUIMeshObject):
 
         self._guids += guids
         return guids
+
+    # =============================================================================
+    # Envelope
+    # =============================================================================
+
+    def draw_bounds(self):
+        guids = []
+
+        for vertex in self.vertices():
+            bound = self.vertex_bound(vertex)
+            if bound:
+                name = self.vertex_bound_name(vertex)
+                attr = self.compile_attributes(name=name, color=self.boundscolor)
+                guid = sc.doc.Objects.AddLine(compas_rhino.conversions.line_to_rhino(bound), attr)
+                guids.append(guid)
+
+        if guids:
+            if self.boundsgroup:
+                self.add_to_group(self.boundsgroup, guids)
+            elif self.group:
+                self.add_to_group(self.group, guids)
+
+        self._guids += guids
+        return guids
+
+    def draw_cracks(self):
+        guids = []
+
+        for vertex in self.vertices():
+            pass
