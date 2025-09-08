@@ -78,7 +78,7 @@ def RunCommand():
 
     formdiagram = None
 
-    option = rs.GetString(message="FormDiagram", strings=["FromLines", "FromRhinoMesh", "FromPattern"])
+    option = rs.GetString(message="FormDiagram", strings=["FromPattern", "FromLines", "FromRhinoMesh"])
     if not option:
         return
 
