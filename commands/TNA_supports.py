@@ -13,7 +13,7 @@ from compas_tna.diagrams import FormDiagram
 def RunCommand():
     session = Session()
 
-    formdiagram = session["formdiagram"]
+    formdiagram: FormDiagram = session["formdiagram"]
 
     if not formdiagram:
         feedback.warn("There is no FormDiagram. Please create one first.")
@@ -62,8 +62,8 @@ def RunCommand():
 
     rs.UnselectAllObjects()
 
-    formobject.show_edges = False  # type: ignore
-    formobject.show_faces = True  # type: ignore
+    formobject.show_edges = True  # type: ignore
+    formobject.show_faces = False  # type: ignore
     formobject.redraw()
 
     rs.Redraw()

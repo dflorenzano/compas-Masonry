@@ -20,15 +20,15 @@ def RunCommand():
 
     session["params"] = {}
 
-    session.delete("formdiagram")
     session.delete("envelope")
+    session.delete("formdiagram")
     session.delete("analysis")
 
-    for obj in session.scene.find_all_by_itemtype(FormDiagram):
+    for obj in session.scene.find_all_by_itemtype(Envelope):
         obj.clear()
         session.scene.remove(obj)
 
-    for obj in session.scene.find_all_by_itemtype(Envelope):
+    for obj in session.scene.find_all_by_itemtype(FormDiagram):
         obj.clear()
         session.scene.remove(obj)
 
@@ -41,6 +41,10 @@ def RunCommand():
     option = rs.GetString(message="Envelope", strings=["FromLibrary", "FromMiddle", "FromIntrados", "FromBounds"])
     if not option:
         return
+
+    # =============================================================================
+    # From a tempalate in the library
+    # =============================================================================
 
     if option == "FromLibrary":
         option = rs.GetString(message="Choose a pattern", strings=["CrossVault", "PointedVault", "PavilionVault", "Dome"])
@@ -172,7 +176,7 @@ def RunCommand():
             raise NotImplementedError
 
     # =============================================================================
-    # Middle
+    # From the middle surface
     # =============================================================================
 
     elif option == "FromMiddle":
@@ -182,7 +186,7 @@ def RunCommand():
         pass
 
     # =============================================================================
-    # Intrados
+    # From the intrados mesh
     # =============================================================================
 
     elif option == "FromIntrados":
@@ -192,7 +196,7 @@ def RunCommand():
         pass
 
     # =============================================================================
-    # BoundsMeshes
+    # From the intrados and extrados meshes
     # =============================================================================
 
     elif option == "FromBounds":

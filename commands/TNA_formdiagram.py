@@ -5,7 +5,9 @@
 import rhinoscriptsyntax as rs  # type: ignore
 
 from compas_masonry.session import MasonrySession as Session
+from compas_rui import feedback
 from compas_tna.diagrams import FormDiagram
+from compas_tna.envelope import Envelope
 
 # Would be better to differentiate between an analysis using a known typology,
 # for which both form diagram and envelope can be auto-generated based on a few params,
@@ -21,6 +23,10 @@ from compas_tna.diagrams import FormDiagram
 def RunCommand():
     session = Session()
 
+    # =============================================================================
+    # Remove existing form diagram
+    # =============================================================================
+
     session.delete("formdiagram")
 
     for obj in session.scene.find_all_by_itemtype(FormDiagram):
@@ -28,7 +34,16 @@ def RunCommand():
         session.scene.remove(obj)
 
     # =============================================================================
-    # Create a form diagram
+    # Check for existing envelope
+    # =============================================================================
+
+    envelope: Envelope = session["envelope"]
+    if not envelope:
+        feedback.warn("There is no Envelope. Please create one first.")
+        return
+
+    # =============================================================================
+    # Create a (new) form diagram
     # =============================================================================
 
     formdiagram = None
@@ -37,11 +52,23 @@ def RunCommand():
     if not option:
         return
 
+    # =============================================================================
+    # From Rhino lines
+    # =============================================================================
+
     if option == "FromLines":
         pass
 
+    # =============================================================================
+    # From a Rhino mesh
+    # =============================================================================
+
     elif option == "FromRhinoMesh":
         pass
+
+    # =============================================================================
+    # From a predefined pattern
+    # =============================================================================
 
     elif option == "FromPattern":
         option = rs.GetString(message="From Pattern", strings=["Circular", "Cross", "Fan", "Ortho"])
@@ -211,6 +238,8 @@ def RunCommand():
         return
 
     session["formdiagram"] = formdiagram
+
+    envelope.apply_bounds_to_formdiagram(formdiagram)
 
     session.scene.add(formdiagram, name="FormDiagram", layer="Masonry::TNA::FormDiagram")  # type: ignore
     session.scene.redraw()
