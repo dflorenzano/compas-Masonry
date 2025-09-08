@@ -3,7 +3,9 @@
 # r: compas_masonry
 
 import rhinoscriptsyntax as rs  # type: ignore
+import ast
 from numpy import zeros
+from numpy import array
 
 from compas_masonry.scene import RhinoFormDiagramObject
 from compas_masonry.session import MasonrySession as Session
@@ -91,7 +93,42 @@ def RunCommand():
         analysis = Analysis.create_max_load_analysis(formdiagram, envelope, load_direction=load_direction, solver="SLSQP", max_lambd=9999)
 
     elif objective == "SupportDisplacement":
-        analysis = Analysis.create_compl_energy_analysis(formdiagram, envelope, support_displacement=displacement_array)
+        supports = list(formobject.diagram.supports())
+        nb = len(supports)
+        displacement_array = zeros((nb, 3))
+
+        while True:
+            formobject.show_vertices = supports
+            vertices = formobject.select_vertices()
+            formobject.redraw()
+
+            if not vertices:
+                break
+
+            displ = rs.GetString(message="Vector to displace selected supports", defaultString="[-1, -1, 0]")
+
+            if not displ:
+                break
+
+            if len(displ_list) != 3:
+                print("provide a 3x1 vector as shown as the example")
+                break
+            
+            displ_list = ast.literal_eval(displ)
+
+            for vertex in vertices:
+                displacement_array[supports.index(vertex)] = array(displ_list)
+            # Here we should add a vector to the Scene showing the displacement that we are maximizing.
+
+            add_vector = rs.GetString(message="Define additional displacement vectors?", strings=["Yes", "No"])
+            rs.UnselectAllObjects()
+
+            if add_vector == "Yes":
+                pass
+            else:
+                break
+        
+        analysis = Analysis.create_compl_energy_analysis(formdiagram, envelope, solver="SLSQP", support_displacement=displacement_array)
 
     elif objective == "Bestfit":
         analysis = Analysis.create_bestfit_analysis(formdiagram, envelope)
