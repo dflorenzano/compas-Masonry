@@ -10,7 +10,7 @@ import System  # type: ignore
 from compas_masonry.session import MasonrySession as Session
 from compas_masonry.splash import SplashForm
 
-pluginfile = Rhino.PlugIns.PlugIn.PathFromId(System.Guid("a6dc4669-0e8e-40ea-8d71-b9b0f4764ec1"))
+pluginfile = Rhino.PlugIns.PlugIn.PathFromId(System.Guid("4384e04f-2997-429b-b3fc-53e7fe78703e"))
 shared = pathlib.Path(str(pluginfile)).parent / "shared"
 
 
