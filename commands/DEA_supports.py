@@ -1,6 +1,6 @@
 #! python3
 # venv: brg-csd
-# r: compas_masonry
+# r: compas_masonry >=0.2.0
 
 import compas_rhino.objects
 from compas.colors import Color
