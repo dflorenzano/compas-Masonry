@@ -2,10 +2,10 @@
 # venv: brg-csd
 # r: compas_masonry
 
-import rhinoscriptsyntax as rs  # type: ignore
 import ast
-from numpy import zeros
-from numpy import array
+
+import numpy as np
+import rhinoscriptsyntax as rs  # type: ignore
 
 from compas_masonry.scene import RhinoFormDiagramObject
 from compas_masonry.session import MasonrySession as Session
@@ -63,11 +63,11 @@ def RunCommand():
 
     elif objective == "MaximumLoad":
         n = formobject.diagram.number_of_vertices()
-        load_direction = zeros((n, 1))
+        load_direction = np.zeros((n, 1))
         index_vertex = formobject.diagram.index_vertex()
 
         while True:
-            formobject.show_vertices = list(formobject.diagram.vertices())
+            formobject.show_vertices = list(formobject.diagram.vertices())  # type: ignore
             vertices = formobject.select_vertices()
             formobject.redraw()
 
@@ -80,6 +80,7 @@ def RunCommand():
 
             for vertex in vertices:
                 load_direction[index_vertex[vertex]] = force
+
             # Here we should add a vector to the Scene showing the load case that we are maximizing.
 
             add_loads = rs.GetString(message="Apply Loads on additional vertices?", strings=["Yes", "No"])
@@ -95,7 +96,7 @@ def RunCommand():
     elif objective == "SupportDisplacement":
         supports = list(formobject.diagram.supports())
         nb = len(supports)
-        displacement_array = zeros((nb, 3))
+        displacement_array = np.zeros((nb, 3))
 
         while True:
             formobject.show_vertices = supports
@@ -110,14 +111,14 @@ def RunCommand():
             if not displ:
                 break
 
+            displ_list = ast.literal_eval(displ)
             if len(displ_list) != 3:
                 print("provide a 3x1 vector as shown as the example")
                 break
-            
-            displ_list = ast.literal_eval(displ)
 
             for vertex in vertices:
-                displacement_array[supports.index(vertex)] = array(displ_list)
+                displacement_array[supports.index(vertex)] = np.array(displ_list)
+
             # Here we should add a vector to the Scene showing the displacement that we are maximizing.
 
             add_vector = rs.GetString(message="Define additional displacement vectors?", strings=["Yes", "No"])
@@ -127,7 +128,7 @@ def RunCommand():
                 pass
             else:
                 break
-        
+
         analysis = Analysis.create_compl_energy_analysis(formdiagram, envelope, solver="SLSQP", support_displacement=displacement_array)
 
     elif objective == "Bestfit":
