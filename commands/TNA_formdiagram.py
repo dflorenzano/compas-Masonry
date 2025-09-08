@@ -166,7 +166,6 @@ def RunCommand():
                 x_span=x_span,
                 y_span=y_span,
                 n=n,
-                supports=None,  # type: ignore
             )
 
         # =============================================================================
@@ -202,7 +201,6 @@ def RunCommand():
                 y_span=y_span,
                 n_fans=n_fans,
                 n_hoops=n_hoops,
-                supports=None,  # type: ignore
             )
 
         # =============================================================================
@@ -238,7 +236,6 @@ def RunCommand():
                 y_span=y_span,
                 nx=nx,
                 ny=ny,
-                supports=None,  # type: ignore
             )
 
         # =============================================================================
@@ -263,6 +260,9 @@ def RunCommand():
         return
 
     session["formdiagram"] = formdiagram
+
+    session.settings.formdiagram.show_reactions = False
+    session.settings.formdiagram.show_pipes = False
 
     envelope.apply_bounds_to_formdiagram(formdiagram)
 

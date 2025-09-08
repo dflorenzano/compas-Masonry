@@ -150,8 +150,12 @@ def RunCommand():
     rs.UnselectAllObjects()
 
     formobject: RhinoFormDiagramObject = session.scene.find_by_itemtype(FormDiagram)  # type: ignore
+
     if not formobject:
         session.scene.add(formdiagram, name="FormDiagram", layer="Masonry::TNA::FormDiagram")  # type: ignore
+
+    session.settings.formdiagram.show_reactions = True
+    session.settings.formdiagram.show_pipes = True
 
     formobject.redraw()
 
