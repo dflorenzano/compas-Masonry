@@ -26,9 +26,9 @@ class FormDiagramSettings(BaseModel):
 
 
 class EnvelopeSettings(BaseModel):
-    show_intrados: bool = Field(default=False, title="Show Intrados")
-    show_middle: bool = Field(default=True, title="Show Middle")
-    show_extrados: bool = Field(default=False, title="Show Extrados")
+    show_intrados: bool = Field(default=True, title="Show Intrados")
+    show_middle: bool = Field(default=False, title="Show Middle")
+    show_extrados: bool = Field(default=True, title="Show Extrados")
 
 
 class BlockModelSettings(BaseModel):
@@ -52,5 +52,4 @@ class MasonrySettings(Settings):
 
     formdiagram: FormDiagramSettings = FormDiagramSettings()
     envelope: EnvelopeSettings = EnvelopeSettings()
-
     blockmodel: BlockModelSettings = BlockModelSettings()
