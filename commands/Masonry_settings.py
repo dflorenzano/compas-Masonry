@@ -15,7 +15,7 @@ from compas_masonry.session import MasonrySession as Session
 def RunCommand():
     session = Session()
 
-    options = ["FormDiagram", "Envelope"]
+    options = ["FormDiagram", "Envelope", "BlockModel"]
 
     option = rs.GetString(message="Choose a settings section, or escape/cancel to exit.", strings=options)
     if not option:
@@ -27,6 +27,10 @@ def RunCommand():
 
     elif option == "Envelope":
         form = SettingsForm(session.settings.envelope, title=option)
+        form.show()
+
+    elif option == "BlockModel":
+        form = SettingsForm(session.settings.blockmodel, title=option)
         form.show()
 
     else:
