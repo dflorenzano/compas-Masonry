@@ -6,7 +6,6 @@ import rhinoscriptsyntax as rs  # type: ignore
 
 from compas_masonry.session import MasonrySession as Session
 from compas_tna.diagrams import FormDiagram
-from compas_tna.envelope import Envelope
 
 # Would be better to differentiate between an analysis using a known typology,
 # for which both form diagram and envelope can be auto-generated based on a few params,
@@ -22,17 +21,9 @@ from compas_tna.envelope import Envelope
 def RunCommand():
     session = Session()
 
-    session["params"] = {}
-
     session.delete("formdiagram")
-    session.delete("envelope")
-    session.delete("analysis")
 
     for obj in session.scene.find_all_by_itemtype(FormDiagram):
-        obj.clear()
-        session.scene.remove(obj)
-
-    for obj in session.scene.find_all_by_itemtype(Envelope):
         obj.clear()
         session.scene.remove(obj)
 

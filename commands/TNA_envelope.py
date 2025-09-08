@@ -5,7 +5,9 @@
 import rhinoscriptsyntax as rs  # type: ignore
 
 from compas_masonry.session import MasonrySession as Session
-from compas_rui import feedback
+from compas_tna.diagrams import FormDiagram
+
+# from compas_rui import feedback
 from compas_tna.envelope import CrossVaultEnvelope
 from compas_tna.envelope import DomeEnvelope
 from compas_tna.envelope import Envelope
@@ -16,16 +18,17 @@ from compas_tna.envelope import PointedVaultEnvelope
 def RunCommand():
     session = Session()
 
-    formdiagram = session["formdiagram"]
+    session["params"] = {}
 
-    if not formdiagram:
-        feedback.warn("There is no FormDiagram. Please create one first.")
-        return
-
+    session.delete("formdiagram")
     session.delete("envelope")
+    session.delete("analysis")
 
-    obj = session.scene.find_by_itemtype(Envelope)
-    if obj:
+    for obj in session.scene.find_all_by_itemtype(FormDiagram):
+        obj.clear()
+        session.scene.remove(obj)
+
+    for obj in session.scene.find_all_by_itemtype(Envelope):
         obj.clear()
         session.scene.remove(obj)
 
@@ -49,9 +52,13 @@ def RunCommand():
         # =============================================================================
 
         if option == "CrossVault":
-            x_span = session["params"]["x_span"]
-            y_span = session["params"]["y_span"]
-            n = session["params"]["n"]
+            x_span = rs.GetReal("X Span", 10, 0.0, 1000)
+            if not x_span:
+                return
+
+            y_span = rs.GetReal("Y Span", 10, 0.0, 1000)
+            if not y_span:
+                return
 
             thickness = rs.GetReal("Thickness", 0.5, 0.0, 100)
             if not thickness:
@@ -61,7 +68,6 @@ def RunCommand():
                 x_span=x_span,
                 y_span=y_span,
                 thickness=thickness,
-                n=n,
             )
 
         # =============================================================================
@@ -69,28 +75,84 @@ def RunCommand():
         # =============================================================================
 
         elif option == "PointedVault":
-            pass
+            x_span = rs.GetReal("X Span", 10, 0.0, 1000)
+            if not x_span:
+                return
+
+            y_span = rs.GetReal("Y Span", 10, 0.0, 1000)
+            if not y_span:
+                return
+
+            rise = rs.GetReal("Rise", 3, 0.0, 1000)
+            if not rise:
+                return
+
+            thickness = rs.GetReal("Thickness", 0.5, 0.0, 100)
+            if not thickness:
+                return
+
+            envelope = PointedVaultEnvelope(
+                x_span=x_span,
+                y_span=y_span,
+                thickness=thickness,
+                hc=rise,
+            )
 
         # =============================================================================
         # PavilionVault
         # =============================================================================
 
         elif option == "PavilionVault":
-            pass
+            x_span = rs.GetReal("X Span", 10, 0.0, 1000)
+            if not x_span:
+                return
+
+            y_span = rs.GetReal("Y Span", 10, 0.0, 1000)
+            if not y_span:
+                return
+
+            thickness = rs.GetReal("Thickness", 0.5, 0.0, 100)
+            if not thickness:
+                return
+
+            angle = rs.GetReal("Springing Angle", 45, 0.0, 90)
+            angle = angle or 0
+            angle = angle / 180.0 * 3.14159
+
+            envelope = PavillionVaultEnvelope(
+                x_span=x_span,
+                y_span=y_span,
+                thickness=thickness,
+                spr_angle=angle,
+            )
 
         # =============================================================================
         # Dome
         # =============================================================================
 
         elif option == "Dome":
-            center = session["params"]["center"]
-            radius = session["params"]["radius"]
-            n_hoops = session["params"]["n_hoops"]
-            n_parallels = session["params"]["n_parallels"]
-            r_oculus = session["params"]["r_oculus"]
+            center = rs.GetPoint("Center")
+            if not center:
+                return
+
+            radius = rs.GetReal("Radius", 5, 0.0, 1000)
+            if not radius:
+                return
 
             thickness = rs.GetReal("Thickness", 0.5, 0.0, 100)
             if not thickness:
+                return
+
+            n_hoops = rs.GetInteger("Number of hoops", 10, 1, 100)
+            if not n_hoops:
+                return
+
+            n_parallels = rs.GetInteger("Number of parallels", 5, 1, 100)
+            if not n_parallels:
+                return
+
+            r_oculus = rs.GetReal("Oculus radius", 0.5, 0.0, radius)
+            if r_oculus is None:
                 return
 
             envelope = DomeEnvelope(
@@ -155,7 +217,6 @@ def RunCommand():
     if not envelope:
         return
 
-    envelope.apply_bounds_to_formdiagram(formdiagram)
     session["envelope"] = envelope
 
     show_intrados = session.settings.envelope.show_intrados
