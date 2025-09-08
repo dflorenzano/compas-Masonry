@@ -32,8 +32,6 @@ class RhinoFormDiagramObject(RUIMeshObject):
     reactioncolor = ColorAttribute(default=Color.green())
 
     loadcolor = ColorAttribute(default=Color.green().darkened(50))
-    selfweightcolor = ColorAttribute(default=Color.white())
-
     compressioncolor = ColorAttribute(default=Color.blue())
     tensioncolor = ColorAttribute(default=Color.red())
 
@@ -56,7 +54,6 @@ class RhinoFormDiagramObject(RUIMeshObject):
         show_fixed=True,
         show_free=False,
         loadgroup="RhinoVAULT::FormDiagram::Loads",
-        selfweightgroup="RhinoVAULT::FormDiagram::Selfweight",
         forcegroup="RhinoVAULT::FormDiagram::Forces",
         reactiongroup="RhinoVAULT::FormDiagram::Reactions",
         residualgroup="RhinoVAULT::FormDiagram::Residuals",
@@ -81,7 +78,6 @@ class RhinoFormDiagramObject(RUIMeshObject):
         self.show_free = show_free
 
         self.loadgroup = loadgroup
-        self.selfweightgroup = selfweightgroup
         self.forcegroup = forcegroup
         self.reactiongroup = reactiongroup
         self.residualgroup = residualgroup
@@ -284,9 +280,6 @@ class RhinoFormDiagramObject(RUIMeshObject):
         if self.session.settings.formdiagram.show_loads:
             self.draw_loads()
 
-        if self.session.settings.formdiagram.show_selfweight:
-            self.draw_selfweight()
-
         if self.session.settings.formdiagram.show_bounds:
             self.draw_bounds()
 
@@ -364,42 +357,15 @@ class RhinoFormDiagramObject(RUIMeshObject):
                 vector = load * scale
                 if vector.length > tol:
                     name = self.vertex_load_name(vertex)
-                    attr = self.compile_attributes(name=name, color=color, arrow="start")
+                    attr = self.compile_attributes(name=name, color=color, arrow="end")
                     point = self.diagram.vertex_point(vertex)
-                    line = Line.from_point_and_vector(point, vector)
+                    line = Line.from_point_and_vector(point + vector, point)
                     guid = sc.doc.Objects.AddLine(compas_rhino.conversions.line_to_rhino(line), attr)
                     guids.append(guid)
 
         if guids:
             if self.loadgroup:
                 self.add_to_group(self.loadgroup, guids)
-            elif self.group:
-                self.add_to_group(self.group, guids)
-
-        self._guids += guids
-        return guids
-
-    def draw_selfweight(self):
-        guids = []
-        color = self.selfweightcolor
-        scale = self.session.settings.formdiagram.scale_selfweight
-        tol = self.session.settings.formdiagram.tol_vectors
-
-        for vertex in self.diagram.vertices_where(is_support=False):
-            weight = self.vertex_weight(vertex)
-            if weight:
-                point = self.diagram.vertex_point(vertex)
-                vector = Vector(0, 0, -weight * scale)
-                if vector.length > tol:
-                    line = Line.from_point_and_vector(point, vector)
-                    name = self.vertex_selfweight_name(vertex)
-                    attr = self.compile_attributes(name=name, color=color, arrow="end")
-                    guid = sc.doc.Objects.AddLine(compas_rhino.conversions.line_to_rhino(line), attr)
-                    guids.append(guid)
-
-        if guids:
-            if self.selfweightgroup:
-                self.add_to_group(self.selfweightgroup, guids)
             elif self.group:
                 self.add_to_group(self.group, guids)
 
