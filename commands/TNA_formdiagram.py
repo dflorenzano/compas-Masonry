@@ -103,7 +103,12 @@ def RunCommand():
             if not n:
                 return
 
-            formdiagram = FormDiagram.create_cross(x_span=x_span, y_span=y_span, n=n)
+            formdiagram = FormDiagram.create_cross(
+                x_span=x_span,
+                y_span=y_span,
+                n=n,
+                supports=None,  # type: ignore
+            )
 
             session["params"]["formdiagram"] = "cross"
             session["params"]["x_span"] = x_span
@@ -133,7 +138,13 @@ def RunCommand():
             if not n_hoops:
                 return
 
-            formdiagram = FormDiagram.create_fan(x_span=x_span, y_span=y_span, n_fans=n_fans, n_hoops=n_hoops)
+            formdiagram = FormDiagram.create_fan(
+                x_span=x_span,
+                y_span=y_span,
+                n_fans=n_fans,
+                n_hoops=n_hoops,
+                supports=None,  # type: ignore
+            )
 
             session["params"]["formdiagram"] = "fan"
             session["params"]["x_span"] = x_span
@@ -164,7 +175,13 @@ def RunCommand():
             if not ny:
                 return
 
-            formdiagram = FormDiagram.create_ortho(x_span=x_span, y_span=y_span, nx=nx, ny=ny)
+            formdiagram = FormDiagram.create_ortho(
+                x_span=x_span,
+                y_span=y_span,
+                nx=nx,
+                ny=ny,
+                supports=None,  # type: ignore
+            )
 
             session["params"]["formdiagram"] = "ortho"
             session["params"]["x_span"] = x_span
