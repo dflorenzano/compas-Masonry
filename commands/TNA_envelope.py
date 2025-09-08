@@ -5,20 +5,29 @@
 import rhinoscriptsyntax as rs  # type: ignore
 
 from compas_masonry.session import MasonrySession as Session
+from compas_rui import feedback
 from compas_tna.envelope import CrossVaultEnvelope
 from compas_tna.envelope import DomeEnvelope
 from compas_tna.envelope import Envelope
+from compas_tna.envelope import PavillionVaultEnvelope
+from compas_tna.envelope import PointedVaultEnvelope
 
 
 def RunCommand():
     session = Session()
 
-    envelopeobject = session.scene.find_by_itemtype(Envelope)
-    if envelopeobject:
-        envelopeobject.clear()
-        session.scene.remove(envelopeobject)
+    formdiagram = session["formdiagram"]
+
+    if not formdiagram:
+        feedback.warn("There is no FormDiagram. Please create one first.")
+        return
 
     session.delete("envelope")
+
+    obj = session.scene.find_by_itemtype(Envelope)
+    if obj:
+        obj.clear()
+        session.scene.remove(obj)
 
     # =============================================================================
     # Create an envelope
@@ -26,16 +35,54 @@ def RunCommand():
 
     envelope = None
 
-    option = rs.GetString(message="Create an envelope", strings=["FormDiagram", "Middle", "Intrados", "BoundsMeshes"])
+    option = rs.GetString(message="Envelope", strings=["FromLibrary", "FromMiddle", "FromIntrados", "FromBounds"])
     if not option:
         return
 
-    if option == "FormDiagram":
+    if option == "FromLibrary":
+        option = rs.GetString(message="Choose a pattern", strings=["CrossVault", "PointedVault", "PavilionVault", "Dome"])
+        if not option:
+            return
+
+        # =============================================================================
+        # CrossVault
+        # =============================================================================
+
+        if option == "CrossVault":
+            x_span = session["params"]["x_span"]
+            y_span = session["params"]["y_span"]
+            n = session["params"]["n"]
+
+            thickness = rs.GetReal("Thickness", 0.5, 0.0, 100)
+            if not thickness:
+                return
+
+            envelope = CrossVaultEnvelope(
+                x_span=x_span,
+                y_span=y_span,
+                thickness=thickness,
+                n=n,
+            )
+
+        # =============================================================================
+        # PointedVault
+        # =============================================================================
+
+        elif option == "PointedVault":
+            pass
+
+        # =============================================================================
+        # PavilionVault
+        # =============================================================================
+
+        elif option == "PavilionVault":
+            pass
+
         # =============================================================================
         # Dome
         # =============================================================================
 
-        if session["params"]["formdiagram"] == "circular":
+        elif option == "Dome":
             center = session["params"]["center"]
             radius = session["params"]["radius"]
             n_hoops = session["params"]["n_hoops"]
@@ -56,26 +103,6 @@ def RunCommand():
             )
 
         # =============================================================================
-        # Cross
-        # =============================================================================
-
-        elif session["params"]["formdiagram"] == "cross":
-            x_span = session["params"]["x_span"]
-            y_span = session["params"]["y_span"]
-            n = session["params"]["n"]
-
-            thickness = rs.GetReal("Thickness", 0.5, 0.0, 100)
-            if not thickness:
-                return
-
-            envelope = CrossVaultEnvelope(
-                x_span=x_span,
-                y_span=y_span,
-                thickness=thickness,
-                n=n,
-            )
-
-        # =============================================================================
         # Not supported
         # =============================================================================
 
@@ -86,7 +113,7 @@ def RunCommand():
     # Middle
     # =============================================================================
 
-    elif option == "Middle":
+    elif option == "FromMiddle":
         # select the middle surface mesh
         # specify the thickness
         # compute the envelope
@@ -96,7 +123,7 @@ def RunCommand():
     # Intrados
     # =============================================================================
 
-    elif option == "Intrados":
+    elif option == "FromIntrados":
         # select the intrados mesh
         # specify the thickness
         # compute the envelope
@@ -106,7 +133,7 @@ def RunCommand():
     # BoundsMeshes
     # =============================================================================
 
-    elif option == "BoundsMeshes":
+    elif option == "FromBounds":
         # select the intrados mesh
         # select the extrados mesh
         # compute the envelope
@@ -128,6 +155,7 @@ def RunCommand():
     if not envelope:
         return
 
+    envelope.apply_bounds_to_formdiagram(formdiagram)
     session["envelope"] = envelope
 
     show_intrados = session.settings.envelope.show_intrados

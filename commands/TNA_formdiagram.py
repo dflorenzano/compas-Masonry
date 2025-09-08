@@ -6,6 +6,7 @@ import rhinoscriptsyntax as rs  # type: ignore
 
 from compas_masonry.session import MasonrySession as Session
 from compas_tna.diagrams import FormDiagram
+from compas_tna.envelope import Envelope
 
 # Would be better to differentiate between an analysis using a known typology,
 # for which both form diagram and envelope can be auto-generated based on a few params,
@@ -21,12 +22,19 @@ from compas_tna.diagrams import FormDiagram
 def RunCommand():
     session = Session()
 
-    # replace by session.clear()
     session["params"] = {}
-    session.scene.clear()
-    session.delete("formdagram")
+
+    session.delete("formdiagram")
     session.delete("envelope")
     session.delete("analysis")
+
+    for obj in session.scene.find_all_by_itemtype(FormDiagram):
+        obj.clear()
+        session.scene.remove(obj)
+
+    for obj in session.scene.find_all_by_itemtype(Envelope):
+        obj.clear()
+        session.scene.remove(obj)
 
     # =============================================================================
     # Create a form diagram
@@ -34,133 +42,151 @@ def RunCommand():
 
     formdiagram = None
 
-    option = rs.GetString(message="FormDiagram", strings=["Circular", "Cross", "Fan", "Ortho"])
+    option = rs.GetString(message="FormDiagram", strings=["FromLines", "FromRhinoMesh", "FromPattern"])
     if not option:
         return
 
-    # =============================================================================
-    # From a circular pattern
-    # =============================================================================
+    if option == "FromLines":
+        pass
 
-    if option == "Circular":
-        radius = rs.GetReal("Radius", number=1.0, minimum=0.0)
-        if not radius:
+    elif option == "FromRhinoMesh":
+        pass
+
+    elif option == "FromPattern":
+        option = rs.GetString(message="From Pattern", strings=["Circular", "Cross", "Fan", "Ortho"])
+        if not option:
             return
 
-        rings = rs.GetInteger("Rings", 8, 4, 32)
-        if not rings:
-            return
+        # =============================================================================
+        # From a circular pattern
+        # =============================================================================
 
-        radials = rs.GetInteger("Radials", 24, 12, 64)
-        if not radials:
-            return
+        if option == "Circular":
+            radius = rs.GetReal("Radius", number=1.0, minimum=0.0)
+            if not radius:
+                return
 
-        oculus = rs.GetReal("Oculus", number=0.3, minimum=0.0)
-        if not oculus:
-            return
+            rings = rs.GetInteger("Rings", 8, 4, 32)
+            if not rings:
+                return
 
-        formdiagram = FormDiagram.create_circular_radial(
-            center=(0, 0),
-            radius=radius,
-            n_hoops=rings,
-            n_parallels=radials,
-            r_oculus=oculus,
-        )
+            radials = rs.GetInteger("Radials", 24, 12, 64)
+            if not radials:
+                return
 
-        session["params"]["formdiagram"] = "circular"
-        session["params"]["center"] = (0, 0)
-        session["params"]["radius"] = radius
-        session["params"]["n_hoops"] = rings
-        session["params"]["n_parallels"] = radials
-        session["params"]["r_oculus"] = oculus
+            oculus = rs.GetReal("Oculus", number=0.3, minimum=0.0)
+            if not oculus:
+                return
 
-    # =============================================================================
-    # From a cross vault pattern
-    # =============================================================================
+            formdiagram = FormDiagram.create_circular_radial(
+                center=(0, 0),
+                radius=radius,
+                n_hoops=rings,
+                n_parallels=radials,
+                r_oculus=oculus,
+            )
 
-    elif option == "Cross":
-        xsize = rs.GetReal("XSize", number=10, minimum=0)
-        if not xsize:
-            return
-        x_span = (0, xsize)
+            session["params"]["formdiagram"] = "circular"
+            session["params"]["center"] = (0, 0)
+            session["params"]["radius"] = radius
+            session["params"]["n_hoops"] = rings
+            session["params"]["n_parallels"] = radials
+            session["params"]["r_oculus"] = oculus
 
-        ysize = rs.GetReal("YSize", number=xsize, minimum=0)
-        if not ysize:
-            return
-        y_span = (0, ysize)
+        # =============================================================================
+        # From a cross vault pattern
+        # =============================================================================
 
-        n = rs.GetInteger("Resolution", 10, 2)
-        if not n:
-            return
+        elif option == "Cross":
+            xsize = rs.GetReal("XSize", number=10, minimum=0)
+            if not xsize:
+                return
+            x_span = (0, xsize)
 
-        formdiagram = FormDiagram.create_cross(x_span=x_span, y_span=y_span, n=n)
+            ysize = rs.GetReal("YSize", number=xsize, minimum=0)
+            if not ysize:
+                return
+            y_span = (0, ysize)
 
-        session["params"]["formdiagram"] = "cross"
-        session["params"]["x_span"] = x_span
-        session["params"]["y_span"] = y_span
-        session["params"]["n"] = n
+            n = rs.GetInteger("Resolution", 10, 2)
+            if not n:
+                return
 
-    # =============================================================================
-    # From a fan vault pattern
-    # =============================================================================
+            formdiagram = FormDiagram.create_cross(x_span=x_span, y_span=y_span, n=n)
 
-    elif option == "Fan":
-        xsize = rs.GetReal("XSize", number=10, minimum=0)
-        if not xsize:
-            return
-        x_span = (0, xsize)
+            session["params"]["formdiagram"] = "cross"
+            session["params"]["x_span"] = x_span
+            session["params"]["y_span"] = y_span
+            session["params"]["n"] = n
 
-        ysize = rs.GetReal("YSize", number=xsize, minimum=0)
-        if not ysize:
-            return
-        y_span = (0, ysize)
+        # =============================================================================
+        # From a fan vault pattern
+        # =============================================================================
 
-        n_fans = rs.GetInteger("Number of Fans", 10, 2)
-        if not n_fans:
-            return
+        elif option == "Fan":
+            xsize = rs.GetReal("XSize", number=10, minimum=0)
+            if not xsize:
+                return
+            x_span = (0, xsize)
 
-        n_hoops = rs.GetInteger("Number of Hoops", n_fans, 2)
-        if not n_hoops:
-            return
+            ysize = rs.GetReal("YSize", number=xsize, minimum=0)
+            if not ysize:
+                return
+            y_span = (0, ysize)
 
-        formdiagram = FormDiagram.create_fan(x_span=x_span, y_span=y_span, n_fans=n_fans, n_hoops=n_hoops)
+            n_fans = rs.GetInteger("Number of Fans", 10, 2)
+            if not n_fans:
+                return
 
-        session["params"]["formdiagram"] = "fan"
-        session["params"]["x_span"] = x_span
-        session["params"]["y_span"] = y_span
-        session["params"]["n_fans"] = n_fans
-        session["params"]["n_hoops"] = n_hoops
+            n_hoops = rs.GetInteger("Number of Hoops", n_fans, 2)
+            if not n_hoops:
+                return
 
-    # =============================================================================
-    # From an orthogonal pattern
-    # =============================================================================
+            formdiagram = FormDiagram.create_fan(x_span=x_span, y_span=y_span, n_fans=n_fans, n_hoops=n_hoops)
 
-    elif option == "Ortho":
-        xsize = rs.GetReal("XSize", number=10, minimum=0)
-        if not xsize:
-            return
-        x_span = (0, xsize)
+            session["params"]["formdiagram"] = "fan"
+            session["params"]["x_span"] = x_span
+            session["params"]["y_span"] = y_span
+            session["params"]["n_fans"] = n_fans
+            session["params"]["n_hoops"] = n_hoops
 
-        ysize = rs.GetReal("YSize", number=xsize, minimum=0)
-        if not ysize:
-            return
-        y_span = (0, ysize)
+        # =============================================================================
+        # From an orthogonal pattern
+        # =============================================================================
 
-        nx = rs.GetInteger("Number of X Faces", 10, 2)
-        if not nx:
-            return
+        elif option == "Ortho":
+            xsize = rs.GetReal("XSize", number=10, minimum=0)
+            if not xsize:
+                return
+            x_span = (0, xsize)
 
-        ny = rs.GetInteger("Number of Y Faces", nx, 2)
-        if not ny:
-            return
+            ysize = rs.GetReal("YSize", number=xsize, minimum=0)
+            if not ysize:
+                return
+            y_span = (0, ysize)
 
-        formdiagram = FormDiagram.create_ortho(x_span=x_span, y_span=y_span, nx=nx, ny=ny)
+            nx = rs.GetInteger("Number of X Faces", 10, 2)
+            if not nx:
+                return
 
-        session["params"]["formdiagram"] = "ortho"
-        session["params"]["x_span"] = x_span
-        session["params"]["y_span"] = y_span
-        session["params"]["nx"] = nx
-        session["params"]["ny"] = ny
+            ny = rs.GetInteger("Number of Y Faces", nx, 2)
+            if not ny:
+                return
+
+            formdiagram = FormDiagram.create_ortho(x_span=x_span, y_span=y_span, nx=nx, ny=ny)
+
+            session["params"]["formdiagram"] = "ortho"
+            session["params"]["x_span"] = x_span
+            session["params"]["y_span"] = y_span
+            session["params"]["nx"] = nx
+            session["params"]["ny"] = ny
+
+        # =============================================================================
+        # Not supported
+        # =============================================================================
+
+        else:
+            raise NotImplementedError
 
     # =============================================================================
     # Not supported
@@ -180,6 +206,7 @@ def RunCommand():
 
     session.scene.add(formdiagram, name="FormDiagram", layer="Masonry::TNA::FormDiagram")  # type: ignore
     session.scene.redraw()
+
     rs.Redraw()
 
     # =============================================================================

@@ -18,11 +18,11 @@ def RunCommand():
     envelope = session["envelope"]
 
     if not formdiagram:
-        feedback.warn("There is no FormDiagram")
+        feedback.warn("There is no FormDiagram. Please create one first.")
         return
 
     if not envelope:
-        feedback.warn("There is no Envelope")
+        feedback.warn("There is no Envelope. Please create one first.")
         return
 
     # =============================================================================
