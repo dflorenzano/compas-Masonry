@@ -15,6 +15,36 @@ from compas_tna.envelope import PavillionVaultEnvelope
 from compas_tna.envelope import PointedVaultEnvelope
 
 
+def get_location():
+    option = rs.GetString("Location", strings=["Origin", "Coordinates", "Point"])
+    if not option:
+        return
+
+    if option == "Origin":
+        point = (0, 0)
+
+    elif option == "Coordinates":
+        x = rs.GetReal("X", 0.0, -1000.0, 1000.0)
+        if x is None:
+            return
+
+        y = rs.GetReal("Y", 0.0, -1000.0, 1000.0)
+        if y is None:
+            return
+
+        point = (x, y)
+
+    elif option == "Point":
+        point = rs.GetPoint("Point")
+        if not point:
+            return
+
+    else:
+        raise NotImplementedError
+
+    return point[0], point[1]
+
+
 def RunCommand():
     session = Session()
 
@@ -56,17 +86,24 @@ def RunCommand():
         # =============================================================================
 
         if option == "CrossVault":
-            x_span = rs.GetReal("X Span", 10, 0.0, 1000)
-            if not x_span:
+            point = get_location()
+            if not point:
                 return
 
-            y_span = rs.GetReal("Y Span", 10, 0.0, 1000)
-            if not y_span:
+            x_size = rs.GetReal("X Size", 10, 0.0, 1000)
+            if not x_size:
+                return
+
+            y_size = rs.GetReal("Y Size", 10, 0.0, 1000)
+            if not y_size:
                 return
 
             thickness = rs.GetReal("Thickness", 0.5, 0.0, 100)
             if not thickness:
                 return
+
+            x_span = (point[0], point[0] + x_size)
+            y_span = (point[1], point[1] + y_size)
 
             envelope = CrossVaultEnvelope(
                 x_span=x_span,
@@ -79,12 +116,16 @@ def RunCommand():
         # =============================================================================
 
         elif option == "PointedVault":
-            x_span = rs.GetReal("X Span", 10, 0.0, 1000)
-            if not x_span:
+            point = get_location()
+            if not point:
                 return
 
-            y_span = rs.GetReal("Y Span", 10, 0.0, 1000)
-            if not y_span:
+            x_size = rs.GetReal("X Size", 10, 0.0, 1000)
+            if not x_size:
+                return
+
+            y_size = rs.GetReal("Y Size", 10, 0.0, 1000)
+            if not y_size:
                 return
 
             rise = rs.GetReal("Rise", 3, 0.0, 1000)
@@ -94,6 +135,9 @@ def RunCommand():
             thickness = rs.GetReal("Thickness", 0.5, 0.0, 100)
             if not thickness:
                 return
+
+            x_span = (point[0], point[0] + x_size)
+            y_span = (point[1], point[1] + y_size)
 
             envelope = PointedVaultEnvelope(
                 x_span=x_span,
@@ -107,12 +151,16 @@ def RunCommand():
         # =============================================================================
 
         elif option == "PavilionVault":
-            x_span = rs.GetReal("X Span", 10, 0.0, 1000)
-            if not x_span:
+            point = get_location()
+            if not point:
                 return
 
-            y_span = rs.GetReal("Y Span", 10, 0.0, 1000)
-            if not y_span:
+            x_size = rs.GetReal("X Size", 10, 0.0, 1000)
+            if not x_size:
+                return
+
+            y_size = rs.GetReal("Y Size", 10, 0.0, 1000)
+            if not y_size:
                 return
 
             thickness = rs.GetReal("Thickness", 0.5, 0.0, 100)
@@ -122,6 +170,9 @@ def RunCommand():
             angle = rs.GetReal("Springing Angle", 45, 0.0, 90)
             angle = angle or 0
             angle = angle / 180.0 * 3.14159
+
+            x_span = (point[0], point[0] + x_size)
+            y_span = (point[1], point[1] + y_size)
 
             envelope = PavillionVaultEnvelope(
                 x_span=x_span,
@@ -135,7 +186,7 @@ def RunCommand():
         # =============================================================================
 
         elif option == "Dome":
-            center = rs.GetPoint("Center")
+            center = get_location()
             if not center:
                 return
 

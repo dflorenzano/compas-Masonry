@@ -20,6 +20,36 @@ from compas_tna.envelope import Envelope
 # This allows the diagram to be moved afterwards without having to redefine the parameters.
 
 
+def get_location():
+    option = rs.GetString("Location", strings=["Origin", "Coordinates", "Point"])
+    if not option:
+        return
+
+    if option == "Origin":
+        point = (0, 0)
+
+    elif option == "Coordinates":
+        x = rs.GetReal("X", 0.0, -1000.0, 1000.0)
+        if x is None:
+            return
+
+        y = rs.GetReal("Y", 0.0, -1000.0, 1000.0)
+        if y is None:
+            return
+
+        point = (x, y)
+
+    elif option == "Point":
+        point = rs.GetPoint("Point")
+        if not point:
+            return
+
+    else:
+        raise NotImplementedError
+
+    return point[0], point[1]
+
+
 def RunCommand():
     session = Session()
 
@@ -80,6 +110,10 @@ def RunCommand():
         # =============================================================================
 
         if option == "Circular":
+            center = get_location()
+            if not center:
+                return
+
             radius = rs.GetReal("Radius", number=1.0, minimum=0.0)
             if not radius:
                 return
@@ -97,38 +131,36 @@ def RunCommand():
                 return
 
             formdiagram = FormDiagram.create_circular_radial(
-                center=(0, 0),
+                center=center,
                 radius=radius,
                 n_hoops=rings,
                 n_parallels=radials,
                 r_oculus=oculus,
             )
 
-            session["params"]["formdiagram"] = "circular"
-            session["params"]["center"] = (0, 0)
-            session["params"]["radius"] = radius
-            session["params"]["n_hoops"] = rings
-            session["params"]["n_parallels"] = radials
-            session["params"]["r_oculus"] = oculus
-
         # =============================================================================
         # From a cross vault pattern
         # =============================================================================
 
         elif option == "Cross":
-            xsize = rs.GetReal("XSize", number=10, minimum=0)
-            if not xsize:
+            point = get_location()
+            if not point:
                 return
-            x_span = (0, xsize)
 
-            ysize = rs.GetReal("YSize", number=xsize, minimum=0)
-            if not ysize:
+            x_size = rs.GetReal("X Size", 10, 0.0, 1000)
+            if not x_size:
                 return
-            y_span = (0, ysize)
 
-            n = rs.GetInteger("Resolution", 10, 2)
+            y_size = rs.GetReal("Y Size", 10, 0.0, 1000)
+            if not y_size:
+                return
+
+            n = rs.GetInteger("Resolution", 10, 0)
             if not n:
                 return
+
+            x_span = (point[0], point[0] + x_size)
+            y_span = (point[1], point[1] + y_size)
 
             formdiagram = FormDiagram.create_cross(
                 x_span=x_span,
@@ -137,25 +169,22 @@ def RunCommand():
                 supports=None,  # type: ignore
             )
 
-            session["params"]["formdiagram"] = "cross"
-            session["params"]["x_span"] = x_span
-            session["params"]["y_span"] = y_span
-            session["params"]["n"] = n
-
         # =============================================================================
         # From a fan vault pattern
         # =============================================================================
 
         elif option == "Fan":
-            xsize = rs.GetReal("XSize", number=10, minimum=0)
-            if not xsize:
+            point = get_location()
+            if not point:
                 return
-            x_span = (0, xsize)
 
-            ysize = rs.GetReal("YSize", number=xsize, minimum=0)
-            if not ysize:
+            x_size = rs.GetReal("X Size", 10, 0.0, 1000)
+            if not x_size:
                 return
-            y_span = (0, ysize)
+
+            y_size = rs.GetReal("Y Size", 10, 0.0, 1000)
+            if not y_size:
+                return
 
             n_fans = rs.GetInteger("Number of Fans", 10, 2)
             if not n_fans:
@@ -165,6 +194,9 @@ def RunCommand():
             if not n_hoops:
                 return
 
+            x_span = (point[0], point[0] + x_size)
+            y_span = (point[1], point[1] + y_size)
+
             formdiagram = FormDiagram.create_fan(
                 x_span=x_span,
                 y_span=y_span,
@@ -173,26 +205,22 @@ def RunCommand():
                 supports=None,  # type: ignore
             )
 
-            session["params"]["formdiagram"] = "fan"
-            session["params"]["x_span"] = x_span
-            session["params"]["y_span"] = y_span
-            session["params"]["n_fans"] = n_fans
-            session["params"]["n_hoops"] = n_hoops
-
         # =============================================================================
         # From an orthogonal pattern
         # =============================================================================
 
         elif option == "Ortho":
-            xsize = rs.GetReal("XSize", number=10, minimum=0)
-            if not xsize:
+            point = get_location()
+            if not point:
                 return
-            x_span = (0, xsize)
 
-            ysize = rs.GetReal("YSize", number=xsize, minimum=0)
-            if not ysize:
+            x_size = rs.GetReal("X Size", 10, 0.0, 1000)
+            if not x_size:
                 return
-            y_span = (0, ysize)
+
+            y_size = rs.GetReal("Y Size", 10, 0.0, 1000)
+            if not y_size:
+                return
 
             nx = rs.GetInteger("Number of X Faces", 10, 2)
             if not nx:
@@ -202,6 +230,9 @@ def RunCommand():
             if not ny:
                 return
 
+            x_span = (point[0], point[0] + x_size)
+            y_span = (point[1], point[1] + y_size)
+
             formdiagram = FormDiagram.create_ortho(
                 x_span=x_span,
                 y_span=y_span,
@@ -209,12 +240,6 @@ def RunCommand():
                 ny=ny,
                 supports=None,  # type: ignore
             )
-
-            session["params"]["formdiagram"] = "ortho"
-            session["params"]["x_span"] = x_span
-            session["params"]["y_span"] = y_span
-            session["params"]["nx"] = nx
-            session["params"]["ny"] = ny
 
         # =============================================================================
         # Not supported
