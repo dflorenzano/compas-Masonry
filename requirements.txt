@@ -1,5 +1,5 @@
 cvxpy
-compas >=2.14
+compas >=2.14.1
 # compas_3dec
 compas_cgal >=0.9.1
 compas_dem >=0.4
