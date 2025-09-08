@@ -31,8 +31,7 @@ def RunCommand():
 
     rs.UnselectAllObjects()
 
-    options = ["Add", "Remove"]
-    option = rs.GetString("Add or Remove supports", strings=options)
+    option = rs.GetString("Add or Remove supports", strings=["Add", "Remove", "Clear All"])
     if not option:
         return
 
@@ -56,12 +55,19 @@ def RunCommand():
         if selected:
             formobject.mesh.vertices_attribute(name="is_support", value=False, keys=selected)
 
+    elif option == "Clear All":
+        formobject.mesh.vertices_attribute(name="is_support", value=False)
+
+    else:
+        raise NotImplementedError
+
     # =============================================================================
     # Update scene
     # =============================================================================
 
     rs.UnselectAllObjects()
 
+    formobject.show_vertices = True  # type: ignore
     formobject.show_edges = True  # type: ignore
     formobject.show_faces = False  # type: ignore
     formobject.redraw()

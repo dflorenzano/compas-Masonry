@@ -35,7 +35,7 @@ def RunCommand():
 
     rs.UnselectAllObjects()
 
-    options = ["Add", "Remove"]
+    options = ["Add", "Clear All"]
     option = rs.GetString("Add or Remove supports", strings=options)
     if not option:
         return
@@ -63,7 +63,7 @@ def RunCommand():
                     pz = formdiagram.vertex_attribute(key, "pz") or 0
                     formdiagram.vertex_attribute(key, "pz", pz + load)
 
-    elif option == "Remove":
+    elif option == "Clear All":
         formobject.mesh.vertices_attribute(name="pz", value=0)
 
     else:
@@ -75,6 +75,7 @@ def RunCommand():
 
     rs.UnselectAllObjects()
 
+    formobject.show_vertices = True  # type: ignore
     formobject.show_edges = True  # type: ignore
     formobject.show_faces = False  # type: ignore
     formobject.redraw()
