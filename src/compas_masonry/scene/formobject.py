@@ -37,7 +37,9 @@ class RhinoFormDiagramObject(RUIMeshObject):
     compressioncolor = ColorAttribute(default=Color.blue())
     tensioncolor = ColorAttribute(default=Color.red())
 
-    crackcolor = ColorAttribute(default=Color.red())
+    ecrackcolor = ColorAttribute(default=Color.green())
+    icrackcolor = ColorAttribute(default=Color.blue())
+
     boundscolor = ColorAttribute(default=Color.magenta())
 
     def __init__(
@@ -493,10 +495,13 @@ class RhinoFormDiagramObject(RUIMeshObject):
             if bound:
                 name = self.vertex_bound_name(vertex)
                 attr = self.compile_attributes(name=name, color=self.boundscolor)
+
                 guid = sc.doc.Objects.AddLine(compas_rhino.conversions.line_to_rhino(bound), attr)
                 guids.append(guid)
+
                 guid = sc.doc.Objects.AddPoint(compas_rhino.conversions.point_to_rhino(bound.start), attr)
                 guids.append(guid)
+
                 guid = sc.doc.Objects.AddPoint(compas_rhino.conversions.point_to_rhino(bound.end), attr)
                 guids.append(guid)
 
@@ -513,14 +518,20 @@ class RhinoFormDiagramObject(RUIMeshObject):
         guids = []
 
         for vertex in self.vertices():
-            if self.vertex_is_on_lower_bound(vertex) or self.vertex_is_on_upper_bound(vertex):
-                point = self.diagram.vertex_point(vertex)
-                radius = self.session.settings.formdiagram.crack_radius
-                sphere = Sphere(radius, point=point)
+            if self.vertex_is_on_lower_bound(vertex):
                 name = self.vertex_crack_name(vertex)
-                attr = self.compile_attributes(name=name, color=self.crackcolor)
-                guid = sc.doc.Objects.AddSphere(compas_rhino.conversions.sphere_to_rhino(sphere), attr)
-                guids.append(guid)
+                attr = self.compile_attributes(name=name, color=self.icrackcolor)
+            elif self.vertex_is_on_upper_bound(vertex):
+                name = self.vertex_crack_name(vertex)
+                attr = self.compile_attributes(name=name, color=self.ecrackcolor)
+            else:
+                continue
+
+            point = self.diagram.vertex_point(vertex)
+            radius = self.session.settings.formdiagram.crack_radius
+            sphere = Sphere(radius, point=point)
+            guid = sc.doc.Objects.AddSphere(compas_rhino.conversions.sphere_to_rhino(sphere), attr)
+            guids.append(guid)
 
         if guids:
             if self.crackgroup:
