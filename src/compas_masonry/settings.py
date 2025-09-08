@@ -9,7 +9,7 @@ class FormDiagramSettings(BaseModel):
     show_residuals: bool = Field(default=False, title="Show Residuals")
     show_pipes: bool = Field(default=False, title="Show Pipes")
     show_loads: bool = Field(default=False, title="Show Loads")
-    show_bounds: bool = Field(default=True, title="Show Bounds")
+    show_bounds: bool = Field(default=False, title="Show Bounds")
     show_cracks: bool = Field(default=False, title="Show Cracks")
 
     scale_reactions: float = Field(default=0.01, ge=1e-6, le=1e3, title="Scale Reactions")
