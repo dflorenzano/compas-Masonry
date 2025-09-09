@@ -359,7 +359,7 @@ class RhinoFormDiagramObject(RUIMeshObject):
                     name = self.vertex_load_name(vertex)
                     attr = self.compile_attributes(name=name, color=color, arrow="end")
                     point = self.diagram.vertex_point(vertex)
-                    line = Line.from_point_and_vector(point + vector, point)
+                    line = Line(point + vector, point)
                     guid = sc.doc.Objects.AddLine(compas_rhino.conversions.line_to_rhino(line), attr)
                     guids.append(guid)
 
