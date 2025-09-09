@@ -36,7 +36,7 @@ def RunCommand():
     rs.UnselectAllObjects()
 
     options = ["Add", "Clear All"]
-    option = rs.GetString("Add or Remove supports", strings=options)
+    option = rs.GetString("Add or Remove Loads in the Model", strings=options)
     if not option:
         return
 
