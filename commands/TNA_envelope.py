@@ -9,6 +9,7 @@ import rhinoscriptsyntax as rs  # type: ignore
 import compas_rhino
 import compas_rhino.conversions
 import compas_rhino.objects
+from compas.datastructures import Mesh
 from compas_masonry.session import MasonrySession as Session
 from compas_tna.diagrams import FormDiagram
 
@@ -249,6 +250,8 @@ def RunCommand():
         if not thickness:
             return
 
+        rs.HideObject(guid)
+
         envelope = MeshEnvelope.from_middle_mesh(mesh_middle, thickness)
 
     # # =============================================================================
@@ -266,25 +269,35 @@ def RunCommand():
     # =============================================================================
 
     elif option == "FromBounds":
+        guids_bounds = []
+
         guid = compas_rhino.objects.select_mesh("Select intrados")
+        rs.UnselectAllObjects()
         if not guid:
             return
-        mesh_intrados = compas_rhino.conversions.meshobject_to_compas(guid)
-        rs.UnselectAllObjects()
+        guids_bounds.append(guid)
+        obj = compas_rhino.objects.find_object(guid)
+        mesh_intrados = compas_rhino.conversions.mesh_to_compas(obj.Geometry, cls=Mesh)
 
         guid = compas_rhino.objects.select_mesh("Select extrados")
+        rs.UnselectAllObjects()
         if not guid:
             return
-        mesh_extrados = compas_rhino.conversions.meshobject_to_compas(guid)
-        rs.UnselectAllObjects()
+        guids_bounds.append(guid)
+        obj = compas_rhino.objects.find_object(guid)
+        mesh_extrados = compas_rhino.conversions.mesh_to_compas(obj.Geometry, cls=Mesh)
 
         guid = compas_rhino.objects.select_mesh("Select middle (Optional)")
+        rs.UnselectAllObjects()
         if not guid:
             mesh_middle = None
             pass
         else:
-            mesh_middle = compas_rhino.conversions.meshobject_to_compas(guid)
-        rs.UnselectAllObjects()
+            guids_bounds.append(guid)
+            obj = compas_rhino.objects.find_object(guid)
+            mesh_middle = compas_rhino.conversions.mesh_to_compas(obj.Geometry, cls=Mesh)
+
+        rs.HideObjects(guids_bounds)
 
         envelope = MeshEnvelope.from_meshes(mesh_intrados, mesh_extrados, mesh_middle)
 
