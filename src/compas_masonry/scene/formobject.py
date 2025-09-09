@@ -271,9 +271,6 @@ class RhinoFormDiagramObject(RUIMeshObject):
         if self.session.settings.formdiagram.show_reactions:
             self.draw_reactions()
 
-        if self.session.settings.formdiagram.show_residuals:
-            self.draw_residuals()
-
         if self.session.settings.formdiagram.show_pipes:
             self.draw_pipes()
 
@@ -359,7 +356,10 @@ class RhinoFormDiagramObject(RUIMeshObject):
                     name = self.vertex_load_name(vertex)
                     attr = self.compile_attributes(name=name, color=color, arrow="end")
                     point = self.diagram.vertex_point(vertex)
-                    line = Line(point + vector, point)
+                    if vector.z < 0:
+                        line = Line(point + vector * -1, point)
+                    else:
+                        line = Line(point, point + vector)
                     guid = sc.doc.Objects.AddLine(compas_rhino.conversions.line_to_rhino(line), attr)
                     guids.append(guid)
 
@@ -409,7 +409,7 @@ class RhinoFormDiagramObject(RUIMeshObject):
             vector = residual * -scale
             if vector.length > tol:
                 name = self.vertex_reaction_name(vertex)
-                attr = self.compile_attributes(name=name, color=self.reactioncolor, arrow="end")
+                attr = self.compile_attributes(name=name, color=self.reactioncolor, arrow="start")
                 point = self.diagram.vertex_point(vertex)
                 line = Line.from_point_and_vector(point, vector)
                 guid = sc.doc.Objects.AddLine(compas_rhino.conversions.line_to_rhino(line), attr)
@@ -418,31 +418,6 @@ class RhinoFormDiagramObject(RUIMeshObject):
         if guids:
             if self.reactiongroup:
                 self.add_to_group(self.reactiongroup, guids)
-            elif self.group:
-                self.add_to_group(self.group, guids)
-
-        self._guids += guids
-        return guids
-
-    def draw_residuals(self):
-        guids = []
-        scale = self.session.settings.formdiagram.scale_residuals
-        tol = self.session.settings.formdiagram.tol_vectors
-
-        for vertex in self.diagram.vertices_where(is_support=False):
-            residual = self.vertex_residual(vertex)
-            vector = residual * scale
-            if vector.length > tol:
-                name = self.vertex_residual_name(vertex)
-                attr = self.compile_attributes(name=name, color=self.residualcolor, arrow="end")
-                point = self.diagram.vertex_point(vertex)
-                line = Line.from_point_and_vector(point, vector)
-                guid = sc.doc.Objects.AddLine(compas_rhino.conversions.line_to_rhino(line), attr)
-                guids.append(guid)
-
-        if guids:
-            if self.residualgroup:
-                self.add_to_group(self.residualgroup, guids)
             elif self.group:
                 self.add_to_group(self.group, guids)
 
