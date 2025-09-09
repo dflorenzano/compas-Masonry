@@ -7,11 +7,11 @@ import pathlib
 import numpy as np
 import rhinoscriptsyntax as rs  # type: ignore
 
-from compas_masonry.envelope import MeshEnvelope
 from compas_masonry.scene import RhinoFormDiagramObject
 from compas_masonry.session import MasonrySession as Session
 from compas_rui import feedback
 from compas_tna.diagrams import FormDiagram
+from compas_tna.envelope import MeshEnvelope
 from compas_tno.analysis import Analysis
 
 
