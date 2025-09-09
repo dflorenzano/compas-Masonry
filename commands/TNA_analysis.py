@@ -1,8 +1,6 @@
 #! python3
 # venv: brg-csd
-# r: compas_masonry >=0.2.0
-
-import ast
+# r: compas_masonry
 
 import numpy as np
 import rhinoscriptsyntax as rs  # type: ignore
@@ -33,6 +31,11 @@ def RunCommand():
         session.scene.add(formdiagram, name="FormDiagram", layer="Masonry::TNA::FormDiagram")  # type: ignore
 
     formobject.redraw()
+
+    sum_loads = sum(formobject.diagram.vertices_attribute("pz"))
+    if abs(sum_loads) < 0.001:
+        feedback.warn("There are no loads applied to the model. Please assign loads.")
+        return
 
     # =============================================================================
     # Create an analysis
@@ -67,9 +70,10 @@ def RunCommand():
         index_vertex = formobject.diagram.index_vertex()
 
         while True:
-            formobject.show_vertices = list(formobject.diagram.vertices())  # type: ignore
-            vertices = formobject.select_vertices()
+            formobject.show_vertices = list(formobject.vertices())  # type: ignore
             formobject.redraw()
+
+            vertices = formobject.select_vertices()
 
             if not vertices:
                 break
@@ -100,24 +104,21 @@ def RunCommand():
 
         while True:
             formobject.show_vertices = supports
-            vertices = formobject.select_vertices()
             formobject.redraw()
+
+            vertices = formobject.select_vertices()
 
             if not vertices:
                 break
 
-            displ = rs.GetString(message="Vector to displace selected supports", defaultString="[-1, -1, 0]")
-
-            if not displ:
-                break
-
-            displ_list = ast.literal_eval(displ)
-            if len(displ_list) != 3:
-                print("provide a 3x1 vector as shown as the example")
-                break
+            ux = rs.GetReal("Define the Support displacement [Ux, Uy, Uz]. Enter Ux", -1)
+            uy = rs.GetReal("Define the Support displacement [Ux, Uy, Uz]. Enter Uy", -1)
+            uz = rs.GetReal("Define the Support displacement [Ux, Uy, Uz]. Enter Uz", 0)
+            displ_list = [ux, uy, uz]
 
             for vertex in vertices:
                 displacement_array[supports.index(vertex)] = np.array(displ_list)
+                print("Applied Vector {0} to support {1}".format(displ_list, vertex))
 
             # Here we should add a vector to the Scene showing the displacement that we are maximizing.
 
@@ -138,10 +139,29 @@ def RunCommand():
         raise NotImplementedError
 
     analysis.optimiser.settings["printout"] = True  # need to be true so people see the fopt.
-    analysis.apply_selfweight()
-    analysis.apply_envelope()
+    # analysis.apply_selfweight()  # This needs to be removed if loads were applied previously
+    # analysis.apply_envelope() # This is also not necessary if we included it before
     analysis.set_up_optimiser()
     analysis.run()
+
+    # =============================================================================
+    # Post Solver Messages
+    # =============================================================================
+
+    fopt = analysis.optimiser.fopt
+
+    if objective == "MaximumLoad":
+        print("Maximum Load Multipled to the loads assigned: {0:.3f}".format(fopt))
+    elif objective == "MinimumThrust" or objective == "MaximumThrust":
+        print("Optimal Horizontal Thrust Calculated: {0:.3f}".format(fopt))
+    elif objective == "MinimumThickness":
+        print("Minimum Thickness Calculated: {0:.3f}".format(fopt))
+    elif objective == "SupportDisplacement":
+        print("Complementary Energy to Assigned Displacements: {0:.3f}".format(fopt))
+    elif objective == "Bestfit":
+        print("Optimal Squared vertical distance to middle surface: {0:.3f}".format(fopt))
+    else:
+        pass
 
     # =============================================================================
     # Update scene
