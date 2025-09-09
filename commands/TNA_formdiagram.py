@@ -6,6 +6,8 @@ import pathlib
 
 import rhinoscriptsyntax as rs  # type: ignore
 
+import compas_rhino
+from compas.datastructures import Mesh
 from compas_masonry.session import MasonrySession as Session
 from compas_rui import feedback
 from compas_tna.diagrams import FormDiagram
@@ -79,6 +81,7 @@ def RunCommand():
     # =============================================================================
 
     formdiagram = None
+    rs.UnselectAllObjects()
 
     option = rs.GetString(message="FormDiagram", strings=["FromPattern", "FromLines", "FromRhinoMesh"])
     if not option:
@@ -89,14 +92,33 @@ def RunCommand():
     # =============================================================================
 
     if option == "FromLines":
-        pass
+        guids = compas_rhino.objects.select_lines("Select lines")
+        if not guids:
+            return
+
+        lines = compas_rhino.objects.get_line_coordinates(guids)
+        if not lines:
+            return
+
+        mesh_formdiagram = Mesh.from_lines(lines, delete_boundary_face=True)  # type: ignore
+        formdiagram = FormDiagram.from_mesh(mesh_formdiagram)
+
+        rs.HideObjects(guids)
 
     # =============================================================================
     # From a Rhino mesh
     # =============================================================================
 
     elif option == "FromRhinoMesh":
-        pass
+        guid = compas_rhino.objects.select_mesh("Select FormDiagram Mesh")
+        rs.UnselectAllObjects()
+        if not guid:
+            return
+        obj = compas_rhino.objects.find_object(guid)
+        mesh_formdiagram = compas_rhino.conversions.mesh_to_compas(obj.Geometry, cls=Mesh)
+        formdiagram = FormDiagram.from_mesh(mesh_formdiagram)
+
+        rs.HideObjects(guid)
 
     # =============================================================================
     # From a predefined pattern
