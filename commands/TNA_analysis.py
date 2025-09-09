@@ -165,7 +165,7 @@ def RunCommand():
     # =============================================================================
 
     fopt = analysis.optimiser.fopt
-    exitflag = analysis.optimiser.exitflag
+    exitflag = analysis.optimiser.exitflag  # returns0 if solved
 
     if objective == "MaximumLoad":
         print("Maximum Load Multipled to the loads assigned: {0:.3f}".format(fopt))
@@ -174,7 +174,7 @@ def RunCommand():
     elif objective == "MinimumThickness":
         print("Minimum Thickness Calculated: {0:.3f}".format(fopt))
         # Update the envelope for smaller thickness check if it works
-        if exitflag == 1:
+        if exitflag == 0:
             envelope.thickness = fopt
             envelope.update_envelope()
     elif objective == "SupportDisplacement":
