@@ -1,6 +1,6 @@
 #! python3
 # venv: brg-csd
-# r: compas_masonry >=0.2.0
+# r: compas_masonry>=0.2.2
 
 
 from compas_masonry.session import MasonrySession as Session
