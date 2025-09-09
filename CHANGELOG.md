@@ -9,10 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* Updated TNA_Loads and TNA_analysis
+
 ### Changed
 
 ### Removed
-
 
 ## [0.2.3] 2025-09-09
 
