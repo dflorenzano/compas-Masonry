@@ -2,6 +2,8 @@
 # venv: brg-csd
 # r: compas_masonry
 
+import ast
+
 import numpy as np
 import rhinoscriptsyntax as rs  # type: ignore
 
@@ -112,8 +114,14 @@ def RunCommand():
                 break
 
             ux = rs.GetReal("Define the Support displacement [Ux, Uy, Uz]. Enter Ux", -1)
+            if not ux:
+                ux = 0.0
             uy = rs.GetReal("Define the Support displacement [Ux, Uy, Uz]. Enter Uy", -1)
+            if not uy:
+                uy = 0.0
             uz = rs.GetReal("Define the Support displacement [Ux, Uy, Uz]. Enter Uz", 0)
+            if not uz:
+                uz = 0.0
             displ_list = [ux, uy, uz]
 
             for vertex in vertices:
@@ -124,6 +132,9 @@ def RunCommand():
 
             add_vector = rs.GetString(message="Define additional displacement vectors?", strings=["Yes", "No"])
             rs.UnselectAllObjects()
+
+            if not add_vector:
+                return
 
             if add_vector == "Yes":
                 pass
@@ -151,15 +162,15 @@ def RunCommand():
     fopt = analysis.optimiser.fopt
 
     if objective == "MaximumLoad":
-        print("Maximum Load Multipled to the loads assigned: {0:.3f}".format(fopt))
+        print('Maximum Load Multipled to the loads assigned: {0:.3f}'.format(fopt))
     elif objective == "MinimumThrust" or objective == "MaximumThrust":
-        print("Optimal Horizontal Thrust Calculated: {0:.3f}".format(fopt))
+         print('Optimal Horizontal Thrust Calculated: {0:.3f}'.format(fopt))
     elif objective == "MinimumThickness":
-        print("Minimum Thickness Calculated: {0:.3f}".format(fopt))
+         print('Minimum Thickness Calculated: {0:.3f}'.format(fopt))
     elif objective == "SupportDisplacement":
-        print("Complementary Energy to Assigned Displacements: {0:.3f}".format(fopt))
+         print('Complementary Energy to Assigned Displacements: {0:.3f}'.format(fopt))
     elif objective == "Bestfit":
-        print("Optimal Squared vertical distance to middle surface: {0:.3f}".format(fopt))
+         print('Optimal Squared vertical distance to middle surface: {0:.3f}'.format(fopt))
     else:
         pass
 
