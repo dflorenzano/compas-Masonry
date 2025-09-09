@@ -1,7 +1,7 @@
 compas >=2.14.1
 # compas_3dec
 compas_cgal >=0.9.1
-compas_dem >=0.4
+compas_dem >=0.4.1
 compas_libigl >=0.7.6
 compas_rui >=0.6
 compas_session >=0.7
