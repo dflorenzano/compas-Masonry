@@ -1,6 +1,8 @@
 #! python3
 # venv: brg-csd
-# r: compas_masonry>=0.2.3
+# r: compas_masonry>=0.2.4
+
+import pathlib
 
 import rhinoscriptsyntax as rs  # type: ignore
 
@@ -12,9 +14,9 @@ from compas_tna.envelope import Envelope
 
 
 def RunCommand():
-    session = Session()
+    session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
-    formdiagram: FormDiagram = session["formdiagram"]
+    formdiagram: FormDiagram = session.get("formdiagram")
 
     if not formdiagram:
         feedback.warn("There is no FormDiagram. Please create one first.")
@@ -53,7 +55,7 @@ def RunCommand():
                 normalize = True
             else:
                 normalize = False
-            envelope.apply_selfweight_to_formdiagram(formdiagram, normalize=normalize)
+            envelope.apply_selfweight_to_formdiagram(formdiagram, normalize=normalize)  # type: ignore
 
         elif option == "External":
             formobject.show_vertices = list(formobject.vertices())  # type: ignore

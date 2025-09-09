@@ -1,6 +1,6 @@
 #! python3
 # venv: brg-csd
-# r: compas_masonry>=0.2.3
+# r: compas_masonry>=0.2.4
 
 import pathlib
 
@@ -16,8 +16,7 @@ shared = pathlib.Path(str(pluginfile)).parent / "shared"
 
 def RunCommand():
     Session.delete_instance()
-    basedir = pathlib.Path().home() / ".compas_session"
-    session = Session(basedir=basedir, name="COMPAS-Masonry")
+    session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
     print(session.basedir)
 

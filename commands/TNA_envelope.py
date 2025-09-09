@@ -1,6 +1,8 @@
 #! python3
 # venv: brg-csd
-# r: compas_masonry>=0.2.3
+# r: compas_masonry>=0.2.4
+
+import pathlib
 
 import rhinoscriptsyntax as rs  # type: ignore
 
@@ -50,7 +52,7 @@ def get_location():
 
 
 def RunCommand():
-    session = Session()
+    session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
     session["params"] = {}
 

@@ -1,6 +1,8 @@
 #! python3
 # venv: brg-csd
-# r: compas_masonry>=0.2.3
+# r: compas_masonry>=0.2.4
+
+import pathlib
 
 import numpy as np
 import rhinoscriptsyntax as rs  # type: ignore
@@ -13,10 +15,10 @@ from compas_tno.analysis import Analysis
 
 
 def RunCommand():
-    session = Session()
+    session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
-    formdiagram = session["formdiagram"]
-    envelope = session["envelope"]
+    formdiagram = session.get("formdiagram")
+    envelope = session.get("envelope")
 
     if not formdiagram:
         feedback.warn("There is no FormDiagram")
@@ -32,7 +34,7 @@ def RunCommand():
 
     formobject.redraw()
 
-    sum_loads = sum(formobject.diagram.vertices_attribute("pz"))
+    sum_loads = sum(formobject.diagram.vertices_attribute("pz"))  # type: ignore
     if abs(sum_loads) < 0.001:
         feedback.warn("There are no loads applied to the model. Please assign loads.")
         return

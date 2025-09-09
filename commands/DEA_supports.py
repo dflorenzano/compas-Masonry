@@ -1,6 +1,8 @@
 #! python3
 # venv: brg-csd
-# r: compas_masonry>=0.2.3
+# r: compas_masonry>=0.2.4
+
+import pathlib
 
 import compas_rhino.objects
 from compas.colors import Color
@@ -10,9 +12,9 @@ from compas_rui.feedback import warn
 
 
 def RunCommand():
-    session = Session()
+    session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
-    model: BlockModel = session["blockmodel"]
+    model: BlockModel = session.get("blockmodel")
     if model is None:
         return warn("No existing BlockModel in session. Please create one first.")
 

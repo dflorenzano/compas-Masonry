@@ -1,6 +1,8 @@
 #! python3
 # venv: brg-csd
-# r: compas_masonry>=0.2.3
+# r: compas_masonry>=0.2.4
+
+import pathlib
 
 import rhinoscriptsyntax as rs  # type: ignore
 
@@ -51,7 +53,7 @@ def get_location():
 
 
 def RunCommand():
-    session = Session()
+    session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
     # =============================================================================
     # Remove existing form diagram
@@ -67,7 +69,7 @@ def RunCommand():
     # Check for existing envelope
     # =============================================================================
 
-    envelope: Envelope = session["envelope"]
+    envelope: Envelope = session.get("envelope")
     if not envelope:
         feedback.warn("There is no Envelope. Please create one first.")
         return

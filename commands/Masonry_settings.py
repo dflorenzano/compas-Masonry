@@ -1,6 +1,8 @@
 #! python3
 # venv: brg-csd
-# r: compas_masonry>=0.2.3
+# r: compas_masonry>=0.2.4
+
+import pathlib
 
 import rhinoscriptsyntax as rs  # type: ignore
 
@@ -13,7 +15,7 @@ from compas_masonry.session import MasonrySession as Session
 
 
 def RunCommand():
-    session = Session()
+    session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
     options = ["FormDiagram", "Envelope", "BlockModel"]
 
