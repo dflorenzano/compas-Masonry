@@ -62,6 +62,9 @@ def RunCommand():
         obj.clear()
         session.scene.remove(obj)
 
+    session.scene.redraw()
+    rs.Redraw()
+
     # =============================================================================
     # Create an envelope
     # =============================================================================
@@ -169,7 +172,6 @@ def RunCommand():
 
             angle = rs.GetReal("Springing Angle", 45, 0.0, 90)
             angle = angle or 0
-            angle = angle / 180.0 * 3.14159
 
             x_span = (point[0], point[0] + x_size)
             y_span = (point[1], point[1] + y_size)
