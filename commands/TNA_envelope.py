@@ -4,6 +4,7 @@
 
 import rhinoscriptsyntax as rs  # type: ignore
 
+import compas_rhino
 from compas_masonry.session import MasonrySession as Session
 from compas_tna.diagrams import FormDiagram
 
@@ -11,6 +12,7 @@ from compas_tna.diagrams import FormDiagram
 from compas_tna.envelope import CrossVaultEnvelope
 from compas_tna.envelope import DomeEnvelope
 from compas_tna.envelope import Envelope
+from compas_tna.envelope import MeshEnvelope
 from compas_tna.envelope import PavillionVaultEnvelope
 from compas_tna.envelope import PointedVaultEnvelope
 
@@ -233,30 +235,54 @@ def RunCommand():
     # =============================================================================
 
     elif option == "FromMiddle":
-        # select the middle surface mesh
-        # specify the thickness
-        # compute the envelope
-        pass
+        guid = compas_rhino.objects.select_mesh("Select middle surface")
+        if not guid:
+            return
+        mesh_middle = compas_rhino.conversions.meshobject_to_compas(guid)
+        rs.UnselectAllObjects()
 
-    # =============================================================================
-    # From the intrados mesh
-    # =============================================================================
+        thickness = rs.GetReal("Thickness", 0.5, 0.0, 100)
+        if not thickness:
+            return
 
-    elif option == "FromIntrados":
-        # select the intrados mesh
-        # specify the thickness
-        # compute the envelope
-        pass
+        envelope = MeshEnvelope.from_middle_mesh(mesh_middle, thickness)
+
+    # # =============================================================================
+    # # From the intrados mesh - This is not available yet. I would not show.
+    # # =============================================================================
+
+    # elif option == "FromIntrados":
+    #     # select the intrados mesh
+    #     # specify the thickness
+    #     # compute the envelope
+    #     pass
 
     # =============================================================================
     # From the intrados and extrados meshes
     # =============================================================================
 
     elif option == "FromBounds":
-        # select the intrados mesh
-        # select the extrados mesh
-        # compute the envelope
-        pass
+        guid = compas_rhino.objects.select_mesh("Select intrados")
+        if not guid:
+            return
+        mesh_intrados = compas_rhino.conversions.meshobject_to_compas(guid)
+        rs.UnselectAllObjects()
+
+        guid = compas_rhino.objects.select_mesh("Select extrados")
+        if not guid:
+            return
+        mesh_extrados = compas_rhino.conversions.meshobject_to_compas(guid)
+        rs.UnselectAllObjects()
+
+        guid = compas_rhino.objects.select_mesh("Select middle (Optional)")
+        if not guid:
+            mesh_middle = None
+            pass
+        else:
+            mesh_middle = compas_rhino.conversions.meshobject_to_compas(guid)
+        rs.UnselectAllObjects()
+
+        envelope = MeshEnvelope.from_meshes(mesh_intrados, mesh_extrados, mesh_middle)
 
     # =============================================================================
     # Not supported
