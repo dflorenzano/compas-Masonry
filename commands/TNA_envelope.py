@@ -73,7 +73,7 @@ def RunCommand():
 
     envelope = None
 
-    option = rs.GetString(message="Envelope", strings=["FromLibrary", "FromMiddle", "FromIntrados", "FromBounds"])
+    option = rs.GetString(message="Envelope", strings=["FromLibrary", "FromMiddle", "FromBounds"])
     if not option:
         return
 
