@@ -11,6 +11,7 @@ from compas_masonry.scene import RhinoFormDiagramObject
 from compas_masonry.session import MasonrySession as Session
 from compas_rui import feedback
 from compas_tna.diagrams import FormDiagram
+from compas_tna.envelope import MeshEnvelope
 from compas_tno.analysis import Analysis
 
 
@@ -61,6 +62,10 @@ def RunCommand():
         analysis = Analysis.create_minthrust_analysis(formdiagram, envelope)
 
     elif objective == "MinimumThickness":
+        if type(envelope) is MeshEnvelope:
+            feedback.warn("Minimum thickness analysis is only available for parametric envelopes")
+            return
+
         analysis = Analysis.create_minthk_analysis(formdiagram, envelope)
 
     elif objective == "MaximumThrust":
@@ -167,6 +172,10 @@ def RunCommand():
         print("Optimal Horizontal Thrust Calculated: {0:.3f}".format(fopt))
     elif objective == "MinimumThickness":
         print("Minimum Thickness Calculated: {0:.3f}".format(fopt))
+        # Update the envelope for smaller thickness check if it works
+        if analysis.optimiser.exitflag == 0:
+            envelope.thickness = fopt
+            envelope.update_envelope()
     elif objective == "SupportDisplacement":
         print("Complementary Energy to Assigned Displacements: {0:.3f}".format(fopt))
     elif objective == "Bestfit":
