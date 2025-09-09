@@ -1,8 +1,6 @@
 #! python3
 # venv: brg-csd
-# r: compas_masonry
-
-import ast
+# r: compas_masonry>=0.2.3
 
 import numpy as np
 import rhinoscriptsyntax as rs  # type: ignore
@@ -162,15 +160,15 @@ def RunCommand():
     fopt = analysis.optimiser.fopt
 
     if objective == "MaximumLoad":
-        print('Maximum Load Multipled to the loads assigned: {0:.3f}'.format(fopt))
+        print("Maximum Load Multipled to the loads assigned: {0:.3f}".format(fopt))
     elif objective == "MinimumThrust" or objective == "MaximumThrust":
-         print('Optimal Horizontal Thrust Calculated: {0:.3f}'.format(fopt))
+        print("Optimal Horizontal Thrust Calculated: {0:.3f}".format(fopt))
     elif objective == "MinimumThickness":
-         print('Minimum Thickness Calculated: {0:.3f}'.format(fopt))
+        print("Minimum Thickness Calculated: {0:.3f}".format(fopt))
     elif objective == "SupportDisplacement":
-         print('Complementary Energy to Assigned Displacements: {0:.3f}'.format(fopt))
+        print("Complementary Energy to Assigned Displacements: {0:.3f}".format(fopt))
     elif objective == "Bestfit":
-         print('Optimal Squared vertical distance to middle surface: {0:.3f}'.format(fopt))
+        print("Optimal Squared vertical distance to middle surface: {0:.3f}".format(fopt))
     else:
         pass
 
