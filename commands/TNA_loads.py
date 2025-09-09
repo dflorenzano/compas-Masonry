@@ -30,12 +30,12 @@ def RunCommand():
         return
 
     # =============================================================================
-    # Update the supports
+    # Update the Loads
     # =============================================================================
 
     rs.UnselectAllObjects()
 
-    options = ["Add", "Clear All"]
+    options = ["Add", "ClearAll"]
     option = rs.GetString("Add or Remove Loads in the Model", strings=options)
     if not option:
         return
@@ -46,7 +46,14 @@ def RunCommand():
             return
 
         if option == "Selfweight":
-            envelope.apply_selfweight_to_formdiagram(formdiagram)
+            option = rs.GetString("Normalize loads to Envelope SWT?", defaultString="Yes", strings=["Yes", "No"])
+            if not option:
+                return
+            elif option == "Yes":
+                normalize = True
+            else:
+                normalize = False
+            envelope.apply_selfweight_to_formdiagram(formdiagram, normalize=normalize)
 
         elif option == "External":
             formobject.show_vertices = list(formobject.vertices())  # type: ignore
@@ -61,9 +68,11 @@ def RunCommand():
 
                 for key in selected:
                     pz = formdiagram.vertex_attribute(key, "pz") or 0
+                    print("Load at vertex {0} updated from {1:.2f} to {2:.2f}".format(key, pz, pz + load))
                     formdiagram.vertex_attribute(key, "pz", pz + load)
 
-    elif option == "Clear All":
+    elif option == "ClearAll":
+        print("Cleared Loads in the Model.")
         formobject.mesh.vertices_attribute(name="pz", value=0)
 
     else:
