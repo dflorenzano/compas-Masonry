@@ -243,6 +243,7 @@ def RunCommand():
         guid = compas_rhino.objects.select_mesh("Select middle surface")
         if not guid:
             return
+
         mesh_middle = compas_rhino.conversions.meshobject_to_compas(guid)
         rs.UnselectAllObjects()
 
@@ -275,6 +276,7 @@ def RunCommand():
         rs.UnselectAllObjects()
         if not guid:
             return
+
         guids_bounds.append(guid)
         obj = compas_rhino.objects.find_object(guid)
         mesh_intrados = compas_rhino.conversions.mesh_to_compas(obj.Geometry, cls=Mesh)
@@ -283,6 +285,7 @@ def RunCommand():
         rs.UnselectAllObjects()
         if not guid:
             return
+
         guids_bounds.append(guid)
         obj = compas_rhino.objects.find_object(guid)
         mesh_extrados = compas_rhino.conversions.mesh_to_compas(obj.Geometry, cls=Mesh)
@@ -291,7 +294,6 @@ def RunCommand():
         rs.UnselectAllObjects()
         if not guid:
             mesh_middle = None
-            pass
         else:
             guids_bounds.append(guid)
             obj = compas_rhino.objects.find_object(guid)
