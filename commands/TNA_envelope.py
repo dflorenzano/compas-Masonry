@@ -5,6 +5,8 @@
 import rhinoscriptsyntax as rs  # type: ignore
 
 import compas_rhino
+import compas_rhino.conversions
+import compas_rhino.objects
 from compas_masonry.session import MasonrySession as Session
 from compas_tna.diagrams import FormDiagram
 
