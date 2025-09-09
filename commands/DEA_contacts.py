@@ -11,18 +11,10 @@ from compas_rui.feedback import warn
 def RunCommand():
     session = Session()
 
-    # retrieve existing model from session
-
     model: BlockModel = session["blockmodel"]
     if model is None:
-        return warn("No existing BlockModel in session. Please create one first.")
-
-    # compute contacts
-    # ask user for tolerance
-
-    model.compute_contacts(tolerance=tol)
-
-    # redraw the scene
+        warn("No block model in the session.")
+        return
 
 
 # =============================================================================
