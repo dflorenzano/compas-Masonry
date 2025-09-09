@@ -250,6 +250,8 @@ def RunCommand():
         if not thickness:
             return
 
+        rs.HideObject(guid)
+
         envelope = MeshEnvelope.from_middle_mesh(mesh_middle, thickness)
 
     # # =============================================================================
@@ -267,10 +269,13 @@ def RunCommand():
     # =============================================================================
 
     elif option == "FromBounds":
+        guids_bounds = []
+
         guid = compas_rhino.objects.select_mesh("Select intrados")
         rs.UnselectAllObjects()
         if not guid:
             return
+        guids_bounds.append(guid)
         obj = compas_rhino.objects.find_object(guid)
         mesh_intrados = compas_rhino.conversions.mesh_to_compas(obj.Geometry, cls=Mesh)
 
@@ -278,6 +283,7 @@ def RunCommand():
         rs.UnselectAllObjects()
         if not guid:
             return
+        guids_bounds.append(guid)
         obj = compas_rhino.objects.find_object(guid)
         mesh_extrados = compas_rhino.conversions.mesh_to_compas(obj.Geometry, cls=Mesh)
 
@@ -287,8 +293,11 @@ def RunCommand():
             mesh_middle = None
             pass
         else:
+            guids_bounds.append(guid)
             obj = compas_rhino.objects.find_object(guid)
             mesh_middle = compas_rhino.conversions.mesh_to_compas(obj.Geometry, cls=Mesh)
+
+        rs.HideObjects(guids_bounds)
 
         envelope = MeshEnvelope.from_meshes(mesh_intrados, mesh_extrados, mesh_middle)
 
