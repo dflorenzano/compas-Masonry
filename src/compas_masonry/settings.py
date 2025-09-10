@@ -25,6 +25,7 @@ class EnvelopeSettings(BaseModel):
     show_intrados: bool = Field(default=True, title="Show Intrados")
     show_middle: bool = Field(default=False, title="Show Middle")
     show_extrados: bool = Field(default=True, title="Show Extrados")
+    show_fill: bool = Field(default=True, title="Show Fill")
 
 
 class BlockModelSettings(BaseModel):
