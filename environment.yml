@@ -3,13 +3,14 @@ channels:
   - conda-forge
 dependencies:
   - pip
-  - python ==3.9
+  - python
   - compas
   - compas_occ
-  - cyipopt
   - ipopt ==3.14.9
   - numpy <2.0
   - pyomo ==6.4.2
+  - cyipopt
   - pip:
       - -r requirements-dev.txt
+      - -r requirements-viz.txt
       - -r requirements.txt
