@@ -6,6 +6,7 @@ import pathlib
 
 import rhinoscriptsyntax as rs  # type: ignore
 
+import compas_rhino.layers
 from compas_dem.interactions import FrictionContact
 from compas_dem.models import BlockModel
 from compas_masonry.session import MasonrySession as Session
@@ -26,6 +27,9 @@ def RunCommand():
 
     for obj in session.scene.find_all_by_itemtype(InteractionGraph):
         session.scene.remove(obj)
+
+    compas_rhino.layers.clear_layer("Masonry::DEA::Interactions")
+    compas_rhino.layers.clear_layer("Masonry::DEA::Contacts")
 
     # this should be simplified in the future
     # by adding a method model.clear_interactions()
@@ -62,7 +66,7 @@ def RunCommand():
     session.scene.add(model.graph, layer="Masonry::DEA::Interactions")  # type: ignore
 
     for contact in model.contacts():
-        session.scene.add(contact, layer="Masonry::DEA::Interactions")  # type: ignore
+        session.scene.add(contact, layer="Masonry::DEA::Contacts")  # type: ignore
 
     session.scene.redraw()
 

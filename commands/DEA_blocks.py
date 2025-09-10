@@ -8,11 +8,13 @@ import rhinoscriptsyntax as rs  # type: ignore
 
 import compas_rhino.layers
 from compas_dem.elements import Block
+from compas_dem.interactions import FrictionContact
 from compas_dem.models import BlockModel
 from compas_dem.templates import ArchTemplate
 from compas_dem.templates import BarrelVaultTemplate
 from compas_dem.templates import DomeTemplate
 from compas_masonry.session import MasonrySession as Session
+from compas_model.models import InteractionGraph
 
 # =============================================================================
 # Command
@@ -27,7 +29,15 @@ def RunCommand():
     for obj in session.scene.find_all_by_itemtype(Block):
         session.scene.remove(obj)
 
+    for obj in session.scene.find_all_by_itemtype(FrictionContact):
+        session.scene.remove(obj)
+
+    for obj in session.scene.find_all_by_itemtype(InteractionGraph):
+        session.scene.remove(obj)
+
     compas_rhino.layers.clear_layer("Masonry::DEA::Blocks")
+    compas_rhino.layers.clear_layer("Masonry::DEA::Interactions")
+    compas_rhino.layers.clear_layer("Masonry::DEA::Contacts")
 
     model = None
 
@@ -161,7 +171,7 @@ def RunCommand():
     # Scene
     # =============================================================================
 
-    for block in model.blocks():
+    for block in model.elements():
         node = block.graphnode
         session.scene.add(
             block,  # type: ignore
