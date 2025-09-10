@@ -43,7 +43,7 @@ def RunCommand():
         return
 
     if option == "Add":
-        option = rs.GetString("Type of load", strings=["Selfweight", "External"])
+        option = rs.GetString("Type of load", strings=["Selfweight", "External", "FillLoads"])
         if not option:
             return
 
@@ -72,6 +72,12 @@ def RunCommand():
                     pz = formdiagram.vertex_attribute(key, "pz") or 0
                     print("Load at vertex {0} updated from {1:.2f} to {2:.2f}".format(key, pz, pz + load))
                     formdiagram.vertex_attribute(key, "pz", pz + load)
+
+        elif option == "FillLoads":
+            if not envelope.fill:
+                feedback.warn("There is no Fill Mesh. Please re-create envelope with a fill")
+                return
+            envelope.apply_fill_weight_to_formdiagram(formdiagram)
 
     elif option == "ClearAll":
         print("Cleared Loads in the Model.")
