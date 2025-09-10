@@ -415,6 +415,13 @@ class RhinoFormDiagramObject(RUIMeshObject):
                 guid = sc.doc.Objects.AddLine(compas_rhino.conversions.line_to_rhino(line), attr)
                 guids.append(guid)
 
+                if self.session.settings.formdiagram.show_labels:
+                    midpoint = line.midpoint
+                    text = f"{residual.length:.1f}"
+                    attr = self.compile_attributes(name=name + ".label", color=self.reactioncolor)
+                    guid = sc.doc.Objects.AddTextDot(text, compas_rhino.conversions.point_to_rhino(midpoint), attr)
+                    guids.append(guid)
+
         if guids:
             if self.reactiongroup:
                 self.add_to_group(self.reactiongroup, guids)
