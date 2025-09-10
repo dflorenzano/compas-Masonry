@@ -11,9 +11,8 @@ import compas_rhino.conversions
 import compas_rhino.objects
 from compas.datastructures import Mesh
 from compas_masonry.session import MasonrySession as Session
-from compas_tna.diagrams import FormDiagram
-
 from compas_rui import feedback
+from compas_tna.diagrams import FormDiagram
 from compas_tna.envelope import CrossVaultEnvelope
 from compas_tna.envelope import DomeEnvelope
 from compas_tna.envelope import Envelope
@@ -314,7 +313,7 @@ def RunCommand():
 
         if mesh_fill:
             envelope.fill = mesh_fill
-    
+
     # =============================================================================
     # Not supported
     # =============================================================================
