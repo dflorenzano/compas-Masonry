@@ -1,11 +1,11 @@
 #! python3
 # venv: brg-csd
-# r: compas_masonry>=0.2.5
+# r: compas_masonry>=0.2.6
 
 import pathlib
 
 import compas_rhino.objects
-from compas.colors import Color
+from compas_dem.elements import Block
 from compas_dem.models import BlockModel
 from compas_masonry.session import MasonrySession as Session
 from compas_rui.feedback import warn
@@ -18,12 +18,11 @@ def RunCommand():
     if model is None:
         return warn("No existing BlockModel in session. Please create one first.")
 
-    guids = compas_rhino.objects.select_meshes(message="Select suports")
+    guids = compas_rhino.objects.select_objects(message="Select supports")
     if not guids:
         return
 
     nodes = []
-    names = []
     for guid in guids:
         obj = compas_rhino.objects.find_object(guid)  # to make sure the object exists
         name = obj.Name
@@ -32,14 +31,13 @@ def RunCommand():
 
         node = int(name.split("_")[-1])
         nodes.append(node)
-        names.append(name)
 
+    supports = set(nodes)
+
+    element: Block
     for node in model.graph.nodes():
-        model.graph.node_attribute(node, "is_support", node in nodes)
-
-    for obj in session.scene.objects:
-        if obj.name in names:
-            obj.color = Color.red()
+        element = model.graph.node_element(node)  # type: ignore
+        element.is_support = node in supports
 
     session.scene.redraw()
 

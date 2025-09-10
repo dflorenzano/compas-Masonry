@@ -37,9 +37,17 @@ class BlockModelSettings(BaseModel):
     show_interactions: bool = Field(default=False, title="Show Interactions")
     show_selfweight: bool = Field(default=False, title="Show Selfweight")
     show_reactions: bool = Field(default=False, title="Show Reactions")
+    show_normalforces: bool = Field(default=False, title="Show Normal Forces")
+    show_frictionforces: bool = Field(default=False, title="Show Friction Forces")
+    show_resultants: bool = Field(default=False, title="Show Resultants")
+
+    show_wireframe: bool = Field(default=False, title="Show Wireframe")
 
     scale_selfweight: float = Field(default=1.0, ge=1e-6, le=1e3, title="Scale Selfweight")
     scale_reactions: float = Field(default=0.01, ge=1e-6, le=1e3, title="Scale Reactions")
+
+    contact_tolerance: float = Field(default=1e-3, ge=1e-6, le=1e3, title="Contact Tolerance")
+    contact_minimum_area: float = Field(default=1e-2, ge=1e-6, le=90, title="Contact Minimum Area")
 
 
 class MasonrySettings(Settings):

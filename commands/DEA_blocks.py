@@ -1,12 +1,13 @@
 #! python3
 # venv: brg-csd
-# r: compas_masonry>=0.2.5
+# r: compas_masonry>=0.2.6
 
 import pathlib
 
 import rhinoscriptsyntax as rs  # type: ignore
 
 import compas_rhino.layers
+from compas_dem.elements import Block
 from compas_dem.models import BlockModel
 from compas_dem.templates import ArchTemplate
 from compas_dem.templates import BarrelVaultTemplate
@@ -22,12 +23,11 @@ def RunCommand():
     session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
     session.delete("blockmodel")
-    compas_rhino.layers.clear_layer("Masonry::DEA::Blocks")
 
-    # move this to the base scene class
-    for obj in session.scene.objects:
-        if obj.name.startswith("Block"):
-            session.scene.remove(obj)
+    for obj in session.scene.find_all_by_itemtype(Block):
+        session.scene.remove(obj)
+
+    compas_rhino.layers.clear_layer("Masonry::DEA::Blocks")
 
     model = None
 
@@ -161,14 +161,14 @@ def RunCommand():
     # Scene
     # =============================================================================
 
-    # group = session.scene.find_by_name("BlockModel")
-    # if not group:
-    #     group = session.scene.add_group(name="BlockModel")
-    # group.clear()
-
     for block in model.blocks():
         node = block.graphnode
-        session.scene.add(block.modelgeometry, disjoint=True, name=f"Block_{node}", layer="Masonry::DEA::Blocks")  # type: ignore
+        session.scene.add(
+            block,  # type: ignore
+            name=f"Block_{node}",  # type: ignore
+            group=f"Masonry::DEA::Blocks::{node}",  # type: ignore
+            layer="Masonry::DEA::Blocks",  # type: ignore
+        )
 
     session.scene.redraw()
 

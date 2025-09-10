@@ -127,6 +127,7 @@ known-first-party = [
   "compas_session",
   "compas_rui",
   "compas_masonry",
+  "compas_model",
   "compas_tna",
   "compas_tno",
   "compas_dem",
