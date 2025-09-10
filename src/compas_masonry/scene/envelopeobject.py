@@ -23,6 +23,7 @@ class RhinoEnvelopeObject(RhinoSceneObject):
         show_intrados=True,
         show_middle=False,
         show_extrados=True,
+        show_fill=True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -30,6 +31,7 @@ class RhinoEnvelopeObject(RhinoSceneObject):
         self.show_intrados = show_intrados
         self.show_middle = show_middle
         self.show_extrados = show_extrados
+        self.show_fill = show_fill
 
     @property
     def settings(self) -> dict:
@@ -38,6 +40,7 @@ class RhinoEnvelopeObject(RhinoSceneObject):
         settings["show_intrados"] = self.show_intrados
         settings["show_middle"] = self.show_middle
         settings["show_extrados"] = self.show_extrados
+        settings["show_fill"] = self.show_fill
         return settings
 
     @property
@@ -60,6 +63,9 @@ class RhinoEnvelopeObject(RhinoSceneObject):
 
         if self.show_extrados:
             self.draw_extrados()
+
+        if self.show_fill:
+            self.draw_fill()
 
         return self._guids
 
@@ -91,4 +97,10 @@ class RhinoEnvelopeObject(RhinoSceneObject):
         if not self.envelope.extrados:  # type: ignore
             return
         guid = self._draw_mesh(self.envelope.extrados, name="Extrados")  # type: ignore
+        self._guids.append(guid)
+
+    def draw_fill(self):
+        if not self.envelope.fill:
+            return
+        guid = self._draw_mesh(self.envelope.fill, name="Fill")  # type: ignore
         self._guids.append(guid)

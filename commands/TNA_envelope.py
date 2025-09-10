@@ -11,9 +11,8 @@ import compas_rhino.conversions
 import compas_rhino.objects
 from compas.datastructures import Mesh
 from compas_masonry.session import MasonrySession as Session
+from compas_rui import feedback
 from compas_tna.diagrams import FormDiagram
-
-# from compas_rui import feedback
 from compas_tna.envelope import CrossVaultEnvelope
 from compas_tna.envelope import DomeEnvelope
 from compas_tna.envelope import Envelope
@@ -299,9 +298,21 @@ def RunCommand():
             obj = compas_rhino.objects.find_object(guid)
             mesh_middle = compas_rhino.conversions.mesh_to_compas(obj.Geometry, cls=Mesh)
 
+        guid = compas_rhino.objects.select_mesh("Select fill mesh (Optional)")
+        rs.UnselectAllObjects()
+        if not guid:
+            mesh_fill = None
+        else:
+            guids_bounds.append(guid)
+            obj = compas_rhino.objects.find_object(guid)
+            mesh_fill = compas_rhino.conversions.mesh_to_compas(obj.Geometry, cls=Mesh)
+
         rs.HideObjects(guids_bounds)
 
         envelope = MeshEnvelope.from_meshes(mesh_intrados, mesh_extrados, mesh_middle)
+
+        if mesh_fill:
+            envelope.fill = mesh_fill
 
     # =============================================================================
     # Not supported
@@ -309,6 +320,25 @@ def RunCommand():
 
     else:
         raise NotImplementedError
+
+    # =============================================================================
+    # Commom parameters
+    # =============================================================================
+
+    if not envelope:
+        feedback.warn("Error creating Envelope. Try again.")
+        return
+
+    rho = rs.GetInteger("Density masonry (rho)", envelope.rho, 0, 200)
+    if not rho:
+        return
+    envelope.rho = rho
+
+    if envelope.fill:
+        rho_fill = rs.GetInteger("Density masonry fill (rho_fill)", envelope.rho_fill, 0, 200)
+        if not rho_fill:
+            return
+        envelope.rho_fill = rho_fill
 
     # =============================================================================
     # Update scene
@@ -324,10 +354,13 @@ def RunCommand():
     show_intrados = session.settings.envelope.show_intrados
     show_middle = session.settings.envelope.show_middle
     show_extrados = session.settings.envelope.show_extrados
+    show_fill = session.settings.envelope.show_extrados
 
     session.scene.add(envelope.intrados, disjoint=True, show=show_intrados, name="Intrados", layer="Masonry::TNA::Envelope")  # type: ignore
     session.scene.add(envelope.middle, disjoint=True, show=show_middle, name="Middle", layer="Masonry::TNA::Envelope")  # type: ignore
     session.scene.add(envelope.extrados, disjoint=True, show=show_extrados, name="Extrados", layer="Masonry::TNA::Envelope")  # type: ignore
+    if envelope.fill:
+        session.scene.add(envelope.fill, disjoint=True, show=show_fill, name="Fill", layer="Masonry::TNA::Envelope")  # type: ignore
 
     session.scene.redraw()
     rs.Redraw()
