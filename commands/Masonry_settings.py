@@ -41,6 +41,7 @@ def RunCommand():
     show_intrados = session.settings.envelope.show_intrados
     show_middle = session.settings.envelope.show_middle
     show_extrados = session.settings.envelope.show_extrados
+    show_fill = session.settings.envelope.show_fill
 
     intradosobj = session.scene.find_by_name("Intrados")
     if intradosobj:
@@ -53,6 +54,10 @@ def RunCommand():
     extradosobj = session.scene.find_by_name("Extrados")
     if extradosobj:
         extradosobj.show = show_extrados
+
+    fillobj = session.scene.find_by_name("Fill")
+    if fillobj:
+        fillobj.show = show_fill
 
     session.scene.redraw()
 

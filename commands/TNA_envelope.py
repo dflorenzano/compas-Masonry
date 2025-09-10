@@ -312,7 +312,7 @@ def RunCommand():
         envelope = MeshEnvelope.from_meshes(mesh_intrados, mesh_extrados, mesh_middle)
 
         if mesh_fill:
-            envelope.fill = mesh_fill
+            envelope.fill = mesh_fill  # type: ignore
 
     # =============================================================================
     # Not supported
@@ -354,11 +354,12 @@ def RunCommand():
     show_intrados = session.settings.envelope.show_intrados
     show_middle = session.settings.envelope.show_middle
     show_extrados = session.settings.envelope.show_extrados
-    show_fill = session.settings.envelope.show_extrados
+    show_fill = session.settings.envelope.show_fill
 
     session.scene.add(envelope.intrados, disjoint=True, show=show_intrados, name="Intrados", layer="Masonry::TNA::Envelope")  # type: ignore
     session.scene.add(envelope.middle, disjoint=True, show=show_middle, name="Middle", layer="Masonry::TNA::Envelope")  # type: ignore
     session.scene.add(envelope.extrados, disjoint=True, show=show_extrados, name="Extrados", layer="Masonry::TNA::Envelope")  # type: ignore
+
     if envelope.fill:
         session.scene.add(envelope.fill, disjoint=True, show=show_fill, name="Fill", layer="Masonry::TNA::Envelope")  # type: ignore
 
