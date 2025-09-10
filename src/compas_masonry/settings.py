@@ -7,13 +7,14 @@ from compas_session.settings import Settings
 class FormDiagramSettings(BaseModel):
     show_reactions: bool = Field(default=True, title="Show Reactions")
     show_pipes: bool = Field(default=False, title="Show Pipes")
-    show_loads: bool = Field(default=False, title="Show Loads")
+    show_loads: bool = Field(default=True, title="Show Loads")
     show_bounds: bool = Field(default=False, title="Show Bounds")
     show_cracks: bool = Field(default=False, title="Show Cracks")
+    show_labels: bool = Field(default=False, title="Show Labels")
 
     scale_reactions: float = Field(default=0.01, ge=1e-6, le=1e3, title="Scale Reactions")
     scale_pipes: float = Field(default=0.01, ge=1e-6, le=1e3, title="Scale Pipes")
-    scale_loads: float = Field(default=1.0, ge=1e-6, le=1e3, title="Scale Loads")
+    scale_loads: float = Field(default=0.1, ge=1e-6, le=1e3, title="Scale Loads")
 
     tol_vectors: float = Field(default=1e-3, ge=1e-6, le=1e3, title="Tolerance Vectors")
     tol_pipes: float = Field(default=1e-2, ge=1e-6, le=1e3, title="Tolerance Pipes")
@@ -40,7 +41,6 @@ class BlockModelSettings(BaseModel):
     show_normalforces: bool = Field(default=False, title="Show Normal Forces")
     show_frictionforces: bool = Field(default=False, title="Show Friction Forces")
     show_resultants: bool = Field(default=False, title="Show Resultants")
-
     show_wireframe: bool = Field(default=False, title="Show Wireframe")
 
     scale_selfweight: float = Field(default=1.0, ge=1e-6, le=1e3, title="Scale Selfweight")

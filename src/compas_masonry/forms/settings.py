@@ -94,9 +94,12 @@ class SettingsForm(forms.Dialog[bool]):
                 continue
 
             text = field.title or name.replace("_", " ").capitalize()
+            default = field.default
             label = forms.Label()
             label.Text = text
-            control = self._create_control(name, field, field.default)
+
+            control = self._create_control(name, field, default)
+
             self.controls[name] = control
             layout.AddRow(label, control)
 
