@@ -62,7 +62,7 @@ def RunCommand():
         analysis = Analysis.create_minthrust_analysis(formdiagram, envelope)
 
     elif objective == "MinimumThickness":
-        if type(envelope) is MeshEnvelope:
+        if isinstance(envelope, MeshEnvelope):
             feedback.warn("Minimum thickness analysis is only available for parametric envelopes")
             return
 
