@@ -1,0 +1,100 @@
+{
+    "icons": {
+        "bitmap": "",
+        "images": []
+    },
+    "commands": [
+        { "name": "Masonry_Start", "script": "! _Masonry_Start", "tooltip": "Start a COMPAS-Masonry session" },
+        { "name": "Session_settings", "script": "! _Session_settings", "tooltip": "Session settings" },
+        { "name": "Session_redraw", "script": "! _Session_redraw", "tooltip": "Redraw the scene" },
+        { "name": "Session_undo", "script": "! _Session_undo", "tooltip": "Undo" },
+        { "name": "Session_redo", "script": "! _Session_redo", "tooltip": "Redo" },
+        { "name": "Session_clear", "script": "! _Session_clear", "tooltip": "Clear session and scene" },
+
+        { "name": "TNA_envelope", "script": "! _TNA_envelope", "tooltip": "Define the masonry envelope" },
+        { "name": "TNA_formdiagram", "script": "! _TNA_formdiagram", "tooltip": "Create the form diagram" },
+        { "name": "TNA_supports", "script": "! _TNA_supports", "tooltip": "Define TNA supports" },
+        { "name": "TNA_loads", "script": "! _TNA_loads", "tooltip": "Define TNA loads" },
+        { "name": "TNA_analysis", "script": "! _TNA_analysis", "tooltip": "Run TNA analysis" },
+        { "name": "TNA_blockexports", "script": "! _TNA_blockexports", "tooltip": "Export thrust mesh to blocks" },
+
+        { "name": "Model_blocks", "script": "! _Model_blocks", "tooltip": "Create a block model" },
+        { "name": "Model_contacts", "script": "! _Model_contacts", "tooltip": "Compute contacts" },
+        { "name": "Model_supports", "script": "! _Model_supports", "tooltip": "Define supports" },
+        { "name": "Model_material", "script": "! _Model_material", "tooltip": "Create and assign material" },
+        { "name": "Model_import", "script": "! _Model_import", "tooltip": "Import model from JSON" },
+        { "name": "Model_export", "script": "! _Model_export", "tooltip": "Export model to JSON" },
+
+        { "name": "Problem_create", "script": "! _Problem_create", "tooltip": "Create a new problem" },
+        { "name": "Problem_loads", "script": "! _Problem_loads", "tooltip": "Define problem loads" },
+        { "name": "Problem_boundaryconditions", "script": "! _Problem_boundaryconditions", "tooltip": "Define boundary conditions" },
+        { "name": "Problem_contactmodel", "script": "! _Problem_contactmodel", "tooltip": "Define contact model" },
+        { "name": "Problem_solver", "script": "! _Problem_solver", "tooltip": "Define solvers and settings" },
+        { "name": "Problem_export", "script": "! _Problem_export", "tooltip": "Export problem results" },
+
+        { "name": "Solve", "script": "! _Solve", "tooltip": "Run problem solver" },
+        { "name": "Results_print", "script": "! _Results_print", "tooltip": "Print results" },
+        { "name": "Results_blockdata", "script": "! _Results_blockdata", "tooltip": "Export block data" },
+        { "name": "Results_export", "script": "! _Results_export", "tooltip": "Export results to JSON" }
+    ],
+    "menus": [],
+    "toolbars": [
+        {
+            "name": "Session",
+            "items": [
+                { "left": "Masonry_Start" },
+                { "left": "Session_settings" },
+                { "type": "separator" },
+                { "left": "Session_redraw" },
+                { "left": "Session_undo" },
+                { "left": "Session_redo" },
+                { "left": "Session_clear" }
+            ]
+        },
+        {
+            "name": "TNA",
+            "items": [
+                { "left": "TNA_envelope" },
+                { "left": "TNA_formdiagram" },
+                { "left": "TNA_supports" },
+                { "left": "TNA_loads" },
+                { "type": "separator" },
+                { "left": "TNA_analysis" },
+                { "left": "TNA_blockexports" }
+            ]
+        },
+        {
+            "name": "Model",
+            "items": [
+                { "left": "Model_blocks" },
+                { "left": "Model_contacts" },
+                { "left": "Model_supports" },
+                { "left": "Model_material" },
+                { "type": "separator" },
+                { "left": "Model_import" },
+                { "left": "Model_export" }
+            ]
+        },
+        {
+            "name": "Problem",
+            "items": [
+                { "left": "Problem_create" },
+                { "left": "Problem_loads" },
+                { "left": "Problem_boundaryconditions" },
+                { "left": "Problem_contactmodel" },
+                { "left": "Problem_solver" },
+                { "left": "Problem_export" }
+            ]
+        },
+        {
+            "name": "Results",
+            "items": [{ "left": "Solve" }, { "left": "Results_print" }, { "left": "Results_blockdata" }, { "left": "Results_export" }]
+        }
+    ],
+    "toolbargroups": [
+        {
+            "name": "COMPAS Masonry",
+            "toolbars": ["Session", "TNA", "Model", "Problem", "Results"]
+        }
+    ]
+}

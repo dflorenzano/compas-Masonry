@@ -1,0 +1,723 @@
+<?xml version="1.0" ?>
+<RhinoUI major_ver="8" minor_ver="0" guid="35a29155-639d-45c1-bf37-6341627df120" plug_in_guid="35a29155-639d-45c1-bf37-6341627df120" localize="False" default_language_id="1033">
+  <extend_rhino_menus>
+    <menu guid="35a29155-639d-45c1-bf37-6341627df120">
+      <text>
+        <locale_1033>Extend Rhino Menus</locale_1033>
+      </text>
+    </menu>
+  </extend_rhino_menus>
+  <menus/>
+  <tool_bar_groups>
+    <tool_bar_group guid="808534c7-94bc-4eb2-9ef8-312c59539bbb" dock_bar_guid32="808534c7-94bc-4eb2-9ef8-312c59539bbb" dock_bar_guid64="808534c7-94bc-4eb2-9ef8-312c59539bbb" active_tool_bar_group="" single_file="False" hide_single_tab="False" point_floating="0,0">
+      <text>
+        <locale_1033>COMPAS Masonry</locale_1033>
+      </text>
+      <tool_bar_group_item guid="7e49d70a-b12d-4aca-94de-5130d9c7bb04" major_version="1" minor_version="1">
+        <text>
+          <locale_1033>Session</locale_1033>
+        </text>
+        <tool_bar_id>5b7e119c-88f3-4354-80d3-5661ea2f4830</tool_bar_id>
+      </tool_bar_group_item>
+      <tool_bar_group_item guid="2ee64b6a-4b0e-4f5f-a2e5-57147758c306" major_version="1" minor_version="1">
+        <text>
+          <locale_1033>TNA</locale_1033>
+        </text>
+        <tool_bar_id>f51a0af7-ecf9-46df-8533-4598a0734eaa</tool_bar_id>
+      </tool_bar_group_item>
+      <tool_bar_group_item guid="64ada258-8605-4467-a104-8004ca8e841b" major_version="1" minor_version="1">
+        <text>
+          <locale_1033>Model</locale_1033>
+        </text>
+        <tool_bar_id>cb1f9a70-74ec-4489-b1cd-62d48438a030</tool_bar_id>
+      </tool_bar_group_item>
+      <tool_bar_group_item guid="3646d006-2043-4ed1-a0ba-74ce809f8e3f" major_version="1" minor_version="1">
+        <text>
+          <locale_1033>Problem</locale_1033>
+        </text>
+        <tool_bar_id>8051eb1d-bc3c-43d0-b4af-136a7af423c4</tool_bar_id>
+      </tool_bar_group_item>
+      <tool_bar_group_item guid="4e486720-d352-4182-8eb7-5dd5cb8678a9" major_version="1" minor_version="1">
+        <text>
+          <locale_1033>Results</locale_1033>
+        </text>
+        <tool_bar_id>6a6b9e1a-1185-4424-8eb3-11eb60f0d22f</tool_bar_id>
+      </tool_bar_group_item>
+    </tool_bar_group>
+  </tool_bar_groups>
+  <tool_bars>
+    <tool_bar guid="5b7e119c-88f3-4354-80d3-5661ea2f4830" item_display_style="control">
+      <text>
+        <locale_1033>Session</locale_1033>
+      </text>
+      <tool_bar_item guid="24387a37-fe6b-4134-8b52-1d26a125ecb6" button_style="normal">
+        <left_macro_id>c0a04bf6-f919-40b7-8216-531404b4c06c</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="0d080e4b-e114-4988-879e-02549bc9d766" button_style="normal">
+        <left_macro_id>a82a25ba-7ca8-411f-b187-21bf00604bf3</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="b7a16b89-4a39-4cf1-b186-2f6d8c3962b0" button_display_mode="control_only" button_style="spacer">
+</tool_bar_item>
+      <tool_bar_item guid="436e80e6-c9f2-4c4a-9d24-ea43e86b7756" button_style="normal">
+        <left_macro_id>24a9a8c5-740c-43f1-ae46-652fa65bdf50</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="a97374aa-bc20-49fe-9e82-c367579775b6" button_style="normal">
+        <left_macro_id>ebfe9bca-a77b-429e-9099-2f953c1091ea</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="9860eac1-c1b9-4ebe-bca7-7af86f821fd7" button_style="normal">
+        <left_macro_id>3b636351-47b0-458c-b111-da81507f5a39</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="0b756a22-e13b-4549-a236-0a56fc483276" button_style="normal">
+        <left_macro_id>8eb6ec7c-06b2-4292-b790-755e4fd276e7</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+    </tool_bar>
+    <tool_bar guid="f51a0af7-ecf9-46df-8533-4598a0734eaa" item_display_style="control">
+      <text>
+        <locale_1033>TNA</locale_1033>
+      </text>
+      <tool_bar_item guid="114759f1-ae52-48bf-a789-d7dec07208fe" button_style="normal">
+        <left_macro_id>1daa186b-4e91-4023-9592-358931b03baf</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="0d9b43ed-b665-4fe2-b56d-bb4817283c1b" button_style="normal">
+        <left_macro_id>76e54fac-92c3-4265-acf5-5194a8c50606</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="255c0ed8-6ce5-4fba-b579-e53e490e3372" button_style="normal">
+        <left_macro_id>57baf569-6179-4343-b271-95a1976fe5c2</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="5e1e071b-93e3-4f47-818a-ad7f04a97786" button_style="normal">
+        <left_macro_id>4c98b295-bdac-4deb-9760-ce737244dc72</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="98eaea32-deb9-4785-87e1-be90f841d524" button_display_mode="control_only" button_style="spacer">
+</tool_bar_item>
+      <tool_bar_item guid="759a730a-c9f0-4c22-833e-133ac12b77fc" button_style="normal">
+        <left_macro_id>17ad4e1a-b081-4a4b-bd11-7e11541d8ac3</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="be2aeadd-d67a-4f9d-82b2-835e5b29a13e" button_style="normal">
+        <left_macro_id>31225b35-34ae-4dcc-8ca2-d3359935ef17</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+    </tool_bar>
+    <tool_bar guid="cb1f9a70-74ec-4489-b1cd-62d48438a030" item_display_style="control">
+      <text>
+        <locale_1033>Model</locale_1033>
+      </text>
+      <tool_bar_item guid="a7ba6fc0-d3f2-4fa9-a68a-f0d97c5749dd" button_style="normal">
+        <left_macro_id>17077f6e-2b90-4372-a0db-af6e626069f4</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="f38b5ac9-f71b-4264-b551-a0a4e42b4d34" button_style="normal">
+        <left_macro_id>ee664e9f-e828-4e21-8e0a-aa82f3363f98</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="b4b9f515-e051-4f6b-9ff9-56d67e8bd6c6" button_style="normal">
+        <left_macro_id>ed75ac00-0870-4025-9fac-11b989510e8f</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="14655506-75f4-4bb0-ba82-f0adab07f209" button_style="normal">
+        <left_macro_id>3d0c59bf-febe-4bc5-af4a-815197777e01</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="3db6fa56-5824-4e38-ad23-1995fc56b14e" button_display_mode="control_only" button_style="spacer">
+</tool_bar_item>
+      <tool_bar_item guid="5f635d72-a90d-415e-8257-d43055ba70f0" button_style="normal">
+        <left_macro_id>70b90ee8-582b-48ea-8a59-1719cda3d114</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="a6961e4a-286d-44ea-9a70-815150b171d9" button_style="normal">
+        <left_macro_id>06aa496f-3191-473b-94e0-eca6a2e12c88</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+    </tool_bar>
+    <tool_bar guid="8051eb1d-bc3c-43d0-b4af-136a7af423c4" item_display_style="control">
+      <text>
+        <locale_1033>Problem</locale_1033>
+      </text>
+      <tool_bar_item guid="61d4702d-3cc8-4e8a-bd4a-85e46ba1ea85" button_style="normal">
+        <left_macro_id>b3b6747e-4bad-45bc-a921-64a36a2d4cb6</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="1dc5b685-b64c-4e6f-82c7-0895df6c3b15" button_style="normal">
+        <left_macro_id>08870bf2-7d63-4804-8e0b-f4f40b42f0f0</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="083566be-90d4-434b-be5c-eaf9b4a07f84" button_style="normal">
+        <left_macro_id>9dd5b2af-eadb-4fac-8f94-05063b45c22d</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="ecbaa223-f34a-46ad-8cf0-0c37c6aa495d" button_style="normal">
+        <left_macro_id>77b0331e-ba1e-4a1f-9fb3-615c6bf565f2</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="4fbb74f8-ca7c-49d3-8bf9-e0beaeccadb2" button_style="normal">
+        <left_macro_id>22583f52-067b-49a4-bcc8-ce9a77f33986</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="c59de528-b002-41da-8252-b230fb499a1d" button_style="normal">
+        <left_macro_id>bb56e855-0d58-4c27-9055-d6c4518df4d1</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+    </tool_bar>
+    <tool_bar guid="6a6b9e1a-1185-4424-8eb3-11eb60f0d22f" item_display_style="control">
+      <text>
+        <locale_1033>Results</locale_1033>
+      </text>
+      <tool_bar_item guid="bd254d5b-4476-4190-bf61-97aa49124021" button_style="normal">
+        <left_macro_id>2657e624-cc2f-47f2-9bcf-ff65d614a2c8</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="e77e5627-8533-4db4-a5b7-1a46976c316d" button_style="normal">
+        <left_macro_id>ddd4ac2b-9c80-413a-a442-d628fad7d4a0</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="cad95c24-3183-472c-83b5-99e7fd51c150" button_style="normal">
+        <left_macro_id>fbd72973-3328-4f1f-b845-c6ff482c2db8</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="0c843bfe-4edf-4259-a95b-6443bd5a69ca" button_style="normal">
+        <left_macro_id>a6c08178-63ca-4b6f-8e47-ca9438393f6c</left_macro_id>
+        <right_macro_id>None</right_macro_id>
+      </tool_bar_item>
+    </tool_bar>
+  </tool_bars>
+  <macros>
+    <macro_item guid="c0a04bf6-f919-40b7-8216-531404b4c06c">
+      <text>
+        <locale_1033>Masonry_Start</locale_1033>
+      </text>
+      <script>! _Masonry_Start</script>
+      <tooltip>
+        <locale_1033>Start a COMPAS-Masonry session</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Masonry_Start</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Masonry Start</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="a82a25ba-7ca8-411f-b187-21bf00604bf3">
+      <text>
+        <locale_1033>Session_settings</locale_1033>
+      </text>
+      <script>! _Session_settings</script>
+      <tooltip>
+        <locale_1033>Session settings</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Session_settings</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Session settings</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="24a9a8c5-740c-43f1-ae46-652fa65bdf50">
+      <text>
+        <locale_1033>Session_redraw</locale_1033>
+      </text>
+      <script>! _Session_redraw</script>
+      <tooltip>
+        <locale_1033>Redraw the scene</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Session_redraw</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Session redraw</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="ebfe9bca-a77b-429e-9099-2f953c1091ea">
+      <text>
+        <locale_1033>Session_undo</locale_1033>
+      </text>
+      <script>! _Session_undo</script>
+      <tooltip>
+        <locale_1033>Undo</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Session_undo</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Session undo</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="3b636351-47b0-458c-b111-da81507f5a39">
+      <text>
+        <locale_1033>Session_redo</locale_1033>
+      </text>
+      <script>! _Session_redo</script>
+      <tooltip>
+        <locale_1033>Redo</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Session_redo</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Session redo</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="8eb6ec7c-06b2-4292-b790-755e4fd276e7">
+      <text>
+        <locale_1033>Session_clear</locale_1033>
+      </text>
+      <script>! _Session_clear</script>
+      <tooltip>
+        <locale_1033>Clear session and scene</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Session_clear</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Session clear</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="1daa186b-4e91-4023-9592-358931b03baf">
+      <text>
+        <locale_1033>TNA_envelope</locale_1033>
+      </text>
+      <script>! _TNA_envelope</script>
+      <tooltip>
+        <locale_1033>Define the masonry envelope</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>TNA_envelope</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>TNA envelope</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="76e54fac-92c3-4265-acf5-5194a8c50606">
+      <text>
+        <locale_1033>TNA_formdiagram</locale_1033>
+      </text>
+      <script>! _TNA_formdiagram</script>
+      <tooltip>
+        <locale_1033>Create the form diagram</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>TNA_formdiagram</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>TNA formdiagram</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="57baf569-6179-4343-b271-95a1976fe5c2">
+      <text>
+        <locale_1033>TNA_supports</locale_1033>
+      </text>
+      <script>! _TNA_supports</script>
+      <tooltip>
+        <locale_1033>Define TNA supports</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>TNA_supports</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>TNA supports</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="4c98b295-bdac-4deb-9760-ce737244dc72">
+      <text>
+        <locale_1033>TNA_loads</locale_1033>
+      </text>
+      <script>! _TNA_loads</script>
+      <tooltip>
+        <locale_1033>Define TNA loads</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>TNA_loads</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>TNA loads</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="17ad4e1a-b081-4a4b-bd11-7e11541d8ac3">
+      <text>
+        <locale_1033>TNA_analysis</locale_1033>
+      </text>
+      <script>! _TNA_analysis</script>
+      <tooltip>
+        <locale_1033>Run TNA analysis</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>TNA_analysis</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>TNA analysis</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="31225b35-34ae-4dcc-8ca2-d3359935ef17">
+      <text>
+        <locale_1033>TNA_blockexports</locale_1033>
+      </text>
+      <script>! _TNA_blockexports</script>
+      <tooltip>
+        <locale_1033>Export thrust mesh to blocks</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>TNA_blockexports</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>TNA blockexports</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="17077f6e-2b90-4372-a0db-af6e626069f4">
+      <text>
+        <locale_1033>Model_blocks</locale_1033>
+      </text>
+      <script>! _Model_blocks</script>
+      <tooltip>
+        <locale_1033>Create a block model</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Model_blocks</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Model blocks</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="ee664e9f-e828-4e21-8e0a-aa82f3363f98">
+      <text>
+        <locale_1033>Model_contacts</locale_1033>
+      </text>
+      <script>! _Model_contacts</script>
+      <tooltip>
+        <locale_1033>Compute contacts</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Model_contacts</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Model contacts</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="ed75ac00-0870-4025-9fac-11b989510e8f">
+      <text>
+        <locale_1033>Model_supports</locale_1033>
+      </text>
+      <script>! _Model_supports</script>
+      <tooltip>
+        <locale_1033>Define supports</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Model_supports</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Model supports</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="3d0c59bf-febe-4bc5-af4a-815197777e01">
+      <text>
+        <locale_1033>Model_material</locale_1033>
+      </text>
+      <script>! _Model_material</script>
+      <tooltip>
+        <locale_1033>Create and assign material</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Model_material</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Model material</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="70b90ee8-582b-48ea-8a59-1719cda3d114">
+      <text>
+        <locale_1033>Model_import</locale_1033>
+      </text>
+      <script>! _Model_import</script>
+      <tooltip>
+        <locale_1033>Import model from JSON</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Model_import</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Model import</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="06aa496f-3191-473b-94e0-eca6a2e12c88">
+      <text>
+        <locale_1033>Model_export</locale_1033>
+      </text>
+      <script>! _Model_export</script>
+      <tooltip>
+        <locale_1033>Export model to JSON</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Model_export</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Model export</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="b3b6747e-4bad-45bc-a921-64a36a2d4cb6">
+      <text>
+        <locale_1033>Problem_create</locale_1033>
+      </text>
+      <script>! _Problem_create</script>
+      <tooltip>
+        <locale_1033>Create a new problem</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Problem_create</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Problem create</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="08870bf2-7d63-4804-8e0b-f4f40b42f0f0">
+      <text>
+        <locale_1033>Problem_loads</locale_1033>
+      </text>
+      <script>! _Problem_loads</script>
+      <tooltip>
+        <locale_1033>Define problem loads</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Problem_loads</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Problem loads</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="9dd5b2af-eadb-4fac-8f94-05063b45c22d">
+      <text>
+        <locale_1033>Problem_boundaryconditions</locale_1033>
+      </text>
+      <script>! _Problem_boundaryconditions</script>
+      <tooltip>
+        <locale_1033>Define boundary conditions</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Problem_boundaryconditions</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Problem boundaryconditions</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="77b0331e-ba1e-4a1f-9fb3-615c6bf565f2">
+      <text>
+        <locale_1033>Problem_contactmodel</locale_1033>
+      </text>
+      <script>! _Problem_contactmodel</script>
+      <tooltip>
+        <locale_1033>Define contact model</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Problem_contactmodel</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Problem contactmodel</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="22583f52-067b-49a4-bcc8-ce9a77f33986">
+      <text>
+        <locale_1033>Problem_solver</locale_1033>
+      </text>
+      <script>! _Problem_solver</script>
+      <tooltip>
+        <locale_1033>Define solvers and settings</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Problem_solver</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Problem solver</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="bb56e855-0d58-4c27-9055-d6c4518df4d1">
+      <text>
+        <locale_1033>Problem_export</locale_1033>
+      </text>
+      <script>! _Problem_export</script>
+      <tooltip>
+        <locale_1033>Export problem results</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Problem_export</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Problem export</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="2657e624-cc2f-47f2-9bcf-ff65d614a2c8">
+      <text>
+        <locale_1033>Solve</locale_1033>
+      </text>
+      <script>! _Solve</script>
+      <tooltip>
+        <locale_1033>Run problem solver</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Solve</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Solve</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="ddd4ac2b-9c80-413a-a442-d628fad7d4a0">
+      <text>
+        <locale_1033>Results_print</locale_1033>
+      </text>
+      <script>! _Results_print</script>
+      <tooltip>
+        <locale_1033>Print results</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Results_print</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Results print</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="fbd72973-3328-4f1f-b845-c6ff482c2db8">
+      <text>
+        <locale_1033>Results_blockdata</locale_1033>
+      </text>
+      <script>! _Results_blockdata</script>
+      <tooltip>
+        <locale_1033>Export block data</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Results_blockdata</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Results blockdata</locale_1033>
+      </menu_text>
+    </macro_item>
+    <macro_item guid="a6c08178-63ca-4b6f-8e47-ca9438393f6c">
+      <text>
+        <locale_1033>Results_export</locale_1033>
+      </text>
+      <script>! _Results_export</script>
+      <tooltip>
+        <locale_1033>Export results to JSON</locale_1033>
+      </tooltip>
+      <help_text>
+        <locale_1033/>
+      </help_text>
+      <button_text>
+        <locale_1033>Results_export</locale_1033>
+      </button_text>
+      <menu_text>
+        <locale_1033>Results export</locale_1033>
+      </menu_text>
+    </macro_item>
+  </macros>
+  <bitmaps>
+    <small_bitmap item_width="16" item_height="16">
+      <bitmap>iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABGdBTUEAALGPC/xhBQAAAAlwSFlz
+AAAOvAAADrwBlbxySQAAABNJREFUOE9jGAWjYBSMAjBgYAAABBAAAadEfGMAAAAASUVORK5CYIIA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==</bitmap>
+    </small_bitmap>
+    <normal_bitmap item_width="24" item_height="24">
+      <bitmap>iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABGdBTUEAALGPC/xhBQAAAAlwSFlz
+AAAOvAAADrwBlbxySQAAABNJREFUOE9jGAWjYBSMAjBgYAAABBAAAadEfGMAAAAASUVORK5CYIIA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==</bitmap>
+    </normal_bitmap>
+    <large_bitmap item_width="32" item_height="32">
+      <bitmap>iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABGdBTUEAALGPC/xhBQAAAAlwSFlz
+AAAOvAAADrwBlbxySQAAABNJREFUOE9jGAWjYBSMAjBgYAAABBAAAadEfGMAAAAASUVORK5CYIIA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==</bitmap>
+    </large_bitmap>
+  </bitmaps>
+  <scripts/>
+</RhinoUI>

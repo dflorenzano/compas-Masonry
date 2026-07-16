@@ -6,7 +6,7 @@ dependencies:
   - python
   - compas
   - compas_occ
-  - ipopt ==3.14.9
+  - ipopt
   - numpy <2.0
   - pyomo ==6.4.2
   - cyipopt

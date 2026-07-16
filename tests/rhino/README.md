@@ -1,0 +1,25 @@
+# In-Rhino scratch tests
+
+Scripts here run **inside Rhino** (open in ScriptEditor, hit play). They are not collected by pytest — they exist to make manual testing repeatable instead of remodeling geometry every time.
+
+## Workflow
+
+1. Run `python tests/golden/generate.py` once (outside Rhino) to produce the fixtures.
+2. In Rhino, run a scratch script to load a fixture into the session and draw it.
+3. Iterate on scene/drawing code; re-run the script. After editing **library** code (`src/compas_masonry/`), use ScriptEditor → *Tools → Reset Python* (or restart Rhino) — Python caches imports per session. Edits to the script itself always apply on the next run.
+
+## Contents
+
+- `scratch_load_golden_model.py` — load `arch_model.json` into the session and draw blocks/contacts. Tests the Model-group scene code without running any analysis.
+- Add one scratch script per scenario as commands land (e.g. `scratch_load_golden_results.py` once results drawing exists).
+- Keep test `.3dm` files here too (meshes ready to select, polysurfaces, etc.) — one per manual-checklist scenario.
+
+## Manual checklist (run before each Yak release)
+
+Per command, verify at minimum:
+
+- [ ] command runs on a fresh document (no session) without traceback
+- [ ] escape / cancel at every prompt exits cleanly
+- [ ] layers created/populated as designed; re-running doesn't duplicate objects
+- [ ] undo/redo leave session and scene consistent
+- [ ] command works after `Session_clear`
