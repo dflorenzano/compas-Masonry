@@ -2,6 +2,8 @@
 # venv: brg-csd
 # r: compas_masonry>=0.2.7
 
+# This automatically gets created when any problem command gets called.
+
 """Problem_create — create an analysis Problem for the current BlockModel (Problem(model), layer tree, supports from model)
 
 STUB: not implemented yet. See temp/commands_list.md (Problem Group) for the

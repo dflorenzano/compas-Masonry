@@ -30,7 +30,7 @@
         { "name": "Problem_boundaryconditions", "script": "! _Problem_boundaryconditions", "tooltip": "Define boundary conditions" },
         { "name": "Problem_contactmodel", "script": "! _Problem_contactmodel", "tooltip": "Define contact model" },
         { "name": "Problem_solver", "script": "! _Problem_solver", "tooltip": "Define solvers and settings" },
-        { "name": "Problem_export", "script": "! _Problem_export", "tooltip": "Export problem results" },
+        { "name": "Problem_export", "script": "! _Problem_export", "tooltip": "Export problem Setup" },
 
         { "name": "Solve", "script": "! _Solve", "tooltip": "Run problem solver" },
         { "name": "Results_print", "script": "! _Results_print", "tooltip": "Print results" },

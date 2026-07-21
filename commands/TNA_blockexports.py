@@ -2,109 +2,95 @@
 # venv: brg-csd
 # r: compas_masonry>=0.2.7
 
+"""TNA_blockexports — export the TNA thrust diagram as a structurally informed BlockModel.
+
+Bridge between the TNA and Model groups: takes the session's form diagram
+(with the thrust geometry computed by TNA_analysis) and generates blocks
+whose thickness follows the inverse of the thrust height, using either the
+dual of a remeshed triangulation or a tessellation pattern (herringbone,
+hex, brick, ...).
+
+The resulting BlockModel replaces the session's current model (and any
+dependent problem/results) via session.set_model().
+
+Based on compas_dem/scripts/DEM_TNA_Mesh/.
+"""
+
 import pathlib
 
 import rhinoscriptsyntax as rs  # type: ignore
+from compas_libigl.mapping import TESSAGON_TYPES
 
-from compas_masonry.scene import RhinoFormDiagramObject
+from compas.datastructures import Mesh
+from compas_dem.models import BlockModel
 from compas_masonry.session import MasonrySession as Session
-from compas_rui import feedback
-from compas_tna.diagrams import FormDiagram
-from compas_tna.envelope import Envelope
+from compas_rui.feedback import warn
 
 
 def RunCommand():
     session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
-    formdiagram: FormDiagram = session.get("formdiagram")
-
-    if not formdiagram:
-        feedback.warn("There is no FormDiagram. Please create one first.")
-        return
-
-    formobject: RhinoFormDiagramObject = session.scene.find_by_itemtype(FormDiagram)  # type: ignore
-    if not formobject:
-        session.scene.add(formdiagram, name="FormDiagram", layer="Masonry::TNA::FormDiagram")  # type: ignore
-
-    envelope: Envelope = session["envelope"]
-    if not envelope:
-        feedback.warn("There is no Envelope. Please create one first.")
-        return
-
     # =============================================================================
-    # Update the Loads
+    # Preconditions
     # =============================================================================
 
-    rs.UnselectAllObjects()
+    formdiagram = session.get("formdiagram")
+    if formdiagram is None:
+        return warn("There is no FormDiagram in the session. Run the TNA workflow first.")
 
-    options = ["Add", "ClearAll"]
-    option = rs.GetString("Add or Remove Loads in the Model", strings=options)
+    thrust: Mesh = formdiagram.copy(cls=Mesh)
+
+    zmax = max(abs(thrust.vertex_attribute(vertex, "z")) for vertex in thrust.vertices())
+    if zmax < 1e-6:
+        return warn("The form diagram is flat. Run TNA_analysis first to compute the thrust geometry.")
+
+    # =============================================================================
+    # Ask for input
+    # =============================================================================
+
+    option = rs.GetString(message="Block generation", strings=["Dual", "Pattern"])
     if not option:
         return
 
-    if option == "Add":
-        option = rs.GetString("Type of load", strings=["Selfweight", "External", "FillLoads"])
-        if not option:
+    patternname = None
+    if option == "Pattern":
+        patternname = rs.ListBox(sorted(TESSAGON_TYPES), message="Tessellation pattern", title="Block pattern")
+        if not patternname:
             return
 
-        if option == "Selfweight":
-            option = rs.GetString("Normalize loads to Envelope SWT?", defaultString="Yes", strings=["Yes", "No"])
-            if not option:
-                return
-            elif option == "Yes":
-                normalize = True
-            else:
-                normalize = False
-            envelope.apply_selfweight_to_formdiagram(formdiagram, normalize=normalize)  # type: ignore
-
-        elif option == "External":
-            formobject.show_vertices = list(formobject.vertices())  # type: ignore
-            formobject.show_edges = list(formobject.edges())  # type: ignore
-            formobject.redraw()
-
-            selected = formobject.select_vertices()
-            if selected:
-                load = rs.GetReal("Load magnitude", -1.0, -1000.0, 0.0)
-                if load is None:
-                    return
-
-                for key in selected:
-                    pz = formdiagram.vertex_attribute(key, "pz") or 0
-                    print("Load at vertex {0} updated from {1:.2f} to {2:.2f}".format(key, pz, pz + load))
-                    formdiagram.vertex_attribute(key, "pz", pz + load)
-
-        elif option == "FillLoads":
-            if not envelope.fill:
-                feedback.warn("There is no Fill Mesh. Please re-create envelope with a fill")
-                return
-            envelope.apply_fill_weight_to_formdiagram(formdiagram)
-
-    elif option == "ClearAll":
-        print("Cleared Loads in the Model.")
-        formobject.mesh.vertices_attribute(name="pz", value=0)
-
-    else:
-        raise NotImplementedError
+    tmin = rs.GetReal("Minimum block thickness", 0.05, 0.0)
+    if tmin is None:
+        return
+    tmax = rs.GetReal("Maximum block thickness", 0.3, tmin)
+    if tmax is None:
+        return
 
     # =============================================================================
-    # Update scene
+    # Generate the block model
     # =============================================================================
 
-    rs.UnselectAllObjects()
+    try:
+        if option == "Dual":
+            model = BlockModel.from_triangulation_dual(thrust, tmin=tmin, tmax=tmax)
+        else:
+            model = BlockModel.from_meshpattern(thrust, patternname, tmin=tmin, tmax=tmax)
+    except Exception as e:  # remeshing/mapping can fail on degenerate input
+        return warn(f"Block generation failed: {e}")
 
-    formobject.show_vertices = True  # type: ignore
-    formobject.show_edges = True  # type: ignore
-    formobject.show_faces = False  # type: ignore
-    formobject.redraw()
+    n_blocks = len(list(model.elements()))
+    if not n_blocks:
+        return warn("Block generation produced no blocks. Try a different pattern or thickness bounds.")
 
+    # =============================================================================
+    # Update session and scene
+    # =============================================================================
+
+    session.set_model(model)
     rs.Redraw()
 
-    # =============================================================================
-    # Save
-    # =============================================================================
-
-    # if session.settings.autosave:
-    #     session.record(name="Analysis")
+    kind = f"{option}: {patternname}" if patternname else option
+    print(f"BlockModel created from thrust diagram: {n_blocks} blocks ({kind}).")
+    print("Next: Model_contacts to compute the contact interfaces.")
 
 
 # =============================================================================

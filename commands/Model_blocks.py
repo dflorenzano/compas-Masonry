@@ -35,13 +35,13 @@ def RunCommand():
     for obj in session.scene.find_all_by_itemtype(InteractionGraph):
         session.scene.remove(obj)
 
-    compas_rhino.layers.clear_layer("Masonry::DEA::Blocks")
-    compas_rhino.layers.clear_layer("Masonry::DEA::Interactions")
-    compas_rhino.layers.clear_layer("Masonry::DEA::Contacts")
+    compas_rhino.layers.clear_layer("Masonry::Model::Blocks")
+    compas_rhino.layers.clear_layer("Masonry::Model::Interactions")
+    compas_rhino.layers.clear_layer("Masonry::Model::Contacts")
 
     model = None
 
-    option = rs.GetString(message="BlockModel", strings=["Arch", "Dome", "BarrelVault", "Meshes", "Json"])
+    option = rs.GetString(message="BlockModel", strings=["Arch", "Dome", "BarrelVault", "RhinoMeshes", "RhinoPolysurfaces", "Json"])
     if not option:
         return
 
@@ -133,7 +133,7 @@ def RunCommand():
     # Meshes
     # =============================================================================
 
-    elif option == "Meshes":
+    elif option == "RhinoMeshes":
         guids = rs.GetObjects("Select meshes", rs.filter.mesh)
         if not guids:
             return
@@ -144,19 +144,23 @@ def RunCommand():
     # Surface/Pattern
     # =============================================================================
 
-    # =============================================================================
-    # FormDiagram
-    # =============================================================================
+    elif option == "RhinoPolysurfaces":
+        guids = rs.GetObjects("Select closed polysurfaces", rs.filter.polysurface)
+        if not guids:
+            return
+
+        model = BlockModel.from_polysurfaces(guids)
 
     # =============================================================================
     # Json
     # =============================================================================
 
     elif option == "Json":
-        pass
+        path = rs.GetString("Path to JSON file", str(pathlib.Path().home() / "blockmodel.json"))
+        if not path:
+            return
 
-    else:
-        raise NotImplementedError
+        model = BlockModel.from_json(path)
 
     # =============================================================================
     # Session update
@@ -176,8 +180,8 @@ def RunCommand():
         session.scene.add(
             block,  # type: ignore
             name=f"Block_{node}",  # type: ignore
-            group=f"Masonry::DEA::Blocks::{node}",  # type: ignore
-            layer="Masonry::DEA::Blocks",  # type: ignore
+            group=f"Masonry::Model::Blocks::{node}",  # type: ignore
+            layer="Masonry::Model::Blocks",  # type: ignore
         )
 
     session.scene.redraw()
@@ -191,3 +195,4 @@ def RunCommand():
 
 if __name__ == "__main__":
     RunCommand()
+

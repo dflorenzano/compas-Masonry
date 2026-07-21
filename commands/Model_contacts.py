@@ -28,8 +28,8 @@ def RunCommand():
     for obj in session.scene.find_all_by_itemtype(InteractionGraph):
         session.scene.remove(obj)
 
-    compas_rhino.layers.clear_layer("Masonry::DEA::Interactions")
-    compas_rhino.layers.clear_layer("Masonry::DEA::Contacts")
+    compas_rhino.layers.clear_layer("Masonry::Model::Interactions")
+    compas_rhino.layers.clear_layer("Masonry::Model::Contacts")
 
     # this should be simplified in the future
     # by adding a method model.clear_interactions()
@@ -63,10 +63,10 @@ def RunCommand():
     # Update scene
     # =============================================================================
 
-    session.scene.add(model.graph, layer="Masonry::DEA::Interactions")  # type: ignore
+    session.scene.add(model.graph, layer="Masonry::Model::Interactions")  # type: ignore
 
     for contact in model.contacts():
-        session.scene.add(contact, layer="Masonry::DEA::Contacts")  # type: ignore
+        session.scene.add(contact, layer="Masonry::Model::Contacts")  # type: ignore
 
     session.scene.redraw()
 
