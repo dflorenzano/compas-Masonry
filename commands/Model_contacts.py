@@ -38,7 +38,7 @@ def RunCommand():
         b = model.graph.node_element(v)  # type: ignore
         model.remove_interaction(a, b)
 
-    session.scene.redraw()
+    session.redraw()
     rs.Redraw()
 
     # =============================================================================
@@ -68,7 +68,7 @@ def RunCommand():
     for contact in model.contacts():
         session.scene.add(contact, layer="Masonry::Model::Contacts")  # type: ignore
 
-    session.scene.redraw()
+    session.redraw()
 
     rs.Redraw()
 

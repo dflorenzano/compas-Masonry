@@ -1,3 +1,5 @@
+from compas_dem.elements import Block
+from compas_dem.models import BlockModel
 from compas_session.lazyload import LazyLoadSession
 
 from .settings import MasonrySettings
@@ -15,6 +17,7 @@ class MasonrySession(LazyLoadSession):
 
     MODEL_LAYERS = [
         "Masonry::Model::Blocks",
+        "Masonry::Model::Supports",
         "Masonry::Model::Interactions",
         "Masonry::Model::Contacts",
     ]
@@ -80,4 +83,56 @@ class MasonrySession(LazyLoadSession):
             for contact in model.contacts():
                 self.scene.add(contact, layer="Masonry::Model::Contacts")  # type: ignore
 
+        self.redraw()
+
+    def redraw(self) -> None:
+        """Redraw the scene and re-tag Block guids.
+
+        Scene.redraw() recreates every drawn Rhino object, not just newly
+        added ones, so guids change on every redraw. Route all redraws
+        through here so the "element_guid" tag never goes stale.
+        """
         self.scene.redraw()
+        model = self.get("blockmodel")
+        if model is not None:
+            self._tag_block_guids(model)
+
+    def _tag_block_guids(self, model) -> None:
+        import rhinoscriptsyntax as rs  # type: ignore
+
+        for sceneobj in self.scene.find_all_by_itemtype(Block):
+            for guid in sceneobj.guids:
+                rs.SetUserText(guid, "element_guid", str(sceneobj.item.guid))
+
+    def guid_element_map(self, model=None) -> dict:
+        """Map each Block element's persistent guid (str) to its current graph node.
+        Rebuild per-command, not cached — node indices shift as the model changes.
+
+        Parameters
+        ----------
+        model : :class:`compas_dem.models.BlockModel`, optional
+            The model to use. If not provided, the session's current BlockModel is used.
+
+        Returns
+        -------
+        dict
+            A dictionary mapping Rhino GUIDs to Block elements.
+        """
+        model: BlockModel
+
+        model = model or self.get("blockmodel")
+        return {str(model.graph.node_element(n).guid): n for n in model.graph.nodes()}
+
+    def find_node(self, guid, guid_element_map=None):
+        """Resolve a Rhino object guid to its current graph node.
+
+        Pass a prebuilt `guid_element_map` when resolving many guids in a loop,
+        to avoid rebuilding it per call.
+        """
+        import rhinoscriptsyntax as rs  # type: ignore
+
+        text = rs.GetUserText(guid, "element_guid")
+        if text is None:
+            return None
+        mapping = guid_element_map if guid_element_map is not None else self.guid_element_map()
+        return mapping.get(text)

@@ -6,15 +6,12 @@ import pathlib
 
 import rhinoscriptsyntax as rs  # type: ignore
 
-import compas_rhino.layers
 from compas_dem.elements import Block
-from compas_dem.interactions import FrictionContact
 from compas_dem.models import BlockModel
 from compas_dem.templates import ArchTemplate
 from compas_dem.templates import BarrelVaultTemplate
 from compas_dem.templates import DomeTemplate
 from compas_masonry.session import MasonrySession as Session
-from compas_model.models import InteractionGraph
 
 # =============================================================================
 # Command
@@ -24,20 +21,7 @@ from compas_model.models import InteractionGraph
 def RunCommand():
     session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
-    session.delete("blockmodel")
-
-    for obj in session.scene.find_all_by_itemtype(Block):
-        session.scene.remove(obj)
-
-    for obj in session.scene.find_all_by_itemtype(FrictionContact):
-        session.scene.remove(obj)
-
-    for obj in session.scene.find_all_by_itemtype(InteractionGraph):
-        session.scene.remove(obj)
-
-    compas_rhino.layers.clear_layer("Masonry::Model::Blocks")
-    compas_rhino.layers.clear_layer("Masonry::Model::Interactions")
-    compas_rhino.layers.clear_layer("Masonry::Model::Contacts")
+    session.clear_model()
 
     model = None
 
@@ -163,28 +147,13 @@ def RunCommand():
         model = BlockModel.from_json(path)
 
     # =============================================================================
-    # Session update
+    # Session update - add model to session and scene
     # =============================================================================
 
     if not model:
         return
 
-    session["blockmodel"] = model
-
-    # =============================================================================
-    # Scene
-    # =============================================================================
-
-    for block in model.elements():
-        node = block.graphnode
-        session.scene.add(
-            block,  # type: ignore
-            name=f"Block_{node}",  # type: ignore
-            group=f"Masonry::Model::Blocks::{node}",  # type: ignore
-            layer="Masonry::Model::Blocks",  # type: ignore
-        )
-
-    session.scene.redraw()
+    session.set_model(model)
 
     rs.Redraw()
 
@@ -195,4 +164,3 @@ def RunCommand():
 
 if __name__ == "__main__":
     RunCommand()
-

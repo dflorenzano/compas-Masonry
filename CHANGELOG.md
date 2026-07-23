@@ -9,9 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* Added `MasonrySession.set_model`, `MasonrySession.clear_model`, `MasonrySession.draw_model` as the shared install/clear/draw path for every model-creating command.
+* Added `MasonrySession.redraw` to redraw the scene and keep Rhino guid tags in sync, since `Scene.redraw()` recreates every drawn object with new guids.
+* Added `MasonrySession._tag_block_guids`, `MasonrySession.guid_element_map`, `MasonrySession.find_node` to resolve a Rhino object guid to its current graph node via a persistent `element_guid` Rhino User Text tag, robust to node renumbering and object renaming (replaces parsing the `"Block_N"` object name).
+* Implemented `Add`/`Remove`/`Clear` support logic in `Model_supports.py`, syncing existing supports to the `Masonry::Model::Supports` layer on open.
+
 ### Changed
 
+* `Model_blocks.py` now calls `session.clear_model()`/`session.set_model(model)` instead of duplicating scene setup/teardown inline.
+* `Model_contacts.py` now calls `session.redraw()` instead of `session.scene.redraw()`, so Block guid tags survive.
+
 ### Removed
+
+* Removed name-string parsing (`"Block_N"` → `int`) as the mechanism for resolving Rhino objects to graph nodes.
 
 
 ## [0.3.0] 2025-09-10
