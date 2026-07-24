@@ -71,11 +71,12 @@ class MasonrySession(LazyLoadSession):
 
         for block in model.elements():
             node = block.graphnode
+            layer = "Masonry::Model::Supports" if block.is_support else "Masonry::Model::Blocks"
             self.scene.add(
                 block,  # type: ignore
                 name=f"Block_{node}",  # type: ignore
                 group=f"Masonry::Model::Blocks::{node}",  # type: ignore
-                layer="Masonry::Model::Blocks",  # type: ignore
+                layer=layer,  # type: ignore
             )
 
         if model.graph.number_of_edges() > 0:
@@ -97,6 +98,20 @@ class MasonrySession(LazyLoadSession):
         if model is not None:
             self._tag_block_guids(model)
             self._tag_block_materials(model)
+            self._tag_block_supports(model)
+
+    def sync_support_layers(self) -> None:
+        """Route each block scene object to the Supports/Blocks layer per is_support.
+
+        Call before redraw() after changing is_support flags. Layer and colour
+        both derive from is_support (the scene object colours supports red), so
+        there's no manual per-object ObjectLayer to fight the redraw or hold
+        stale guids.
+        """
+        from compas_dem.elements import Block
+
+        for sceneobj in self.scene.find_all_by_itemtype(Block):
+            sceneobj.layer = "Masonry::Model::Supports" if sceneobj.item.is_support else "Masonry::Model::Blocks"
 
     def _tag_block_guids(self, model) -> None:
         import rhinoscriptsyntax as rs  # type: ignore
@@ -119,6 +134,17 @@ class MasonrySession(LazyLoadSession):
             value = str(material.guid) if material is not None else None
             for guid in sceneobj.guids:
                 rs.SetUserText(guid, "material_guid", value)
+
+    def _tag_block_supports(self, model) -> None:
+        """Tag each Block's Rhino object with its is_support flag (User Text).
+
+        Written via the generic set_user_params so it JSON-encodes to
+        true/false — a machine-readable support marker alongside the red
+        colour and Supports layer. Re-applied here so it survives redraws.
+        """
+        for sceneobj in self.scene.find_all_by_itemtype(Block):
+            for guid in sceneobj.guids:
+                self.set_user_params(guid, {"is_support": bool(sceneobj.item.is_support)})
 
     def guid_element_map(self, model=None) -> dict:
         """Map each Block element's persistent guid (str) to its current graph node.
@@ -380,6 +406,7 @@ class MasonrySession(LazyLoadSession):
         come from settings.blockmodel (Session_settings).
         """
         import rhinoscriptsyntax as rs  # type: ignore
+
         from compas.geometry import Rotation
         from compas.geometry import Translation
         from compas.geometry import Vector
@@ -406,7 +433,9 @@ class MasonrySession(LazyLoadSession):
         # --- gravity: single downward arrow at the world origin ---------------
         if bc.g:
             self._draw_vector(
-                name, "Loads::Gravity", "gravity",
+                name,
+                "Loads::Gravity",
+                "gravity",
                 origin=[0.0, 0.0, 0.0],
                 vector=[0.0, 0.0, -bc.g * gravity_scale],
                 params={"g": bc.g},
@@ -415,10 +444,13 @@ class MasonrySession(LazyLoadSession):
         # --- global body forces: arrows at the origin (accel direction) -------
         for i, acc in enumerate(bc.body_forces):
             self._draw_vector(
-                name, "Loads::Gravity", "body_force",
+                name,
+                "Loads::Gravity",
+                "body_force",
                 origin=[0.0, 0.0, 0.0],
                 vector=[c * gravity_scale for c in acc],
-                bc_index=i, params={"acceleration": acc},
+                bc_index=i,
+                params={"acceleration": acc},
             )
 
         # --- point loads: arrow from the block centroid along the force -------
@@ -429,9 +461,13 @@ class MasonrySession(LazyLoadSession):
             origin = entry["point"] if entry["point"] is not None else list(block.point)
             vector = [c * load_scale for c in entry["force"]]
             self._draw_vector(
-                name, "Loads::Point", "point_load",
-                origin=origin, vector=vector,
-                element_guid=str(block.guid), bc_index=i,
+                name,
+                "Loads::Point",
+                "point_load",
+                origin=origin,
+                vector=vector,
+                element_guid=str(block.guid),
+                bc_index=i,
                 params={"force": entry["force"], "point": origin, "moment": entry.get("moment")},
             )
 
@@ -443,16 +479,25 @@ class MasonrySession(LazyLoadSession):
             face_index = entry["face_index"]
             params = {"load": entry["load"], "face_index": face_index}
             self._draw_face(
-                name, "Loads::Surface", "surface_load",
-                block=block, face_index=face_index,
-                element_guid=str(block.guid), bc_index=i, params=params,
+                name,
+                "Loads::Surface",
+                "surface_load",
+                block=block,
+                face_index=face_index,
+                element_guid=str(block.guid),
+                bc_index=i,
+                params=params,
             )
             polygon = block.modelgeometry.face_polygon(face_index)
             self._draw_vector(
-                name, "Loads::Surface", "surface_load",
+                name,
+                "Loads::Surface",
+                "surface_load",
                 origin=list(polygon.centroid),
                 vector=[c * load_scale for c in entry["load"]],
-                element_guid=str(block.guid), bc_index=i, params=params,
+                element_guid=str(block.guid),
+                bc_index=i,
+                params=params,
             )
 
         # --- displacement / rotation BCs: a transformed copy of the block -----
@@ -469,9 +514,13 @@ class MasonrySession(LazyLoadSession):
             if t is not None:
                 vec = [(c or 0.0) * disp_scale for c in t]
                 self._draw_transformed_block(
-                    name, "Boundary conditions::Displacements", "displacement",
-                    block=block, T=Translation.from_vector(vec),
-                    element_guid=str(block.guid), bc_index=i,
+                    name,
+                    "Boundary conditions::Displacements",
+                    "displacement",
+                    block=block,
+                    T=Translation.from_vector(vec),
+                    element_guid=str(block.guid),
+                    bc_index=i,
                     params={"translation": t, "applied_translation": vec},
                 )
             if r is not None:
@@ -480,9 +529,13 @@ class MasonrySession(LazyLoadSession):
                     axis = [c / angle for c in r]
                     R = Rotation.from_axis_and_angle(axis, angle * disp_scale, point=list(block.point))
                     self._draw_transformed_block(
-                        name, "Boundary conditions::Rotations", "rotation",
-                        block=block, T=R,
-                        element_guid=str(block.guid), bc_index=i,
+                        name,
+                        "Boundary conditions::Rotations",
+                        "rotation",
+                        block=block,
+                        T=R,
+                        element_guid=str(block.guid),
+                        bc_index=i,
                         params={"rotation": r, "applied_angle_rad": angle * disp_scale},
                     )
 
