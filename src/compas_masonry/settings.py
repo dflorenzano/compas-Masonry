@@ -47,6 +47,12 @@ class BlockModelSettings(BaseModel):
     scale_selfweight: float = Field(default=1.0, ge=1e-6, le=1e3, title="Scale Selfweight")
     scale_reactions: float = Field(default=0.01, ge=1e-6, le=1e3, title="Scale Reactions")
 
+    # Problem load/BC display scales — Rhino length drawn per unit of the
+    # underlying quantity (see MasonrySession.draw_problem).
+    scale_loads: float = Field(default=1e-3, ge=1e-9, le=1e6, title="Scale Loads (m per N)")
+    scale_gravity: float = Field(default=0.1, ge=1e-6, le=1e3, title="Scale Gravity (m per m/s2)")
+    scale_displacement: float = Field(default=1.0, ge=1e-6, le=1e6, title="Scale Displacement/Rotation BC")
+
     contact_tolerance: float = Field(default=1e-3, ge=1e-6, le=1e3, title="Contact Tolerance")
     contact_minimum_area: float = Field(default=1e-2, ge=1e-6, le=90, title="Contact Minimum Area")
 

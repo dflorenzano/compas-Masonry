@@ -21,7 +21,8 @@
         { "name": "Model_blocks", "script": "! _Model_blocks", "tooltip": "Create a block model" },
         { "name": "Model_contacts", "script": "! _Model_contacts", "tooltip": "Compute contacts" },
         { "name": "Model_supports", "script": "! _Model_supports", "tooltip": "Define supports" },
-        { "name": "Model_material", "script": "! _Model_material", "tooltip": "Create and assign material" },
+        { "name": "Model_material", "script": "! _Model_material", "tooltip": "Manage materials (create/modify/remove/clear/duplicate)" },
+        { "name": "Model_materialassign", "script": "! _Model_materialassign", "tooltip": "Assign a material to blocks" },
         { "name": "Model_import", "script": "! _Model_import", "tooltip": "Import model from JSON" },
         { "name": "Model_export", "script": "! _Model_export", "tooltip": "Export model to JSON" },
 
@@ -70,6 +71,7 @@
                 { "left": "Model_contacts" },
                 { "left": "Model_supports" },
                 { "left": "Model_material" },
+                { "left": "Model_materialassign" },
                 { "type": "separator" },
                 { "left": "Model_import" },
                 { "left": "Model_export" }
