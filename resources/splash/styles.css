@@ -1,89 +1,157 @@
-body{
-    font-family:  Helvetica;
-    color: lightgrey;
-    margin: 0;
-    padding: 0;
-    font-size: x-small;
-    font-weight: 100;
-    overflow: hidden;
+/* COMPAS Masonry splash.
+   The artwork is a light drawing (white ground, grey masonry, coral thrust
+   vectors), so the UI stays light and borrows the coral as its only accent.
+   The lower right of the artwork is empty white, which is where the content
+   sits — with a soft white scrim so it stays legible if the image changes. */
+
+:root {
+    --ink: #1c1c1c;
+    --muted: #6b6b6b;
+    --rule: rgba(28, 28, 28, 0.14);
+    --accent: #ef6152;
+    --accent-dark: #d94a3c;
 }
 
-img{
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    margin: 0;
+    padding: 0;
+    font-size: 12px;
+    font-weight: 300;
+    overflow: hidden;
+    background: #ffffff;
+    -webkit-font-smoothing: antialiased;
+}
+
+#background {
     position: absolute;
     left: 0;
-    width: 100%;
     top: 0;
+    width: 100%;
     z-index: -100;
     -webkit-app-region: drag;
 }
 
-#content{
-    /* margin: 3%; */
-    /* line-height: 1.5; */
-    width: 100%;
-    height: 100%;
-}
-
-
-a:link{
-
-    -webkit-app-region: no-drag;
-    top: 73%;
-    color: rgb(80, 80, 80);
-    text-decoration: none;
-}
-
-a:visited{
-    color: rgb(80, 80, 80);
-}
-
-
-#links{
+/* Keeps the text side readable over any artwork, without a hard panel edge. */
+#scrim {
     position: absolute;
-    color: rgb(80, 80, 80);
-    top: 73%;
-    right: 5%;
-    text-align: right;
-    font-size: x-small;
-    /* margin-top: 30%; */
+    inset: 0;
+    z-index: -50;
+    background: linear-gradient(105deg, rgba(255, 255, 255, 0) 40%, rgba(255, 255, 255, 0.72) 66%, rgba(255, 255, 255, 0.94) 100%);
+    -webkit-app-region: drag;
+    pointer-events: none;
 }
 
-#terms{
+#version {
     position: absolute;
-    color: rgb(80, 80, 80);
-    top: 83%;
-    right: 5%;
-    font-size: x-small;
-}
-
-#terms a:link{
-    color: rgb(80, 80, 80);
-    text-decoration: underline;
-}
-
-#exit{
-    position: absolute;
-    right: 5%;
-    top: 5%;
-    -webkit-app-region: no-drag;
-    cursor: pointer;
-}
-
-#agree{
-    /* font-family: Arial; */
-    right: 5%;
-    text-align: right;
-    font-size: large;
-    font-weight: bolder;
-}
-
-#agree a:link{
-    text-decoration: none;
-}
-
-
-#version{
-    position: fixed;
     left: 6%;
-    top: 52%;
+    top: 7%;
+    color: var(--muted);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    min-height: 12px;
+}
+
+#content {
+    position: absolute;
+    right: 6%;
+    bottom: 9%;
+    width: 44%;
+    text-align: right;
+}
+
+#links {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 7px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--rule);
+}
+
+#links br {
+    display: none;
+}
+
+#links a {
+    -webkit-app-region: no-drag;
+    color: var(--ink);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 400;
+    transition: color 120ms ease;
+}
+
+#links a:hover {
+    color: var(--accent);
+}
+
+#terms {
+    padding-top: 16px;
+    color: var(--muted);
+    line-height: 1.7;
+    font-size: 11px;
+}
+
+#terms a {
+    -webkit-app-region: no-drag;
+    color: var(--muted);
+    text-decoration: none;
+    border-bottom: 1px solid var(--rule);
+    transition: color 120ms ease, border-color 120ms ease;
+}
+
+#terms a:hover {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+#agree {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    margin-top: 16px;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+}
+
+#agree #yes,
+#agree #no {
+    -webkit-app-region: no-drag;
+    display: inline-block;
+    padding: 8px 22px;
+    text-decoration: none;
+    text-transform: uppercase;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+#agree #yes {
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    color: #ffffff;
+}
+
+#agree #yes:hover {
+    background: var(--accent-dark);
+    border-color: var(--accent-dark);
+}
+
+#agree #no {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+}
+
+#agree #no:hover {
+    border-color: var(--ink);
+    color: var(--ink);
 }
