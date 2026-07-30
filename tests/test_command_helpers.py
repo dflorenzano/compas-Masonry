@@ -8,14 +8,14 @@ import pathlib
 
 import pytest
 
-from rhinostub import load_command
+from rhinostub import command_path, load_command
 
 COMMANDS = pathlib.Path(__file__).resolve().parents[1] / "commands"
 
 
 @pytest.fixture(scope="module")
 def addload():
-    return load_command(COMMANDS / "CM_Problem_addload_options.py", "addload")
+    return load_command(command_path("Problem_addload"), "addload")
 
 
 @pytest.fixture
@@ -196,7 +196,7 @@ def test_body_force_rejects_a_zero_direction(addload):
 
 
 def test_result_key_names_solver_and_bcs():
-    solve = load_command(COMMANDS / "CM_Problem_solve_options.py", "solve")
+    solve = load_command(command_path("Problem_solve"), "solve")
     assert solve.result_key("RBE", ["BC1"]) == "RBE_BC1"
     assert solve.result_key("CRA", ["BC1", "BC2"]) == "CRA_BC1-BC2"
 

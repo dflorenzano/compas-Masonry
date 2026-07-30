@@ -348,20 +348,13 @@ class MasonrySession(LazyLoadSession):
     #
     # A model can carry MANY problems (same loads, different solver -> new
     # problem). They live in the `problems` dict keyed by name ("Problem_1",
-    # ...), with one `active_problem` at a time. Each problem owns a Rhino layer
-    # subtree under "Masonry::<name>::...". The Problem object is the source of
-    # truth; the Rhino geometry under those layers is *derived* — draw_problem()
-    # clears and regenerates it from the Problem's boundary conditions, so
-    # add/remove/modify only need to mutate the Problem and redraw.
-
-    # Sublayers created under "Masonry::<problem name>" for every problem.
-    PROBLEM_SUBLAYERS = [
-        "Loads::Gravity",
-        "Loads::Point",
-        "Loads::Surface",
-        "Boundary conditions::Displacements",
-        "Boundary conditions::Rotations",
-    ]
+    # ...), with one `active_problem` at a time. Each problem owns ONE Rhino
+    # layer, "Masonry::<index>_<name>"; its content belongs to the boundary
+    # conditions, which create their own subtrees on demand.
+    #
+    # The Problem object is the source of truth and the Rhino geometry is
+    # *derived*: draw_bc() clears and regenerates it, so add/remove/modify only
+    # need to mutate the Problem and redraw.
 
     # Display scales now live in settings.blockmodel (scale_loads /
     # scale_gravity / scale_displacement) so they're tunable in Session_settings.
@@ -441,19 +434,12 @@ class MasonrySession(LazyLoadSession):
             return None
         return names[int(idx)]
 
-    def problem_layer(self, name, sub=None) -> str:
-        """Build a layer path for a problem, optionally with a sublayer suffix."""
-        return f"Masonry::{name}::{sub}" if sub else f"Masonry::{name}"
-
-    def ensure_problem_layers(self, name) -> None:
-        """Create the full layer subtree for a problem (idempotent)."""
-        from compas_rhino.layers import create_layers_from_path
-
-        for sub in self.PROBLEM_SUBLAYERS:
-            create_layers_from_path(self.problem_layer(name, sub), separator="::")
-
-    def create_problem(self, model, name=None, source=None, sublayers=True):
+    def create_problem(self, model, name=None, source=None):
         """Create (or duplicate) a Problem for `model`, store it, make it active.
+
+        Creates only the problem's own layer, "Masonry::<index>_<name>". Its
+        content belongs to the boundary conditions, which add their subtrees on
+        demand.
 
         Parameters
         ----------
@@ -464,11 +450,6 @@ class MasonrySession(LazyLoadSession):
             If given, deep-copy its boundary conditions, contact properties and
             solver into the new problem (a "duplicate"). Otherwise start fresh
             and inherit supports from the model's `is_support` flags.
-        sublayers : bool, optional
-            If True (default), create the old Loads/Boundary conditions layer
-            subtree and draw it. If False, create only the indexed problem
-            layer ("Masonry::1_<name>") and leave the content to the load
-            cases, which add their own subtree on demand.
 
         Returns
         -------
@@ -493,11 +474,7 @@ class MasonrySession(LazyLoadSession):
         self.save_problems()
         self.set_active_problem(name)
 
-        if sublayers:
-            self.ensure_problem_layers(name)
-            self.draw_problem(name, model)
-        else:
-            self.ensure_indexed_problem_layer(name)
+        self.ensure_indexed_problem_layer(name)
 
         return problem
 
@@ -545,22 +522,15 @@ class MasonrySession(LazyLoadSession):
         self.save_problems()
         return before, after
 
-    def delete_problem(self, name, indexed=False) -> None:
+    def delete_problem(self, name) -> None:
         """Remove a problem and its Rhino layer subtree.
 
-        Parameters
-        ----------
-        name : str
-            The problem to remove.
-        indexed : bool, optional
-            If True, the problem lives under an indexed layer
-            ("Masonry::1_<name>") and the remaining problem layers are
-            renumbered afterwards so the indices stay consecutive.
-
+        The remaining problem layers are renumbered afterwards, so the index
+        prefixes stay consecutive.
         """
         from compas_rhino.layers import delete_layers
 
-        layer = self.indexed_problem_layer(name) if indexed else self.problem_layer(name)
+        layer = self.indexed_problem_layer(name)
 
         self.problems.pop(name, None)
         self.save_problems()
@@ -568,8 +538,7 @@ class MasonrySession(LazyLoadSession):
             self.set_active_problem(next(iter(self.problems), None))
         delete_layers([layer])
 
-        if indexed:
-            self.renumber_problem_layers()
+        self.renumber_problem_layers()
 
     # =============================================================================
     # Boundary condition layers
@@ -584,8 +553,7 @@ class MasonrySession(LazyLoadSession):
     #                                 ::Results
     #
     # Layers are created on demand (when a BC is created or drawn), not when the
-    # problem is created. The old PROBLEM_SUBLAYERS hierarchy is kept for the
-    # pre-BC commands.
+    # problem is created.
     #
     # compas_dem renamed LoadCase to BoundaryCondition, so this whole block
     # speaks "bc"; the layer prefix is BC<n>_ rather than LC<n>_.
@@ -649,7 +617,7 @@ class MasonrySession(LazyLoadSession):
         return f"Masonry::{leaf}::{sub}" if sub else f"Masonry::{leaf}"
 
     def ensure_indexed_problem_layer(self, name) -> None:
-        """Create the problem layer (no sublayers — load cases add their own)."""
+        """Create the problem layer (no sublayers — boundary conditions add their own)."""
         from compas_rhino.layers import create_layers_from_path
 
         create_layers_from_path(self.indexed_problem_layer(name), separator="::")
@@ -1173,34 +1141,13 @@ class MasonrySession(LazyLoadSession):
     def _result_resultants(self, results) -> list:
         """[(point, vector, magnitude, edge), …] for every contact with a force.
 
-        The application point is `force_point` when the solver wrote one, else
-        the contact frame origin, else the contact polygon centroid — CRA fills
-        in the frame but not `force_point`.
+        Lives in `compas_masonry.results`, which derives everything the reports
+        show from a `Results` without Rhino — the drawing here and the reporting
+        commands must agree on the numbers.
         """
-        out = []
-        for edge in results.edges():
-            vector = results.resultant_global(edge)
-            if not vector:
-                continue
-            magnitude = results.force_magnitude(edge)
-            if magnitude is None:
-                magnitude = sum(c * c for c in vector) ** 0.5
-            if not magnitude:
-                continue
+        from compas_masonry.results import contact_resultants
 
-            point = results.force_point(edge)
-            if point is None:
-                frame = results.contact_frame(edge)
-                if frame is not None:
-                    point = list(frame.point)
-                else:
-                    polygon = results.contact_polygon(edge)
-                    if polygon is None:
-                        continue
-                    point = list(polygon.centroid)
-
-            out.append((list(point), list(vector), float(magnitude), edge))
-        return out
+        return contact_resultants(results)
 
     def _draw_contact_geometry(self, layer, results, edge):
         """Draw a contact by its class: polygon, line, or point.
@@ -1359,218 +1306,3 @@ class MasonrySession(LazyLoadSession):
             except (ValueError, TypeError):
                 out[key] = raw
         return out
-
-    # =============================================================================
-    # Problem drawing (derived geometry — Problem is the source of truth)
-    # =============================================================================
-
-    def draw_problem(self, name, model=None) -> None:
-        """Clear and redraw all load / boundary-condition geometry for a problem.
-
-        Every drawn object carries its parameters as Rhino User Text via
-        set_user_params: always "problem" and "load_kind", plus the load's own
-        values (force / g / load / translation / rotation / transformation) and,
-        for block-bound entries, "element_guid" and "bc_index". Display scales
-        come from settings.blockmodel (Session_settings).
-        """
-        import rhinoscriptsyntax as rs  # type: ignore
-
-        from compas.geometry import Rotation
-        from compas.geometry import Translation
-        from compas.geometry import Vector
-        from compas_rhino.layers import clear_layer
-
-        model = model or self.get("blockmodel")
-        problem = self.problems.get(name)
-        if model is None or problem is None:
-            return
-
-        gravity_scale, load_scale, disp_scale = self._scales
-
-        # Self-healing: recreate the layer subtree if the user deleted it, so
-        # activating/redrawing a problem always restores its layers. Idempotent
-        # (create_layers_from_path only creates what's missing).
-        self.ensure_problem_layers(name)
-
-        for sub in self.PROBLEM_SUBLAYERS:
-            clear_layer(self.problem_layer(name, sub))
-
-        # Pre-BC scheme: this path is what the FROZEN original commands draw
-        # through, and they expect one BC object. Since the compas_dem rename
-        # `boundary_conditions` is a list, so take the first entry — the old
-        # deprecated property returned exactly that (the default BC).
-        bcs = problem.boundary_conditions
-        bc = (bcs[0] if bcs else None) if isinstance(bcs, list) else bcs
-        if bc is None:
-            return
-
-        blocks = {block.graphnode: block for block in model.elements()}
-
-        # --- gravity: single downward arrow at the world origin ---------------
-        if bc.g:
-            self._draw_vector(
-                name,
-                "Loads::Gravity",
-                "gravity",
-                origin=[0.0, 0.0, 0.0],
-                vector=[0.0, 0.0, -bc.g * gravity_scale],
-                params={"g": bc.g},
-            )
-
-        # --- global body forces: arrows at the origin (accel direction) -------
-        for i, acc in enumerate(bc.body_forces):
-            self._draw_vector(
-                name,
-                "Loads::Gravity",
-                "body_force",
-                origin=[0.0, 0.0, 0.0],
-                vector=[c * gravity_scale for c in acc],
-                bc_index=i,
-                params={"acceleration": acc},
-            )
-
-        # --- point loads: arrow from the block centroid along the force -------
-        for i, entry in enumerate(bc.point_loads):
-            block = blocks.get(entry["block_index"])
-            if block is None:
-                continue
-            origin = entry["point"] if entry["point"] is not None else list(block.point)
-            vector = [c * load_scale for c in entry["force"]]
-            self._draw_vector(
-                name,
-                "Loads::Point",
-                "point_load",
-                origin=origin,
-                vector=vector,
-                element_guid=str(block.guid),
-                bc_index=i,
-                params={"force": entry["force"], "point": origin, "moment": entry.get("moment")},
-            )
-
-        # --- surface loads: a copy of the loaded face + a pressure arrow ------
-        for i, entry in enumerate(bc.surface_loads):
-            block = blocks.get(entry["block_index"])
-            if block is None:
-                continue
-            face_index = entry["face_index"]
-            params = {"load": entry["load"], "face_index": face_index}
-            self._draw_face(
-                name,
-                "Loads::Surface",
-                "surface_load",
-                block=block,
-                face_index=face_index,
-                element_guid=str(block.guid),
-                bc_index=i,
-                params=params,
-            )
-            polygon = block.modelgeometry.face_polygon(face_index)
-            self._draw_vector(
-                name,
-                "Loads::Surface",
-                "surface_load",
-                origin=list(polygon.centroid),
-                vector=[c * load_scale for c in entry["load"]],
-                element_guid=str(block.guid),
-                bc_index=i,
-                params=params,
-            )
-
-        # --- displacement / rotation BCs: a transformed copy of the block -----
-        for i, entry in enumerate(bc.displacements):
-            t = entry.get("translation")
-            r = entry.get("rotation")
-            is_support = t == [0.0, 0.0, 0.0] and r == [0.0, 0.0, 0.0]
-            if is_support:
-                # Supports are drawn by the model on Masonry::Model::Supports.
-                continue
-            block = blocks.get(entry["block_index"])
-            if block is None:
-                continue
-            if t is not None:
-                vec = [(c or 0.0) * disp_scale for c in t]
-                self._draw_transformed_block(
-                    name,
-                    "Boundary conditions::Displacements",
-                    "displacement",
-                    block=block,
-                    T=Translation.from_vector(vec),
-                    element_guid=str(block.guid),
-                    bc_index=i,
-                    params={"translation": t, "applied_translation": vec},
-                )
-            if r is not None:
-                angle = Vector(*r).length
-                if angle:
-                    axis = [c / angle for c in r]
-                    R = Rotation.from_axis_and_angle(axis, angle * disp_scale, point=list(block.point))
-                    self._draw_transformed_block(
-                        name,
-                        "Boundary conditions::Rotations",
-                        "rotation",
-                        block=block,
-                        T=R,
-                        element_guid=str(block.guid),
-                        bc_index=i,
-                        params={"rotation": r, "applied_angle_rad": angle * disp_scale},
-                    )
-
-        rs.Redraw()
-
-    def _load_params(self, name, kind, element_guid=None, bc_index=None, extra=None) -> dict:
-        """Assemble the User Text param dict shared by every drawn load/BC object."""
-        params = {"problem": name, "load_kind": kind}
-        if element_guid is not None:
-            params["element_guid"] = element_guid
-        if bc_index is not None:
-            params["bc_index"] = bc_index
-        if extra:
-            params.update(extra)
-        return params
-
-    def _draw_vector(self, name, sub, kind, origin, vector, element_guid=None, bc_index=None, params=None):
-        """Draw an arrow (line with an end arrowhead), tag it, and layer it."""
-        import rhinoscriptsyntax as rs  # type: ignore
-
-        end = [o + v for o, v in zip(origin, vector)]
-        if end == list(origin):
-            return None
-        guid = rs.AddLine(origin, end)
-        rs.CurveArrows(guid, 2)  # arrowhead at the end
-        rs.ObjectLayer(guid, self.problem_layer(name, sub))
-        self.set_user_params(guid, self._load_params(name, kind, element_guid, bc_index, params))
-        return guid
-
-    def _draw_face(self, name, sub, kind, block, face_index, element_guid=None, bc_index=None, params=None):
-        """Draw a copy of a block face as a mesh, tag it, and layer it."""
-        import rhinoscriptsyntax as rs  # type: ignore
-
-        polygon = block.modelgeometry.face_polygon(face_index)
-        vertices = [list(pt) for pt in polygon.points]
-        face = list(range(len(vertices)))
-        guid = rs.AddMesh(vertices, [face])
-        if guid is None:
-            return None
-        rs.ObjectLayer(guid, self.problem_layer(name, sub))
-        self.set_user_params(guid, self._load_params(name, kind, element_guid, bc_index, params))
-        return guid
-
-    def _draw_transformed_block(self, name, sub, kind, block, T, element_guid=None, bc_index=None, params=None):
-        """Draw a copy of the block mesh with the BC transformation applied.
-
-        The transformation matrix is stored in User Text alongside the raw BC
-        values, so the prescribed displacement/rotation is both visible (the
-        block moves) and machine-readable.
-        """
-        import rhinoscriptsyntax as rs  # type: ignore
-
-        mesh = block.modelgeometry.transformed(T)
-        vertices, faces = mesh.to_vertices_and_faces()
-        guid = rs.AddMesh(vertices, faces)
-        if guid is None:
-            return None
-        rs.ObjectLayer(guid, self.problem_layer(name, sub))
-        extra = dict(params or {})
-        extra["transformation"] = [list(row) for row in T.matrix]
-        self.set_user_params(guid, self._load_params(name, kind, element_guid, bc_index, extra))
-        return guid

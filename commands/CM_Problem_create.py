@@ -101,7 +101,7 @@ def RunCommand():
             if name is None:
                 return
 
-            problem = session.create_problem(model, name=name, sublayers=False)
+            problem = session.create_problem(model, name=name)
             print(f"Created {problem.name} (active), layer {session.indexed_problem_layer(name)}.")
             print("NOTE: supports are IMPORTED from the model (Block.is_support). Edit them in Model_supports and refresh the problem.")
             print("Next: Problem_createbc to add a boundary condition — loads, boundary conditions and results live there.")
@@ -123,7 +123,7 @@ def RunCommand():
                 return
 
             source = session.problems[source_name]
-            problem = session.create_problem(model, name=name, source=source, sublayers=False)
+            problem = session.create_problem(model, name=name, source=source)
             print(f"Created {problem.name} as a duplicate of {source_name} (active).")
             return
 
@@ -156,7 +156,7 @@ def RunCommand():
             if not confirm(f"Delete {name} and all its boundary conditions?"):
                 return
 
-            session.delete_problem(name, indexed=True)
+            session.delete_problem(name)
             print(f"Deleted {name}. Remaining problem layers renumbered.")
             return
 
