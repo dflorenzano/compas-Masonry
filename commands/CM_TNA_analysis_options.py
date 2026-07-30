@@ -2,17 +2,56 @@
 # venv: brg-csd
 # r: compas_masonry>=0.2.7
 
+"""TNA_analysis_options — RhinoCommon variant of TNA_analysis.
+
+The objective is a command line pick, and the two interactive loops collect
+their values in one prompt each:
+- MaximumLoad     : Force + "MoreVertices" toggle together.
+- SupportDisplacement : Ux/Uy/Uz + "MoreVertices" toggle together.
+
+Solver setup, post-solve messages and scene update are identical to TNA_analysis.
+"""
+
 import pathlib
 
 import numpy as np
 import rhinoscriptsyntax as rs  # type: ignore
 
+from compas_masonry.inputs import Options
+from compas_masonry.inputs import choose
 from compas_masonry.scene import RhinoFormDiagramObject
 from compas_masonry.session import MasonrySession as Session
 from compas_rui import feedback
 from compas_tna.diagrams import FormDiagram
 from compas_tna.envelope import MeshEnvelope
 from compas_tno.analysis import Analysis
+
+OBJECTIVES = [
+    "MinimumThrust",
+    "MinimumThickness",
+    "MaximumThrust",
+    "MaximumLoad",
+    "SupportDisplacement",
+    "Bestfit",
+]
+
+
+def get_load():
+    """Load magnitude + whether to keep assigning, in one prompt."""
+    options = Options("Load to assign to selected vertices (negative downwards)")
+    options.add_number("force", -10.0, keyword="Force")
+    options.add_toggle("more", False, off="No", on="Yes", keyword="MoreVertices", prompt="Apply loads on additional vertices")
+    return options.get()
+
+
+def get_displacement():
+    """Support displacement vector + whether to keep assigning, in one prompt."""
+    options = Options("Support displacement [Ux, Uy, Uz]")
+    options.add_number("ux", -1.0, keyword="Ux")
+    options.add_number("uy", -1.0, keyword="Uy")
+    options.add_number("uz", 0.0, keyword="Uz")
+    options.add_toggle("more", False, off="No", on="Yes", keyword="MoreVectors", prompt="Define additional displacement vectors")
+    return options.get()
 
 
 def RunCommand():
@@ -44,18 +83,8 @@ def RunCommand():
     # Create an analysis
     # =============================================================================
 
-    objective = rs.GetString(
-        message="Objective",
-        strings=[
-            "MinimumThrust",
-            "MinimumThickness",
-            "MaximumThrust",
-            "MaximumLoad",
-            "SupportDisplacement",
-            "Bestfit",
-        ],
-    )
-    if not objective:
+    objective = choose("Objective", OBJECTIVES)
+    if objective is None:
         return
 
     if objective == "MinimumThrust":
@@ -85,21 +114,18 @@ def RunCommand():
             if not vertices:
                 break
 
-            force = rs.GetReal(message="Load to assign to selected vertices (negative downwards):", number=-10)
-            if not force:
+            values = get_load()
+            if values is None or not values["force"]:
                 break
 
             for vertex in vertices:
-                load_direction[index_vertex[vertex]] = force
+                load_direction[index_vertex[vertex]] = values["force"]
 
             # Here we should add a vector to the Scene showing the load case that we are maximizing.
 
-            add_loads = rs.GetString(message="Apply Loads on additional vertices?", strings=["Yes", "No"])
             rs.UnselectAllObjects()
 
-            if add_loads == "Yes":
-                pass
-            else:
+            if not values["more"]:
                 break
 
         analysis = Analysis.create_max_load_analysis(formdiagram, envelope, load_direction=load_direction, solver="SLSQP", max_lambd=9999)
@@ -118,16 +144,11 @@ def RunCommand():
             if not vertices:
                 break
 
-            ux = rs.GetReal("Define the Support displacement [Ux, Uy, Uz]. Enter Ux", -1)
-            if not ux:
-                ux = 0.0
-            uy = rs.GetReal("Define the Support displacement [Ux, Uy, Uz]. Enter Uy", -1)
-            if not uy:
-                uy = 0.0
-            uz = rs.GetReal("Define the Support displacement [Ux, Uy, Uz]. Enter Uz", 0)
-            if not uz:
-                uz = 0.0
-            displ_list = [ux, uy, uz]
+            values = get_displacement()
+            if values is None:
+                return
+
+            displ_list = [values["ux"], values["uy"], values["uz"]]
 
             for vertex in vertices:
                 displacement_array[supports.index(vertex)] = np.array(displ_list)
@@ -135,15 +156,9 @@ def RunCommand():
 
             # Here we should add a vector to the Scene showing the displacement that we are maximizing.
 
-            add_vector = rs.GetString(message="Define additional displacement vectors?", strings=["Yes", "No"])
             rs.UnselectAllObjects()
 
-            if not add_vector:
-                return
-
-            if add_vector == "Yes":
-                pass
-            else:
+            if not values["more"]:
                 break
 
         analysis = Analysis.create_compl_energy_analysis(formdiagram, envelope, solver="SLSQP", support_displacement=displacement_array)
@@ -155,8 +170,6 @@ def RunCommand():
         raise NotImplementedError
 
     analysis.optimiser.settings["printout"] = True  # need to be true so people see the fopt.
-    # analysis.apply_selfweight()  # This needs to be removed if loads were applied previously
-    # analysis.apply_envelope() # This is also not necessary if we included it before
     analysis.set_up_optimiser()
     analysis.run()
 
@@ -200,13 +213,6 @@ def RunCommand():
     formobject.redraw()
 
     rs.Redraw()
-
-    # =============================================================================
-    # Save
-    # =============================================================================
-
-    # if session.settings.autosave:
-    #     session.record(name="Analysis")
 
 
 # =============================================================================

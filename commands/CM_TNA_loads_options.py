@@ -2,10 +2,19 @@
 # venv: brg-csd
 # r: compas_masonry>=0.2.7
 
+"""TNA_loads_options — RhinoCommon variant of TNA_loads.
+
+Action, load type and the type-specific value are one prompt: picking
+Selfweight shows the Normalize toggle, picking External shows the load
+magnitude, picking ClearAll hides both. Vertex selection for external loads
+still follows the accepted options.
+"""
+
 import pathlib
 
 import rhinoscriptsyntax as rs  # type: ignore
 
+from compas_masonry.inputs import Options
 from compas_masonry.scene import RhinoFormDiagramObject
 from compas_masonry.session import MasonrySession as Session
 from compas_rui import feedback
@@ -37,49 +46,58 @@ def RunCommand():
 
     rs.UnselectAllObjects()
 
-    options = ["Add", "ClearAll"]
-    option = rs.GetString("Add or Remove Loads in the Model", strings=options)
-    if not option:
+    options = Options("Loads")
+    options.add_list("action", ["Add", "ClearAll"], keyword="Action")
+    options.add_list("kind", ["Selfweight", "External", "FillLoads"], keyword="LoadType", visible=lambda v: v["action"] == "Add")
+    options.add_toggle(
+        "normalize",
+        True,
+        off="No",
+        on="Yes",
+        keyword="Normalize",
+        prompt="Normalize loads to Envelope SWT",
+        visible=lambda v: v["action"] == "Add" and v["kind"] == "Selfweight",
+    )
+    options.add_number(
+        "load",
+        -1.0,
+        minimum=-1000.0,
+        maximum=0.0,
+        keyword="Magnitude",
+        prompt="Load magnitude",
+        visible=lambda v: v["action"] == "Add" and v["kind"] == "External",
+    )
+
+    values = options.get()
+    if values is None:
         return
 
-    if option == "Add":
-        option = rs.GetString("Type of load", strings=["Selfweight", "External", "FillLoads"])
-        if not option:
-            return
+    if values["action"] == "Add":
+        kind = values["kind"]
 
-        if option == "Selfweight":
-            option = rs.GetString("Normalize loads to Envelope SWT?", defaultString="Yes", strings=["Yes", "No"])
-            if not option:
-                return
-            elif option == "Yes":
-                normalize = True
-            else:
-                normalize = False
-            envelope.apply_selfweight_to_formdiagram(formdiagram, normalize=normalize)  # type: ignore
+        if kind == "Selfweight":
+            envelope.apply_selfweight_to_formdiagram(formdiagram, normalize=values["normalize"])  # type: ignore
 
-        elif option == "External":
+        elif kind == "External":
             formobject.show_vertices = list(formobject.vertices())  # type: ignore
             formobject.show_edges = list(formobject.edges())  # type: ignore
             formobject.redraw()
 
             selected = formobject.select_vertices()
             if selected:
-                load = rs.GetReal("Load magnitude", -1.0, -1000.0, 0.0)
-                if load is None:
-                    return
-
+                load = values["load"]
                 for key in selected:
                     pz = formdiagram.vertex_attribute(key, "pz") or 0
                     print("Load at vertex {0} updated from {1:.2f} to {2:.2f}".format(key, pz, pz + load))
                     formdiagram.vertex_attribute(key, "pz", pz + load)
 
-        elif option == "FillLoads":
+        elif kind == "FillLoads":
             if not envelope.fill:
                 feedback.warn("There is no Fill Mesh. Please re-create envelope with a fill")
                 return
             envelope.apply_fill_weight_to_formdiagram(formdiagram)
 
-    elif option == "ClearAll":
+    elif values["action"] == "ClearAll":
         print("Cleared Loads in the Model.")
         formobject.mesh.vertices_attribute(name="pz", value=0)
 
@@ -98,13 +116,6 @@ def RunCommand():
     formobject.redraw()
 
     rs.Redraw()
-
-    # =============================================================================
-    # Save
-    # =============================================================================
-
-    # if session.settings.autosave:
-    #     session.record(name="Analysis")
 
 
 # =============================================================================

@@ -2,10 +2,17 @@
 # venv: brg-csd
 # r: compas_masonry>=0.2.7
 
+"""TNA_supports_options — RhinoCommon variant of TNA_supports.
+
+Only the Add/Remove/ClearAll pick changes (command line options instead of
+rs.GetString); vertex selection and redraw are identical.
+"""
+
 import pathlib
 
 import rhinoscriptsyntax as rs  # type: ignore
 
+from compas_masonry.inputs import choose
 from compas_masonry.scene import RhinoFormDiagramObject
 from compas_masonry.session import MasonrySession as Session
 from compas_rui import feedback
@@ -33,11 +40,11 @@ def RunCommand():
 
     rs.UnselectAllObjects()
 
-    option = rs.GetString("Add or Remove supports", strings=["Add", "Remove", "Clear All"])
-    if not option:
+    option = choose("Supports", ["Add", "Remove", "Clear All"])
+    if option is None:
         return
 
-    if option == "Add":
+    if option in ("Add", "Remove"):
         formobject.show_vertices = list(formobject.vertices())  # type: ignore
         formobject.show_edges = list(formobject.edges())  # type: ignore
         formobject.redraw()
@@ -45,17 +52,7 @@ def RunCommand():
         selected = formobject.select_vertices()
 
         if selected:
-            formobject.mesh.vertices_attribute(name="is_support", value=True, keys=selected)
-
-    elif option == "Remove":
-        formobject.show_vertices = list(formobject.vertices())  # type: ignore
-        formobject.show_edges = list(formobject.edges())  # type: ignore
-        formobject.redraw()
-
-        selected = formobject.select_vertices()
-
-        if selected:
-            formobject.mesh.vertices_attribute(name="is_support", value=False, keys=selected)
+            formobject.mesh.vertices_attribute(name="is_support", value=option == "Add", keys=selected)
 
     elif option == "Clear All":
         formobject.mesh.vertices_attribute(name="is_support", value=False)
@@ -75,13 +72,6 @@ def RunCommand():
     formobject.redraw()
 
     rs.Redraw()
-
-    # =============================================================================
-    # Save
-    # =============================================================================
-
-    # if session.settings.autosave:
-    #     session.record(name="Analysis")
 
 
 # =============================================================================

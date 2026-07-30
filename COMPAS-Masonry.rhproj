@@ -41,8 +41,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Masonry_Start",
-      "uri": "commands/Masonry_Start.py",
+      "title": "CM_Masonry_Start",
+      "uri": "commands/CM_Masonry_Start.py",
       "image": {
         "light": {
           "type": "svg",
@@ -68,8 +68,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "TNA_envelope",
-      "uri": "commands/TNA_envelope.py",
+      "title": "CM_TNA_envelope",
+      "uri": "commands/CM_TNA_envelope.py",
       "image": {
         "light": {
           "type": "svg",
@@ -95,8 +95,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "TNA_formdiagram",
-      "uri": "commands/TNA_formdiagram.py",
+      "title": "CM_TNA_formdiagram",
+      "uri": "commands/CM_TNA_formdiagram.py",
       "image": {
         "light": {
           "type": "svg",
@@ -122,8 +122,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "TNA_supports",
-      "uri": "commands/TNA_supports.py",
+      "title": "CM_TNA_supports",
+      "uri": "commands/CM_TNA_supports.py",
       "image": {
         "light": {
           "type": "svg",
@@ -149,8 +149,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "TNA_loads",
-      "uri": "commands/TNA_loads.py",
+      "title": "CM_TNA_loads",
+      "uri": "commands/CM_TNA_loads.py",
       "image": {
         "light": {
           "type": "svg",
@@ -176,8 +176,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "TNA_analysis",
-      "uri": "commands/TNA_analysis.py",
+      "title": "CM_TNA_analysis",
+      "uri": "commands/CM_TNA_analysis.py",
       "image": {
         "light": {
           "type": "svg",
@@ -203,8 +203,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Model_blocks",
-      "uri": "commands/Model_blocks.py",
+      "title": "CM_Model_blocks",
+      "uri": "commands/CM_Model_blocks.py",
       "image": {
         "light": {
           "type": "svg",
@@ -230,8 +230,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Model_supports",
-      "uri": "commands/Model_supports.py",
+      "title": "CM_Model_supports",
+      "uri": "commands/CM_Model_supports.py",
       "image": {
         "light": {
           "type": "svg",
@@ -257,8 +257,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Model_contacts",
-      "uri": "commands/Model_contacts.py",
+      "title": "CM_Model_contacts",
+      "uri": "commands/CM_Model_contacts.py",
       "image": {
         "light": {
           "type": "svg",
@@ -284,8 +284,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Model_export",
-      "uri": "commands/Model_export.py",
+      "title": "CM_Model_export",
+      "uri": "commands/CM_Model_export.py",
       "image": {
         "light": {
           "type": "svg",
@@ -311,8 +311,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Model_import",
-      "uri": "commands/Model_import.py",
+      "title": "CM_Model_import",
+      "uri": "commands/CM_Model_import.py",
       "image": {
         "light": {
           "type": "svg",
@@ -365,8 +365,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Session_clear",
-      "uri": "commands/Session_clear.py",
+      "title": "CM_Session_clear",
+      "uri": "commands/CM_Session_clear.py",
       "image": {
         "light": {
           "type": "svg",
@@ -392,8 +392,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Session_redraw",
-      "uri": "commands/Session_redraw.py",
+      "title": "CM_Session_redraw",
+      "uri": "commands/CM_Session_redraw.py",
       "image": {
         "light": {
           "type": "svg",
@@ -419,8 +419,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Session_undo",
-      "uri": "commands/Session_undo.py",
+      "title": "CM_Session_undo",
+      "uri": "commands/CM_Session_undo.py",
       "image": {
         "light": {
           "type": "svg",
@@ -446,8 +446,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Session_redo",
-      "uri": "commands/Session_redo.py",
+      "title": "CM_Session_redo",
+      "uri": "commands/CM_Session_redo.py",
       "image": {
         "light": {
           "type": "svg",
@@ -473,8 +473,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Model_material",
-      "uri": "commands/Model_material.py",
+      "title": "CM_Model_material",
+      "uri": "commands/CM_Model_material.py",
       "image": {
         "light": {
           "type": "svg",
@@ -500,8 +500,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Model_materialassign",
-      "uri": "commands/Model_materialassign.py",
+      "title": "CM_Model_materialassign",
+      "uri": "commands/CM_Model_materialassign.py",
       "image": {
         "light": {
           "type": "svg",
@@ -527,8 +527,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "TNA_blockexports",
-      "uri": "commands/TNA_blockexports.py",
+      "title": "CM_TNA_blockexports",
+      "uri": "commands/CM_TNA_blockexports.py",
       "image": {
         "light": {
           "type": "svg",
@@ -554,8 +554,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Problem_create",
-      "uri": "commands/Problem_create.py",
+      "title": "CM_Problem_create",
+      "uri": "commands/CM_Problem_create.py",
       "image": {
         "light": {
           "type": "svg",
@@ -581,8 +581,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Problem_loads",
-      "uri": "commands/Problem_loads.py",
+      "title": "CM_Problem_loads",
+      "uri": "commands/CM_Problem_loads.py",
       "image": {
         "light": {
           "type": "svg",
@@ -608,8 +608,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Problem_boundaryconditions",
-      "uri": "commands/Problem_boundaryconditions.py",
+      "title": "CM_Problem_boundaryconditions",
+      "uri": "commands/CM_Problem_boundaryconditions.py",
       "image": {
         "light": {
           "type": "svg",
@@ -635,8 +635,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Problem_contactmodel",
-      "uri": "commands/Problem_contactmodel.py",
+      "title": "CM_Problem_contactmodel",
+      "uri": "commands/CM_Problem_contactmodel.py",
       "image": {
         "light": {
           "type": "svg",
@@ -662,8 +662,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Problem_solver",
-      "uri": "commands/Problem_solver.py",
+      "title": "CM_Problem_solver",
+      "uri": "commands/CM_Problem_solver.py",
       "image": {
         "light": {
           "type": "svg",
@@ -689,8 +689,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Problem_export",
-      "uri": "commands/Problem_export.py",
+      "title": "CM_Problem_export",
+      "uri": "commands/CM_Problem_export.py",
       "image": {
         "light": {
           "type": "svg",
@@ -716,8 +716,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Results_print",
-      "uri": "commands/Results_print.py",
+      "title": "CM_Results_print",
+      "uri": "commands/CM_Results_print.py",
       "image": {
         "light": {
           "type": "svg",
@@ -743,8 +743,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Results_blockdata",
-      "uri": "commands/Results_blockdata.py",
+      "title": "CM_Results_blockdata",
+      "uri": "commands/CM_Results_blockdata.py",
       "image": {
         "light": {
           "type": "svg",
@@ -770,8 +770,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Results_export",
-      "uri": "commands/Results_export.py",
+      "title": "CM_Results_export",
+      "uri": "commands/CM_Results_export.py",
       "image": {
         "light": {
           "type": "svg",
@@ -797,8 +797,8 @@
         "id": "*.*.python",
         "version": "3.*.*"
       },
-      "title": "Solve",
-      "uri": "commands/Solve.py",
+      "title": "CM_Solve",
+      "uri": "commands/CM_Solve.py",
       "image": {
         "light": {
           "type": "svg",
