@@ -12,51 +12,14 @@ from pydantic import BaseModel
 from pydantic import Field
 
 from compas.colors import Color
+from compas_masonry.inputs import field_ge
+from compas_masonry.inputs import field_le
 from compas_session.settings import Settings
 
-
-def field_ge(field):
-    """Get the 'greater than or equal to' constraint from a Pydantic field.
-
-    Parameters
-    ----------
-    field : ModelField
-        The Pydantic model field.
-
-    Returns
-    -------
-    float or int or None
-        The 'greater than or equal to' constraint if it exists, otherwise None.
-
-    """
-    ge = None
-    for m in field.metadata:
-        if hasattr(m, "ge"):
-            ge = m.ge
-            break
-    return ge
-
-
-def field_le(field):
-    """Get the 'less than or equal to' constraint from a Pydantic field.
-
-    Parameters
-    ----------
-    field : ModelField
-        The Pydantic model field.
-
-    Returns
-    -------
-    float or int or None
-        The 'less than or equal to' constraint if it exists, otherwise None.
-
-    """
-    le = None
-    for m in field.metadata:
-        if hasattr(m, "le"):
-            le = m.le
-            break
-    return le
+# field_ge / field_le live in compas_masonry.inputs so that both renderers of a
+# pydantic model — this Eto dialog and the command line Options getter — read
+# the constraints the same way. Re-exported here for backwards compatibility.
+__all__ = ["SettingsForm", "field_ge", "field_le"]
 
 
 class SettingsForm(forms.Dialog[bool]):
@@ -90,7 +53,9 @@ class SettingsForm(forms.Dialog[bool]):
         layout.Spacing = drawing.Size(10, 10)
 
         for name, field in self.model_cls.model_fields.items():
-            if issubclass(field.annotation, BaseModel):  # type: ignore
+            # `issubclass` raises TypeError on non-class annotations
+            # (Optional[...], Literal[...], list[...]), so guard it.
+            if isinstance(field.annotation, type) and issubclass(field.annotation, BaseModel):
                 continue
 
             text = field.title or name.replace("_", " ").capitalize()

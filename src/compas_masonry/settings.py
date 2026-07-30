@@ -53,6 +53,17 @@ class BlockModelSettings(BaseModel):
     scale_gravity: float = Field(default=0.1, ge=1e-6, le=1e3, title="Scale Gravity (m per m/s2)")
     scale_displacement: float = Field(default=1.0, ge=1e-6, le=1e6, title="Scale Displacement/Rotation BC")
 
+    # Contact force results. DIMENSIONLESS, unlike the scales above: at 1.0 the
+    # largest resultant of a result set is drawn half as long as the biggest
+    # block is wide, so forces are visible without per-model tuning whatever
+    # the units are. See MasonrySession.draw_result_forces.
+    scale_forces: float = Field(default=1.0, ge=1e-6, le=1e3, title="Scale Result Forces (relative)")
+
+    # How far to fade the model's blocks while results are drawn on top of them.
+    # 0 = opaque, 1 = invisible. Only visible in render-material display modes
+    # (Rendered / Raytraced) — see MasonrySession.set_model_transparency.
+    results_model_transparency: float = Field(default=0.8, ge=0.0, le=1.0, title="Fade Blocks When Showing Results")
+
     contact_tolerance: float = Field(default=1e-3, ge=1e-6, le=1e3, title="Contact Tolerance")
     contact_minimum_area: float = Field(default=1e-2, ge=1e-6, le=90, title="Contact Minimum Area")
 
@@ -60,6 +71,18 @@ class BlockModelSettings(BaseModel):
 class MasonrySettings(Settings):
     autoupdate: bool = Field(default=True, title="Auto Update")
     autosave: bool = Field(default=False, title="Auto Save")
+
+    # How commands ask for their parameters: False = command line options
+    # (Rhino.Input.Custom), True = an Eto dialog with the same fields.
+    # Read by compas_masonry.inputs.Options.get().
+    dialog_input: bool = Field(default=False, title="Use Dialogs For Command Input")
+
+    # Directory holding the solver executables the CRA/RBE backends shell out
+    # to. compas_cra builds its pyomo model against `ipopt`, which it looks up
+    # on PATH — and Rhino, launched from the Finder, does not inherit a shell
+    # PATH, so the conda binary is invisible to it. Prepended by
+    # MasonrySession.ensure_solver_path() only when the lookup already fails.
+    solver_bin: str = Field(default="/opt/anaconda3/envs/masonry/bin", title="Solver Executables Directory")
 
     formdiagram: FormDiagramSettings = FormDiagramSettings()
     envelope: EnvelopeSettings = EnvelopeSettings()
