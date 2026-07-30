@@ -41,7 +41,7 @@ def test_solver_attach(problem):
 
 def test_contact_model(problem):
     problem.add_contact_model("MohrCoulomb", mu=0.6)
-    assert problem.contact_properties() is not None
+    assert problem.contact_properties is not None  # a property, not a method
 
 
 def test_problem_json_roundtrip(tmp_path, problem):

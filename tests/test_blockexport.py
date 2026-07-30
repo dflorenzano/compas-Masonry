@@ -49,4 +49,4 @@ def test_thickness_bounds_respected(thrust_mesh):
     model = BlockModel.from_triangulation_dual(thrust_mesh, tmin=tmin, tmax=tmax)
     # inverse-height thickness: verify all blocks have finite, positive volume
     for block in model.elements():
-        assert block.modelgeometry.volume > 0
+        assert block.modelgeometry.volume() > 0  # a method on compas Mesh
