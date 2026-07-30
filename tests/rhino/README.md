@@ -22,4 +22,27 @@ Per command, verify at minimum:
 - [ ] escape / cancel at every prompt exits cleanly
 - [ ] layers created/populated as designed; re-running doesn't duplicate objects
 - [ ] undo/redo leave session and scene consistent
-- [ ] command works after `Session_clear`
+- [ ] command works after `CM_Session_clear`
+
+### Whole-workflow checks
+
+The end-to-end run is `CM_Masonry_Start` → blocks → contacts → supports →
+material → materialassign → problem create → contactlaw → solver →
+createbc → addload / displacements → solve → results show. Worth checking:
+
+- [ ] **Solve reports the ipopt it found.** No ipopt means the whole solve dies inside pyomo saying nothing about `PATH` — see `REFACTOR_GUIDE.md` §1.4.
+- [ ] **A CRA solve that returns `infeasible`** is usually `d_bnd`, not a modelling error (§6).
+- [ ] **Results default to Forces** for CRA/RBE. They return no displacements, so a Displaced view draws a duplicate of the model and looks like a no-op.
+- [ ] **Reactions balance.** `CM_Results_print > Reactions` prints their sum; it should account for the weight of the **non-support** blocks (supports carry their own weight straight to ground).
+- [ ] **A new BC carries gravity only if its kind is Gravity or Mixed**, and a Displacements BC refuses loads.
+- [ ] **Sublayers appear only when they hold something** — a gravity-only BC grows no `Displacements` layer.
+- [ ] **Editing supports after creating a problem** offers to refresh it, and prescribed displacements survive that refresh.
+- [ ] **`CM_Session_clear` empties the document** — no `Masonry` layers, no leftover geometry.
+
+### After a build
+
+Registration is only live once `rhinocode project build` has run (§1.5):
+
+- [ ] every toolbar button launches its command (they were all dead before 2026-07-30)
+- [ ] every command name is typeable on the command line
+- [ ] the splash screen reflects `resources/splash/`

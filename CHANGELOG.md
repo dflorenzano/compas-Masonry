@@ -52,6 +52,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fixed the toolbars pointing at commands that do not exist: the items still used un-prefixed names (`Masonry_Start`) after the `CM_` rename, so every button silently did nothing — the RUI loads fine either way.
 * Removed five stale registry entries whose command files are gone (`Session_settings`, `Problem_loads`, `Problem_boundaryconditions`, `Problem_contactmodel`, `Solve`) by pointing them at the commands that replaced them.
 
+* Brought every working doc in line with the code: `REFACTOR_GUIDE.md` gained §1.5 on the two ways to run a command and what a build actually changes, `IMPLEMENTATION_PLAN.md`'s next actions are now the build-and-release list, and `ARCHITECTURE_STUDY.md` / `RHINO_PRIMER.md` / `RHINO_DEV_GUIDE.md` no longer describe load cases, two command sets, or an unregistered `_options` set.
+* Rewrote the user-facing `README.md`: all 33 commands by group (checked against the registry), a Solvers section stating that CRA/RBE work and need the unreleased compas_cra 0.5.0 plus pyomo >= 6.7.3, and that LMGC90 has no Rhino build. It had claimed the plugin shipped no solvers at all, and told users to "install RhinoVAULT with Yak".
+* Extended `tests/rhino/README.md` with the whole-workflow manual checks and the after-a-build checks.
+
 ### Environment — 2026-07-30
 
 * CRA/RBE could not run in the Rhino site-env at all: it ships **numpy 2.0.2**, and **pyomo 6.4.2** registers `np.float_` (removed in NumPy 2) at import. Patching the alias makes the import succeed and then produces a corrupt `.nl` file (`np.float64(-0.0)` → ipopt `INVALID_TNLP`), so it is not a fix. pyomo ≥ 6.7.3 in turn breaks **compas_cra 0.4.0** (`MatrixConstraint`), and PyPI has nothing newer. Resolved with **pyomo 6.8.2 + the local compas_cra 0.5.0 fork** (`--no-deps --ignore-requires-python`), installed into the site-env. Full account in `temp/COMMANDS_REVIEW.md` §12.

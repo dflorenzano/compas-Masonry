@@ -91,12 +91,12 @@ class MasonrySession(LazyLoadSession):
         import compas_rhino.layers
 
         # obj.clear() purges guids through the same path as a redraw, so a guid
-        # Rhino can no longer resolve would raise here — prune first (§1.6 rule 1).
+        # Rhino can no longer resolve would raise here — prune first (§1.7 rule 1).
         self.prune_stale_guids()
 
         for sceneobject in list(self.scene.objects):
             # clear() before remove(): removing first drops the guids from the
-            # scene while the Rhino objects live on, untracked (§1.6 rule 2).
+            # scene while the Rhino objects live on, untracked (§1.7 rule 2).
             sceneobject.clear()
             self.scene.remove(sceneobject)
 
@@ -1153,7 +1153,7 @@ class MasonrySession(LazyLoadSession):
         """Draw a contact by its class: polygon, line, or point.
 
         EdgeContact/VertexContact results carry no polygon, so filtering on
-        face contacts alone would silently drop them (same trap as §1.6).
+        face contacts alone would silently drop them (same trap as §1.7).
         """
         import rhinoscriptsyntax as rs  # type: ignore
 
