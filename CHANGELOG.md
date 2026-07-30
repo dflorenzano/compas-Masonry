@@ -48,7 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `print_predefined` in `Model_material` still read the `fc` key and would have printed "-" for every material's strength.
 * Fixed two pre-existing test failures from upstream API drift: `problem.contact_properties` became a property, and `Mesh.volume` a method.
 
-* Registered all 33 commands in `COMPAS-Masonry.rhproj` and `resources/rui/ui.json`, and rebuilt the toolbars in workflow order. Renamed entries in place so each keeps its `id` and icon; the four genuinely new commands (`Problem_createbc`, `Results_show`, `Masonry_export`, `Masonry_import`) borrow a sibling's icon.
+* Registered all 33 commands in `COMPAS-Masonry.rhproj` and `resources/rui/ui.json`, and rebuilt the toolbars in workflow order. `Problem_solve` sits at the end of the **Problem** toolbar, not in Results: solving is the last step of setting a problem up, and Results holds what you do with the answer. Renamed entries in place so each keeps its `id` and icon; the four genuinely new commands (`Problem_createbc`, `Results_show`, `Masonry_export`, `Masonry_import`) borrow a sibling's icon.
 * Fixed the toolbars pointing at commands that do not exist: the items still used un-prefixed names (`Masonry_Start`) after the `CM_` rename, so every button silently did nothing — the RUI loads fine either way.
 * Removed five stale registry entries whose command files are gone (`Session_settings`, `Problem_loads`, `Problem_boundaryconditions`, `Problem_contactmodel`, `Solve`) by pointing them at the commands that replaced them.
 

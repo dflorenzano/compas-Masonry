@@ -290,6 +290,9 @@
                     "type": "separator"
                 },
                 {
+                    "left": "CM_Problem_solve"
+                },
+                {
                     "left": "CM_Problem_export"
                 }
             ]
@@ -297,12 +300,6 @@
         {
             "name": "Results",
             "items": [
-                {
-                    "left": "CM_Problem_solve"
-                },
-                {
-                    "type": "separator"
-                },
                 {
                     "left": "CM_Results_show"
                 },
