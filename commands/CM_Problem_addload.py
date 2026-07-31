@@ -36,6 +36,7 @@ import rhinoscriptsyntax as rs  # type: ignore
 
 import compas_rhino.objects
 from compas_dem.models import BlockModel
+from compas_masonry.boundaryconditions import bc_name
 from compas_masonry.inputs import Options
 from compas_masonry.inputs import choose
 from compas_masonry.session import MasonrySession as Session
