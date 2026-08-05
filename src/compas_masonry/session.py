@@ -40,7 +40,7 @@ class MasonrySession(LazyLoadSession):
 
         # "problems" is the key the plugin actually writes; deleting "problem"
         # left every Problem in the session pointing at a model that was gone.
-        for key in ("blockmodel", "problems", "active_problem", "results", "bc_kinds"):
+        for key in ("blockmodel", "problems", "active_problem", "results"):
             self.delete(key)
 
         # obj.clear() purges the object's own guids, which raises on a guid Rhino
@@ -73,7 +73,6 @@ class MasonrySession(LazyLoadSession):
         "problems",
         "active_problem",
         "results",
-        "bc_kinds",
         "envelope",
         "formdiagram",
         "analysis",
@@ -87,7 +86,16 @@ class MasonrySession(LazyLoadSession):
         Rhino geometry and as session state. Clearing the ROOT layer with
         `include_children` sweeps the whole tree, including any orphans left
         behind by an earlier crash, and deleting it removes the layers too.
+
+        Rhino refuses to delete the CURRENT layer, and `delete_layers` only
+        guards the path it is handed — so with a problem or BC layer current,
+        `rs.PurgeLayer("Masonry")` left the whole branch containing it standing,
+        which is how problem layers survived a clear. The current layer is moved
+        to Default first, and the empty root is recreated afterwards so the next
+        command draws into the tree it expects.
         """
+        import rhinoscriptsyntax as rs  # type: ignore
+
         import compas_rhino.layers
 
         # obj.clear() purges guids through the same path as a redraw, so a guid
@@ -103,15 +111,38 @@ class MasonrySession(LazyLoadSession):
         for key in self.SESSION_KEYS:
             self.delete(key)
 
+        self._release_current_layer()
+
         compas_rhino.layers.clear_layer(self.ROOT_LAYER)
         compas_rhino.layers.delete_layers([self.ROOT_LAYER])
+
+        # start from a clean root rather than from nothing
+        compas_rhino.layers.create_layers_from_path(self.ROOT_LAYER, separator="::")
+        rs.Redraw()
+
+    def _release_current_layer(self) -> None:
+        """Make sure no layer under ROOT_LAYER is the current one.
+
+        Rhino cannot delete the current layer. Anything under "Masonry" being
+        current therefore blocks part of the teardown, so the current layer is
+        parked on Default (created if the document somehow has no such layer).
+        """
+        import rhinoscriptsyntax as rs  # type: ignore
+
+        current = rs.CurrentLayer()
+        if not current or not (current == self.ROOT_LAYER or current.startswith(self.ROOT_LAYER + "::")):
+            return
+
+        if not rs.IsLayer("Default"):
+            rs.AddLayer("Default")
+        rs.CurrentLayer("Default")
 
     def set_model(self, model) -> None:
         """Install `model` as the session BlockModel and draw it.
 
         Clears the previous model (and dependent problem/results) first.
         This is the shared tail of every model-creating command
-        (Model_blocks, Model_import, TNA_blockexports, ...).
+        (Model_blocks, Session_import, TNA_blockexports, ...).
 
         Parameters
         ----------
@@ -353,8 +384,8 @@ class MasonrySession(LazyLoadSession):
     # conditions, which create their own subtrees on demand.
     #
     # The Problem object is the source of truth and the Rhino geometry is
-    # *derived*: draw_bc() clears and regenerates it, so add/remove/modify only
-    # need to mutate the Problem and redraw.
+    # *derived*: draw_problem_conditions() clears and regenerates it, so
+    # add/remove/modify only need to mutate the Problem and redraw.
 
     # Display scales now live in settings.blockmodel (scale_loads /
     # scale_gravity / scale_displacement) so they're tunable in Session_settings.
@@ -462,13 +493,16 @@ class MasonrySession(LazyLoadSession):
 
         if source is not None:
             # Data.copy() round-trips through JSON -> deep copy with a fresh guid.
-            # `boundary_conditions` is a LIST since the compas_dem rename, so copy
-            # each BC rather than the list (list.copy() would share the BC objects).
+            # `boundary_conditions` is a LIST, so copy each BC rather than the list
+            # (list.copy() would share the BC objects).
             problem._boundary_conditions = [bc.copy() for bc in source.boundary_conditions]
             problem._contact_properties = source.contact_properties.copy()
             problem._solver = source._solver.copy() if source._solver else None
-        else:
-            problem.add_supports_from_model(model)
+
+        # Nothing else to seed. Supports live on the model (`Block.is_support`) and
+        # the solvers read them from there, so a problem never carries a copy —
+        # which is why `add_supports_from_model` and the whole refresh dance that
+        # kept those copies in step are both gone.
 
         self.problems[name] = problem
         self.save_problems()
@@ -478,49 +512,13 @@ class MasonrySession(LazyLoadSession):
 
         return problem
 
-    def refresh_problem_supports(self, name, model=None) -> tuple:
-        """Re-import the model's supports into a problem, keeping everything else.
-
-        Supports live on `Block.is_support`, are copied onto the Problem when it
-        is created, and copied again into each BoundaryCondition when it is
-        registered. So editing supports in Model_supports afterwards left the
-        problem and its BCs holding the OLD set, with nothing to say so — the
-        alternative being to delete the problem and rebuild it.
-
-        Prescribed displacements are left untouched: only the full-fixity
-        entries (`is_support`) are replaced.
-
-        Returns
-        -------
-        tuple[list[int], list[int]]
-            The support node indices before and after.
-
-        """
-        from compas_masonry.boundaryconditions import is_support
-
-        problem = self.problems.get(name)
-        if problem is None:
-            return [], []
-
-        model = model or self.get("blockmodel")
-        if model is None:
-            return list(problem.supports), list(problem.supports)
-
-        before = list(problem.supports)
-        after = sorted(block.graphnode for block in model.elements() if block.is_support)
-
-        problem._supports = list(after)
-
-        for bc in problem.boundary_conditions:
-            # the property hands back the underlying list, so this edits the BC
-            entries = bc.displacements
-            kept = [entry for entry in entries if not is_support(entry)]
-            entries[:] = kept
-            for index in after:
-                bc.add_support(index)
-
-        self.save_problems()
-        return before, after
+    # `refresh_problem_supports` lived here until the 2026-08 compas_dem
+    # restructure. It re-imported `Block.is_support` into a problem and into every
+    # boundary condition, because supports were copied onto the Problem at creation
+    # and into each BC at registration — so editing them afterwards left stale
+    # copies behind. Supports are now read from the model by the solvers and are
+    # never copied anywhere, so there is nothing to refresh and nothing to go
+    # stale. `Model_supports` lost its refresh prompt with it.
 
     def delete_problem(self, name) -> None:
         """Remove a problem and its Rhino layer subtree.
@@ -536,6 +534,9 @@ class MasonrySession(LazyLoadSession):
         self.save_problems()
         if self.active_problem_name == name:
             self.set_active_problem(next(iter(self.problems), None))
+        # Rhino will not delete the current layer, and it is very likely to be
+        # one of these — the user just drew into them.
+        self._release_current_layer()
         delete_layers([layer])
 
         self.renumber_problem_layers()
@@ -544,67 +545,59 @@ class MasonrySession(LazyLoadSession):
     # Boundary condition layers
     # =============================================================================
 
-    # A BoundaryCondition owns its loads, its prescribed displacements and its
-    # results, so a problem has no Loads/Boundary conditions sublayers of its
-    # own — only one subtree per BC:
+    # A PROBLEM IS THE LOAD CASE. Since the 2026-08 compas_dem restructure there is
+    # no named BoundaryCondition container to group by — boundary conditions are
+    # typed objects (Load / Displacement subclasses) registered directly on the
+    # problem — so the BC<n>_<name> level is gone and the two sublayers hang off the
+    # grouping layer directly:
     #
-    #   Masonry::1_<problem>::BC1_<bc>::Loads
-    #                                 ::Displacements
-    #                                 ::Results
+    #   Masonry::1_<problem>::BoundaryConditions::Loads
+    #                                           ::Displacements
+    #                       ::Results::<key>::Forces
+    #                                       ::Displaced
     #
-    # Layers are created on demand (when a BC is created or drawn), not when the
+    # The BoundaryConditions layer is kept as a grouping node so the problem's own
+    # children stay readable, even though it now holds exactly two.
+    #
+    # Layers are created on demand (when something is drawn into them), not when the
     # problem is created.
+
+    # There is no fixed list of condition sublayers. A group layer is named after
+    # the conditions it holds ("Load_1", "Wind", "Displacement_2"), created when
+    # the first condition of that group is drawn and deleted when the last one
+    # goes, so the set is discovered from the problem rather than declared here.
+    BC_PARENT_LAYER = "BoundaryConditions"
+    RESULTS_LAYER = "Results"
+
+    # =============================================================================
+    # Palette
+    # =============================================================================
+
+    # Set as a CUSTOM OBJECT COLOUR on each object as it is drawn, not as a layer
+    # colour. Object colour is what every display mode honours — a layer colour
+    # is overridden the moment anything sets an object colour, and a layer render
+    # material only shows in Rendered/Raytraced (which is what made the old
+    # fading invisible in stock Shaded).
+    COLOR_FORCE = (21, 128, 61)  # contact resultants and applied loads
+    COLOR_REACTION = (214, 40, 40)  # resultants on a support contact
+    COLOR_DISPLACEMENT = (0, 0, 0)  # prescribed translations and rotations
+    COLOR_CONTACT = (0, 146, 210)  # contact surfaces, edge lines and points (0092d2)
+    COLOR_FADED_BLOCK = (200, 200, 200)  # blocks while results are drawn on top
+
+    # The BC-KIND MAP lived here — `BC_KINDS`, `bc_kind`, `set_bc_kind`,
+    # `reindex_bc_kinds`, `bc_allows` and the `bc_kinds` session key. It existed for
+    # two reasons, and the 2026-08 compas_dem restructure removed both:
     #
-    # compas_dem renamed LoadCase to BoundaryCondition, so this whole block
-    # speaks "bc"; the layer prefix is BC<n>_ rather than LC<n>_.
-
-    BC_SUBLAYERS = ["Loads", "Displacements", "Results"]
-
-    # What a boundary condition is FOR. compas_dem's BoundaryCondition has no
-    # such field, so it is kept session-side, keyed by problem and BC index.
+    #   - a BoundaryCondition was constructed with g=9.81, so every new one arrived
+    #     carrying a gravity load nobody asked for. `g` is gone; self-weight is
+    #     applied unconditionally from block density.
+    #   - a BC was an untyped bag that could hold anything, so what it was FOR had
+    #     to be tracked beside it. A BC is now a typed object — the class IS the
+    #     kind — and it was keyed by list index, which meant reindexing the map
+    #     every time a BC was deleted.
     #
-    # It exists because a BoundaryCondition is created with g=9.81, so every
-    # new BC used to show a gravity arrow whether or not it was about gravity.
-    # The kind decides what a BC may hold, what is drawn for it, and whether it
-    # carries gravity at all.
-    BC_KINDS = ["Gravity", "Loads", "Displacements", "Mixed"]
-    BC_KIND_DEFAULT = "Mixed"
-
-    def bc_kinds(self, problem_name) -> dict:
-        """The {index (str): kind} map of a problem."""
-        return (self.setdefault("bc_kinds", dict)).setdefault(problem_name, {})
-
-    def bc_kind(self, problem_name, index) -> str:
-        """The kind of one boundary condition (BC_KIND_DEFAULT if never set)."""
-        return self.bc_kinds(problem_name).get(str(index), self.BC_KIND_DEFAULT)
-
-    def set_bc_kind(self, problem_name, index, kind) -> None:
-        kinds = self.setdefault("bc_kinds", dict)
-        kinds.setdefault(problem_name, {})[str(index)] = kind
-        self["bc_kinds"] = kinds
-
-    def reindex_bc_kinds(self, problem_name, order) -> None:
-        """Rewrite the kind map after the BC list shifts.
-
-        `order` holds the OLD index of each surviving BC, in its new order — so
-        deleting BC2 of three passes [0, 2].
-        """
-        kinds = self.setdefault("bc_kinds", dict)
-        current = kinds.get(problem_name, {})
-        kinds[problem_name] = {str(new): current.get(str(old), self.BC_KIND_DEFAULT) for new, old in enumerate(order)}
-        self["bc_kinds"] = kinds
-
-    # what each kind accepts: "gravity" | "load" | "displacement"
-    BC_KIND_ACCEPTS = {
-        "Gravity": ("gravity",),
-        "Loads": ("load",),
-        "Displacements": ("displacement",),
-        "Mixed": ("gravity", "load", "displacement"),
-    }
-
-    def bc_allows(self, kind, entry) -> bool:
-        """Whether a BC of `kind` may hold a "gravity" / "load" / "displacement" entry."""
-        return entry in self.BC_KIND_ACCEPTS.get(kind, self.BC_KIND_ACCEPTS[self.BC_KIND_DEFAULT])
+    # Nothing replaces it. `boundaryconditions.is_load` / `is_displacement` answer
+    # the same question from the object itself.
 
     def problem_index(self, name) -> int:
         """1-based position of a problem in the session (0 if unknown)."""
@@ -644,8 +637,11 @@ class MasonrySession(LazyLoadSession):
                     rs.RenameLayer(layer, target)
                     break
 
-    def choose_bc(self, problem, message="Boundary condition"):
+    def choose_boundary_condition(self, problem, message="Boundary condition"):
         """Print the boundary conditions of a problem and prompt for one.
+
+        Replaces `choose_bc`. There is no BC container to pick any more — this
+        picks one *entry*, which is what Remove operations need.
 
         Returns
         -------
@@ -657,11 +653,9 @@ class MasonrySession(LazyLoadSession):
 
         from compas_masonry.boundaryconditions import bc_labels
 
-        cases = problem.boundary_conditions
-        if not cases:
+        conditions = problem.boundary_conditions
+        if not conditions:
             return None
-        if len(cases) == 1:
-            return 0, cases[0]
 
         labels = bc_labels(problem)
         for label in labels:
@@ -670,229 +664,279 @@ class MasonrySession(LazyLoadSession):
         if not label:
             return None
         index = int(label.split(":")[0])
-        return index, cases[index]
+        return index, conditions[index]
 
-    def choose_bcs(self, problem, message="Boundary conditions to solve"):
-        """Pick a combination of boundary conditions (multiple selection).
+    def choose_boundary_conditions(self, problem, message="Boundary conditions"):
+        """Pick several boundary conditions at once (for bulk removal).
+
+        `choose_bcs` used to pick which BCs to *solve*. That selection is gone —
+        every boundary condition on a problem is solved, and a different set means
+        a different problem — so this is only used for editing now.
 
         Returns
         -------
         list[tuple[int, object]] or None
-            The selected (index, boundary condition) pairs, or None if cancelled.
 
         """
         import rhinoscriptsyntax as rs  # type: ignore
 
         from compas_masonry.boundaryconditions import bc_labels
 
-        cases = problem.boundary_conditions
-        if not cases:
+        conditions = problem.boundary_conditions
+        if not conditions:
             return None
 
-        labels = bc_labels(problem)
-        selected = rs.MultiListBox(labels, message=message, title="Boundary conditions")
+        selected = rs.MultiListBox(bc_labels(problem), message=message, title="Boundary conditions")
         if not selected:
             return None
 
         indices = sorted(int(label.split(":")[0]) for label in selected)
-        return [(i, cases[i]) for i in indices]
+        return [(i, conditions[i]) for i in indices]
 
-    def bc_layer(self, problem_name, bc_name, index, sub=None) -> str:
-        """Layer path of a boundary condition: "Masonry::1_<problem>::BC1_<bc>"."""
-        leaf = f"BC{index + 1}_{bc_name}"
-        base = f"{self.indexed_problem_layer(problem_name)}::{leaf}"
+    def bc_parent_layer(self, problem_name) -> str:
+        """Grouping layer for a problem's conditions: "…::BoundaryConditions"."""
+        return f"{self.indexed_problem_layer(problem_name)}::{self.BC_PARENT_LAYER}"
+
+    def bc_layer(self, problem_name, group=None) -> str:
+        """Layer path of one boundary-condition GROUP.
+
+        "Masonry::1_<problem>::BoundaryConditions::Load_1". A group is the set of
+        conditions sharing a name (`boundaryconditions.group_name`), so adding a
+        load either extends an existing layer or starts a new one — which is the
+        separation the fixed Loads/Displacements pair could not express.
+        """
+        base = self.bc_parent_layer(problem_name)
+        return f"{base}::{group}" if group else base
+
+    def results_layer(self, problem_name, key=None, sub=None) -> str:
+        """Layer path of a problem's results: "Masonry::1_<problem>::Results::<key>::<sub>".
+
+        The key is the same one the session stores the result under — the solver
+        plus a timestamp, so re-solving never overwrites an earlier run.
+        """
+        base = f"{self.indexed_problem_layer(problem_name)}::{self.RESULTS_LAYER}"
+        if key:
+            base = f"{base}::{key}"
         return f"{base}::{sub}" if sub else base
 
-    def ensure_bc_layers(self, problem_name, bc_name, index, subs=None) -> None:
-        """Create the layer(s) of one boundary condition (idempotent, on demand).
+    def ensure_bc_sublayer(self, problem_name, group) -> str:
+        """Create one group's layer on demand and return its path.
 
-        Only the BC's own layer is created by default. The Loads / Displacements
-        / Results sublayers are made when there is something to put in them
-        (`ensure_bc_sublayer`), so an empty BC does not litter the tree with
-        three empty layers, and a Gravity BC grows no Displacements layer.
-
-        Pass `subs` to force specific sublayers.
+        On demand, so a problem only grows the group layers it actually holds.
         """
         from compas_rhino.layers import create_layers_from_path
 
-        create_layers_from_path(self.bc_layer(problem_name, bc_name, index), separator="::")
-        for sub in subs or []:
-            create_layers_from_path(self.bc_layer(problem_name, bc_name, index, sub), separator="::")
-
-    def ensure_bc_sublayer(self, problem_name, bc_name, index, sub) -> str:
-        """Create one BC sublayer on demand and return its path."""
-        from compas_rhino.layers import create_layers_from_path
-
-        layer = self.bc_layer(problem_name, bc_name, index, sub)
+        layer = self.bc_layer(problem_name, group)
         create_layers_from_path(layer, separator="::")
         return layer
 
-    def clear_bc_layers(self, problem_name, bc_name, index) -> None:
-        """Clear the drawn geometry of one boundary condition, keeping the layers.
+    def clear_bc_layers(self, problem_name) -> None:
+        """Clear every drawn condition of a problem, keeping the group layers.
 
-        Guarded per sublayer: they are created on demand, so most BCs never have
-        all three, and `clear_layer` on a missing layer is a no-op anyway.
+        Group layers are user-named and created on demand, so the set cannot be
+        hardcoded — clear the parent with `include_children`, which sweeps all of
+        them in one pass and is a no-op if the parent does not exist.
         """
         import rhinoscriptsyntax as rs  # type: ignore
 
         from compas_rhino.layers import clear_layer
 
-        for sub in self.BC_SUBLAYERS:
-            layer = self.bc_layer(problem_name, bc_name, index, sub)
-            if rs.IsLayer(layer):
-                clear_layer(layer)
+        parent = self.bc_parent_layer(problem_name)
+        if rs.IsLayer(parent):
+            clear_layer(parent)  # include_children=True by default
 
-    def delete_bc_layers(self, problem_name, bc_name, index) -> None:
-        """Delete the layer subtree of one boundary condition."""
+    def delete_bc_group_layer(self, problem_name, group) -> None:
+        """Delete one group's layer, after its last condition is removed."""
         from compas_rhino.layers import delete_layers
 
-        delete_layers([self.bc_layer(problem_name, bc_name, index)])
+        self._release_current_layer()
+        delete_layers([self.bc_layer(problem_name, group)])
 
-    def delete_all_bc_layers(self, problem_name) -> None:
-        """Delete every boundary condition subtree of a problem.
+    def prune_bc_group_layers(self, problem_name) -> int:
+        """Delete group layers that no longer correspond to a group on the problem.
 
-        Used after a delete or rename: the layer name carries the BC index, so
-        the surviving layers are dropped and regenerated by draw_problem_bcs
-        rather than renamed one by one.
+        A group only exists while something carries its name, so removing the last
+        condition of a group has to take its layer with it — otherwise the tree
+        accumulates empty layers that look like live groups.
+
+        Returns
+        -------
+        int
+            The number of layers deleted.
+
         """
         import rhinoscriptsyntax as rs  # type: ignore
 
         from compas_rhino.layers import delete_layers
 
-        parent = self.indexed_problem_layer(problem_name)
-        children = rs.LayerChildren(parent) if rs.IsLayer(parent) else None
-        if children:
-            delete_layers(list(children))
+        from compas_masonry.boundaryconditions import group_names
 
-    def draw_bc(self, problem_name, bc, index, model=None) -> None:
-        """Clear and redraw the geometry of one boundary condition.
+        problem = self.problems.get(problem_name)
+        if problem is None:
+            return 0
 
-        Loads are arrows under "…::Loads"; prescribed displacements are arrows
-        and prescribed rotations are circles around the rotation axis, both
-        under "…::Displacements" — no displaced copy of the geometry is drawn
-        (that is what Results_show does).
+        parent = self.bc_parent_layer(problem_name)
+        if not rs.IsLayer(parent):
+            return 0
 
-        Fixed supports are skipped: they belong to the model/problem and are
-        copied into every boundary condition, and are already drawn red by the
-        model layer (Model_supports).
+        live = set(group_names(problem))
+        stale = [layer for layer in (rs.LayerChildren(parent) or []) if layer.split("::")[-1] not in live]
+        if stale:
+            self._release_current_layer()
+            delete_layers(stale)
+        return len(stale)
+
+    def delete_bc_layers(self, problem_name) -> None:
+        """Delete a problem's whole BoundaryConditions subtree.
+
+        Results are a sibling of that subtree, not a child, so this never takes a
+        result set with it.
+        """
+        from compas_rhino.layers import delete_layers
+
+        parent = self.bc_parent_layer(problem_name)
+        self._release_current_layer()
+        delete_layers([parent])
+
+    def draw_problem_conditions(self, problem_name, model=None) -> None:
+        """Clear and redraw every boundary condition of a problem.
+
+        Replaces `draw_bc` / `draw_problem_bcs`. A problem IS the load case, so
+        there is nothing to iterate above the conditions themselves.
+
+        Loads become arrows under "…::BoundaryConditions::Loads"; prescribed
+        movements become arrows (translation) and circles around the rotation axis
+        (rotation) under "…::BoundaryConditions::Displacements". No displaced copy
+        of the geometry is drawn — that is what Results_show does.
+
+        Dispatch is on the CLASS of each condition, which is where the meaning now
+        lives. Supports are not drawn here at all: they are a model concern
+        (`Block.is_support`) and are already drawn red on the model layer.
         """
         import rhinoscriptsyntax as rs  # type: ignore
 
-        from compas_masonry.boundaryconditions import bc_name
-        from compas_masonry.boundaryconditions import entry_vector
-        from compas_masonry.boundaryconditions import is_support
+        from compas_masonry.boundaryconditions import anchor_point
+        from compas_masonry.boundaryconditions import components
+        from compas_masonry.boundaryconditions import group_name
+
+        problem = self.problems.get(problem_name)
+        if problem is None:
+            return
 
         model = model or self.get("blockmodel")
         if model is None:
             return
 
-        name = bc_name(bc, index)
-
-        self.ensure_bc_layers(problem_name, name, index)
-        self.clear_bc_layers(problem_name, name, index)
+        self.clear_bc_layers(problem_name)
+        self.prune_bc_group_layers(problem_name)
 
         gravity_scale, load_scale, disp_scale = self._scales
         blocks = {block.graphnode: block for block in model.elements()}
 
-        # Sublayers are made on first use, so a BC only grows the layers it
-        # actually needs: no empty "Displacements" under a gravity-only BC.
-        has_loads = bool(bc.g or bc.body_forces or bc.point_loads or bc.surface_loads)
-        has_displacements = any(not is_support(entry) for entry in bc.displacements)
+        # One layer per GROUP, created on first use. The group is the condition's
+        # own name, so "add to Wind" and "add to Live" land on different layers
+        # without anything session-side tracking which is which.
+        group_layers = {}
 
-        loads_layer = self.ensure_bc_sublayer(problem_name, name, index, "Loads") if has_loads else None
-        disp_layer = self.ensure_bc_sublayer(problem_name, name, index, "Displacements") if has_displacements else None
+        def layer_for(bc):
+            group = group_name(bc)
+            if group not in group_layers:
+                group_layers[group] = self.ensure_bc_sublayer(problem_name, group)
+            return group_layers[group]
 
-        # --- gravity + global body forces: arrows at the world origin --------
-        if bc.g:
-            self._draw_bc_vector(loads_layer, "gravity", [0.0, 0.0, 0.0], [0.0, 0.0, -bc.g * gravity_scale], {"g": bc.g})
+        for bc in problem.loads:
+            loads_layer = layer_for(bc)
+            kind = type(bc).__name__
 
-        for acceleration in bc.body_forces:
-            self._draw_bc_vector(
-                loads_layer,
-                "body_force",
-                [0.0, 0.0, 0.0],
-                [a * gravity_scale for a in acceleration],
-                {"acceleration": acceleration},
-            )
-
-        # --- point loads: at the application point, or the block centroid ----
-        for entry in bc.point_loads:
-            block = blocks.get(entry["block_index"])
-            if block is None:
+            # --- BodyForce: global, so drawn once at the world origin ---------
+            if kind == "BodyForce":
+                self._draw_bc_vector(
+                    loads_layer,
+                    "body_force",
+                    [0.0, 0.0, 0.0],
+                    [a * gravity_scale for a in bc.acceleration],
+                    {"acceleration": bc.acceleration, "loading_type": bc.loading_type},
+                )
                 continue
-            force = entry["force"]
-            origin = entry.get("point") or list(block.modelgeometry.centroid())
-            self._draw_bc_vector(
-                loads_layer,
-                "point_load",
-                origin,
-                [f * load_scale for f in force],
-                {"force": force, "moment": entry.get("moment"), "loading_type": entry.get("loading_type")},
-            )
 
-        # --- surface loads: at the loaded face centroid ----------------------
-        for entry in bc.surface_loads:
-            block = blocks.get(entry["block_index"])
-            if block is None:
-                continue
-            face_index = entry["face_index"]
-            load = entry["load"]
-            params = {"load": load, "face_index": face_index, "loading_type": entry.get("loading_type")}
-
-            # the loaded face itself, so it is visible which face carries the
-            # load — the arrow alone does not show that
-            self._draw_bc_face(loads_layer, "surface_load_face", block, face_index, params)
-
-            self._draw_bc_vector(
-                loads_layer,
-                "surface_load",
-                list(block.modelgeometry.face_centroid(face_index)),
-                [f * load_scale for f in load],
-                params,
-            )
-
-        # --- prescribed displacements/rotations ------------------------------
-        for entry in bc.displacements:
-            if is_support(entry):
-                continue
-            block = blocks.get(entry["block_index"])
+            block = blocks.get(bc.block)
             if block is None:
                 continue
 
+            # --- PointLoad: at its resolved anchor ----------------------------
+            if kind == "PointLoad":
+                origin = anchor_point(bc, block)
+                if origin is None:
+                    continue
+                self._draw_bc_vector(
+                    loads_layer,
+                    "point_load",
+                    origin,
+                    [f * load_scale for f in bc.force],
+                    {
+                        "force": bc.force,
+                        "anchor": bc.anchor,
+                        "anchor_value": bc.anchor_value,
+                        "loading_type": bc.loading_type,
+                    },
+                )
+
+            # --- Moment: a circle about its axis, like a prescribed rotation ---
+            elif kind == "Moment":
+                self._draw_rotation_circle(
+                    loads_layer,
+                    list(block.modelgeometry.centroid()),
+                    [m * load_scale for m in bc.moment],
+                    1.0,
+                    kind="moment",
+                    color=self.COLOR_FORCE,
+                )
+
+            # --- SurfaceLoad: the loaded face, plus a traction arrow ----------
+            elif kind == "SurfaceLoad":
+                params = {"traction": bc.traction, "face_index": bc.face, "loading_type": bc.loading_type}
+                # the face itself, so which face carries the load is visible —
+                # the arrow alone does not show that
+                self._draw_bc_face(loads_layer, "surface_load_face", block, bc.face, params)
+                self._draw_bc_vector(
+                    loads_layer,
+                    "surface_load",
+                    list(block.modelgeometry.face_centroid(bc.face)),
+                    [f * load_scale for f in bc.traction],
+                    params,
+                )
+
+        for bc in problem.displacements:
+            block = blocks.get(bc.block)
+            if block is None:
+                continue
+
+            disp_layer = layer_for(bc)
             origin = list(block.modelgeometry.centroid())
-            # unconstrained (None) components are drawn as 0.0, never written back
-            translation = entry_vector(entry, "translation")
-            rotation = entry_vector(entry, "rotation")
+            # unconstrained (None) components draw as 0.0, never written back
+            vector = components(bc)
+            if not any(vector):
+                continue
 
-            if any(translation):
+            if type(bc).__name__ == "Rotation":
+                self._draw_rotation_circle(disp_layer, origin, vector, disp_scale)
+            else:
                 self._draw_bc_vector(
                     disp_layer,
                     "displacement",
                     origin,
-                    [t * disp_scale for t in translation],
-                    {"translation": entry.get("translation")},
+                    [v * disp_scale for v in vector],
+                    {"components": list(getattr(bc, "components", vector))},
                 )
-
-            if any(rotation):
-                self._draw_rotation_circle(disp_layer, origin, rotation, disp_scale)
 
         rs.Redraw()
 
-    def draw_problem_bcs(self, problem_name, model=None) -> None:
-        """Redraw every boundary condition of a problem."""
-        problem = self.problems.get(problem_name)
-        if problem is None:
-            return
-        model = model or self.get("blockmodel")
-        for index, bc in enumerate(problem.boundary_conditions):
-            self.draw_bc(problem_name, bc, index, model)
+    def draw_results(self, problem_name, results, model=None, key=None) -> int:
+        """Draw the displaced geometry of a Results object under its problem.
 
-    def draw_results(self, problem_name, bc, index, results, model=None, key=None) -> int:
-        """Draw the displaced geometry of a Results object under a boundary condition.
-
-        The displaced blocks go under "…::BC<n>_<name>::Results" and carry their
-        transformation in User Text. Nothing is drawn by solving — only this
-        call (Results_show) puts result geometry in the document.
+        The displaced blocks go under "…::<problem>::Results::<key>::Displaced"
+        and carry their transformation in User Text. Nothing is drawn by solving
+        — only this call (Results_show) puts result geometry in the document.
 
         The exaggeration comes from `Results.displacement_scale`, which
         compas_dem applies inside `Results.transformation`; it is set here from
@@ -910,18 +954,13 @@ class MasonrySession(LazyLoadSession):
         from compas_rhino.layers import clear_layer
         from compas_rhino.layers import create_layers_from_path
 
-        from compas_masonry.boundaryconditions import bc_name
-
         model = model or self.get("blockmodel")
         if model is None or results is None:
             return 0
 
-        name = bc_name(bc, index)
-        self.ensure_bc_layers(problem_name, name, index)
-        base = self.bc_layer(problem_name, name, index, "Results")
         # One sublayer per solved set ("RBE_BC1-BC2"), so several result sets
-        # coexist under the same BC instead of overwriting each other.
-        layer = f"{base}::{key}::Displaced" if key else base
+        # coexist under the problem instead of overwriting each other.
+        layer = self.results_layer(problem_name, key, "Displaced" if key else None)
         create_layers_from_path(layer, separator="::")
 
         clear_layer(layer)
@@ -943,7 +982,7 @@ class MasonrySession(LazyLoadSession):
                 guid,
                 {
                     "problem": problem_name,
-                    "boundary_condition": name,
+                    "result_key": key,
                     "result_kind": "displaced_block",
                     "element_guid": str(block.guid),
                     "transformation": [list(row) for row in T.matrix],
@@ -997,8 +1036,8 @@ class MasonrySession(LazyLoadSession):
     # Result forces (CRA / RBE: the answer is on the contacts, not the blocks)
     # =============================================================================
 
-    def draw_result_forces(self, problem_name, bc, index, results, model=None, key=None) -> int:
-        """Draw the contact forces of a Results object under a boundary condition.
+    def draw_result_forces(self, problem_name, results, model=None, key=None) -> int:
+        """Draw the contact forces of a Results object under its problem.
 
         CRA and RBE do not move anything — `_post_processing_cra` stores an
         identity transformation per block and puts the whole answer on the
@@ -1026,15 +1065,11 @@ class MasonrySession(LazyLoadSession):
         from compas_rhino.layers import clear_layer
         from compas_rhino.layers import create_layers_from_path
 
-        from compas_masonry.boundaryconditions import bc_name
-
         model = model or self.get("blockmodel")
         if model is None or results is None:
             return 0
 
-        name = bc_name(bc, index)
-        base = self.bc_layer(problem_name, name, index, "Results")
-        layer = f"{base}::{key}::Forces" if key else f"{base}::Forces"
+        layer = self.results_layer(problem_name, key, "Forces")
         create_layers_from_path(layer, separator="::")
         clear_layer(layer)
 
@@ -1050,20 +1085,27 @@ class MasonrySession(LazyLoadSession):
         # dimensionless -> absolute: biggest force spans half the biggest block
         scale = self.settings.blockmodel.scale_forces * 0.5 * self._max_block_size(model) / largest
 
+        # A resultant on a contact with a support block IS that support's
+        # reaction, so it is drawn red rather than green — the two read very
+        # differently and there is no other cue distinguishing them.
+        supports = {block.graphnode for block in model.elements() if block.is_support}
+
         drawn = 0
         for point, vector, magnitude, edge in resultants:
             if magnitude <= 0:
                 continue
             self._draw_contact_geometry(layer, results, edge)
-            guid = self._draw_centred_line(layer, point, [c * scale for c in vector])
+            is_reaction = any(node in supports for node in edge)
+            color = self.COLOR_REACTION if is_reaction else self.COLOR_FORCE
+            guid = self._draw_centred_line(layer, point, [c * scale for c in vector], color=color)
             if guid is None:
                 continue
             self.set_user_params(
                 guid,
                 {
                     "problem": problem_name,
-                    "boundary_condition": name,
-                    "result_kind": "contact_resultant",
+                    "result_key": key,
+                    "result_kind": "support_reaction" if is_reaction else "contact_resultant",
                     "edge": list(edge),
                     "resultant_global": list(vector),
                     "resultant_local": results.resultant_local(edge),
@@ -1075,68 +1117,63 @@ class MasonrySession(LazyLoadSession):
         rs.Redraw()
         return drawn
 
-    def set_model_transparency(self, transparency=0.0) -> None:
+    def fade_model(self, amount=None) -> int:
         """Fade the model's blocks, so result geometry reads on top of them.
 
-        Transparency lives in a layer's RENDER MATERIAL, which only shows in
-        viewport modes that use render materials (Rendered, Raytraced, or a
-        Shaded mode set to "Rendering material"). The stock Shaded mode paints
-        everything with its own neutral material, so blocks stay opaque there —
-        a Rhino display-pipeline limit, not something this can work around.
+        This used to set a layer RENDER MATERIAL with a transparency. Render
+        materials are only consulted by the display modes that render — stock
+        Shaded paints its own neutral material — so the fade was invisible in
+        the mode most people work in, which is exactly why it moved.
 
-        The material name encodes the setting, so a changed value makes a fresh
-        material rather than fighting an in-place table update, and an unchanged
-        value reuses the existing one. Restore with `transparency=0.0`.
+        A custom OBJECT colour is honoured by every display mode. Each block is
+        given its own colour, blended from the colour it would have had toward
+        white; `amount=0` puts the objects back on "colour by layer" rather than
+        painting them a colour of their own.
+
+        Rhino has no per-layer opacity, so "faded" is pale rather than
+        see-through. Blocks are opaque either way — the old setting only ever
+        looked transparent in Rendered mode.
 
         Parameters
         ----------
-        transparency : float
-            0.0 = opaque, 1.0 = invisible.
+        amount : float, optional
+            0.0 = restore, 1.0 = white. Defaults to
+            `settings.blockmodel.results_model_transparency`.
+
+        Returns
+        -------
+        int
+            The number of block objects recoloured.
 
         """
-        import System.Drawing  # type: ignore
-        import scriptcontext as sc  # type: ignore
+        import rhinoscriptsyntax as rs  # type: ignore
 
-        import Rhino  # type: ignore
-        from compas_rhino.layers import create_layers_from_path
+        from compas_dem.elements import Block
 
-        for path, color in (("Masonry::Model::Blocks", (170, 170, 170)), ("Masonry::Model::Supports", (230, 40, 30))):
-            if not sc.doc.Layers.FindByFullPath(path, -1) >= 0:
-                create_layers_from_path(path, separator="::")
-            index = sc.doc.Layers.FindByFullPath(path, -1)
-            if index < 0:
-                continue
-            layer = sc.doc.Layers[index]
+        if amount is None:
+            amount = self.settings.blockmodel.results_model_transparency
+        amount = min(max(float(amount), 0.0), 1.0)
 
-            name = "{}_{:02x}{:02x}{:02x}_{:.0f}".format(path.replace(":", "_"), color[0], color[1], color[2], transparency * 100)
-            material_index = sc.doc.Materials.Find(name, True)
-            if material_index < 0:
-                material = Rhino.DocObjects.Material()
-                material.Name = name
-                material.DiffuseColor = System.Drawing.Color.FromArgb(*color)
-                material.Transparency = transparency
-                material_index = sc.doc.Materials.Add(material)
+        touched = 0
+        for sceneobj in self.scene.find_all_by_itemtype(Block):
+            base = self.COLOR_REACTION if sceneobj.item.is_support else self.COLOR_FADED_BLOCK
+            for guid in sceneobj.guids:
+                try:
+                    if amount <= 0.0:
+                        rs.ObjectColorSource(guid, 0)  # 0 = colour by layer
+                    else:
+                        rs.ObjectColor(guid, self._blend(base, (255, 255, 255), amount))
+                    touched += 1
+                except Exception:
+                    continue  # a stale guid must not take the whole fade down
 
-            layer.RenderMaterialIndex = material_index
-            # Rhino 8 reads the RDK render material in Rendered mode; the legacy
-            # index above still covers the older display paths.
-            try:
-                rdk = None
-                for content in sc.doc.RenderMaterials:
-                    if content.Name == name:
-                        rdk = content
-                        break
-                if rdk is None:
-                    rdk = Rhino.Render.RenderMaterial.CreateBasicMaterial(sc.doc.Materials[material_index], sc.doc)
-                    sc.doc.RenderMaterials.Add(rdk)
-                layer.RenderMaterial = rdk
-            except Exception:
-                pass  # older Rhino without the RDK API — the legacy index still applies
+        rs.Redraw()
+        return touched
 
-            try:
-                layer.CommitChanges()
-            except Exception:
-                pass  # Rhino 8 layers commit property changes directly
+    @staticmethod
+    def _blend(color, target, amount) -> tuple:
+        """Mix `color` toward `target` by `amount` (0 = color, 1 = target)."""
+        return tuple(int(round(c + (t - c) * amount)) for c, t in zip(color, target))
 
     def _result_resultants(self, results) -> list:
         """[(point, vector, magnitude, edge), …] for every contact with a force.
@@ -1148,6 +1185,22 @@ class MasonrySession(LazyLoadSession):
         from compas_masonry.results import contact_resultants
 
         return contact_resultants(results)
+
+    def set_object_color(self, guid, color) -> None:
+        """Give one drawn object a custom object colour.
+
+        Rhino objects default to "by layer"; assigning a colour switches the
+        object to "by object", which every display mode honours. Failures are
+        swallowed: a colour is cosmetic and must never take a draw down.
+        """
+        import rhinoscriptsyntax as rs  # type: ignore
+
+        if guid is None or color is None:
+            return
+        try:
+            rs.ObjectColor(guid, tuple(color))
+        except Exception:
+            pass
 
     def _draw_contact_geometry(self, layer, results, edge):
         """Draw a contact by its class: polygon, line, or point.
@@ -1176,10 +1229,11 @@ class MasonrySession(LazyLoadSession):
         if guid is None:
             return None
         rs.ObjectLayer(guid, layer)
+        self.set_object_color(guid, self.COLOR_CONTACT)
         self.set_user_params(guid, {"result_kind": "contact", "edge": list(edge)})
         return guid
 
-    def _draw_centred_line(self, layer, point, vector):
+    def _draw_centred_line(self, layer, point, vector, color=None):
         """Draw a force resultant as a line centred on `point`, spanning ±v/2."""
         import rhinoscriptsyntax as rs  # type: ignore
 
@@ -1191,6 +1245,7 @@ class MasonrySession(LazyLoadSession):
         if guid is None:
             return None
         rs.ObjectLayer(guid, layer)
+        self.set_object_color(guid, color or self.COLOR_FORCE)
         return guid
 
     def _max_block_size(self, model=None) -> float:
@@ -1205,6 +1260,16 @@ class MasonrySession(LazyLoadSession):
             largest = max(largest, diagonal)
         return largest or 1.0
 
+    # Everything a BC draws is either an applied load or a prescribed movement.
+    # Anything not listed is a load.
+    BC_DISPLACEMENT_KINDS = ("displacement", "rotation")
+
+    def _bc_color(self, kind):
+        """The object colour for a BC item: black for movement, green for load."""
+        if kind in self.BC_DISPLACEMENT_KINDS:
+            return self.COLOR_DISPLACEMENT
+        return self.COLOR_FORCE
+
     def _draw_bc_vector(self, layer, kind, origin, vector, params=None):
         """Draw an arrow on a boundary condition layer and tag it."""
         import rhinoscriptsyntax as rs  # type: ignore
@@ -1215,6 +1280,7 @@ class MasonrySession(LazyLoadSession):
         guid = rs.AddLine(origin, end)
         rs.CurveArrows(guid, 2)
         rs.ObjectLayer(guid, layer)
+        self.set_object_color(guid, self._bc_color(kind))
         tags = {"load_kind": kind}
         tags.update(params or {})
         self.set_user_params(guid, tags)
@@ -1234,13 +1300,18 @@ class MasonrySession(LazyLoadSession):
             return None
 
         rs.ObjectLayer(guid, layer)
+        self.set_object_color(guid, self._bc_color(kind))
         tags = {"load_kind": kind}
         tags.update(params or {})
         self.set_user_params(guid, tags)
         return guid
 
-    def _draw_rotation_circle(self, layer, origin, rotation, scale):
-        """Draw a prescribed rotation as a circle around its axis."""
+    def _draw_rotation_circle(self, layer, origin, rotation, scale, kind="rotation", color=None):
+        """Draw a rotation about an axis as a circle in the plane normal to it.
+
+        Used for a prescribed `Rotation` (black) and for a `Moment` (green) — the
+        geometry is the same, only the colour and the tag differ.
+        """
         import rhinoscriptsyntax as rs  # type: ignore
 
         from compas.geometry import Plane
@@ -1257,7 +1328,8 @@ class MasonrySession(LazyLoadSession):
         if guid is None:
             return None
         rs.ObjectLayer(guid, layer)
-        self.set_user_params(guid, {"load_kind": "rotation", "rotation": rotation, "applied_angle_rad": angle * scale})
+        self.set_object_color(guid, color or self.COLOR_DISPLACEMENT)
+        self.set_user_params(guid, {"load_kind": kind, "rotation": list(rotation), "applied_angle_rad": angle * scale})
         return guid
 
     # =============================================================================

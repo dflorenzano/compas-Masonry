@@ -15,8 +15,7 @@ active problem, and the display settings. Everything stored is a compas Data
 (BlockModel, Problem), so compas.json_dump serializes it directly.
 
 Solver results are NOT saved: they are solver specific and are re-derived by
-Problem_solve. Results_export is the counterpart for those, and stays — it
-writes result data for analysis, not session state.
+Problem_solve. Per-block numbers come out of Results_block.
 
 Re-open with Session_import.
 """

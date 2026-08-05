@@ -8,10 +8,9 @@ Dev notes refactor:
 - No string prompt on the first window: New/Duplicate/SetActive/Delete are
   command line options, and the problem name is a named option seeded with the
   next free "Problem_<n>" (accept it as is, or type a custom name).
-- New layer hierarchy: a problem gets ONE layer, "Masonry::<index>_<name>",
-  and no Loads / Boundary conditions sublayers. Boundary conditions own the loads, the
-  boundary conditions and the results, and create their own subtree on demand
-  (Problem_createbc).
+- A problem gets ONE layer, "Masonry::<index>_<name>". Its conditions go under
+  "…::BoundaryConditions::<group>" (one layer per load/displacement group) and
+  its results under "…::Results::<key>", both created on demand.
 - Deleting a problem renumbers the remaining problem layers so the index
   prefixes stay consecutive.
 
@@ -61,34 +60,16 @@ def RunCommand():
         return warn("No existing BlockModel in session. Please create one first.")
 
     while True:
-        options = ["New", "Duplicate", "SetActive", "RefreshSupports", "Delete"] if session.problems else ["New"]
+        options = ["New", "Duplicate", "SetActive", "Delete"] if session.problems else ["New"]
         option = choose("Problem_create", options, default="New")
         if option is None:
             return
 
-        # =============================================================================
-        # RefreshSupports (keeps the problem; re-imports Block.is_support)
-        # =============================================================================
-
-        if option == "RefreshSupports":
-            name = session.choose_problem(message="Problem to refresh the supports of", keywords=True)
-            if name is None:
-                return
-
-            before, after = session.refresh_problem_supports(name, model)
-            if before == after:
-                print(f"{name}: supports unchanged ({len(after)} block(s)).")
-            else:
-                added = sorted(set(after) - set(before))
-                removed = sorted(set(before) - set(after))
-                print(f"{name}: supports refreshed, {len(before)} -> {len(after)} block(s).")
-                if added:
-                    print(f"  added:   {', '.join(str(i) for i in added)}")
-                if removed:
-                    print(f"  removed: {', '.join(str(i) for i in removed)}")
-                print(f"  applied to {len(session.problems[name].boundary_conditions)} boundary condition(s); prescribed displacements kept.")
-            session.draw_problem_bcs(name, model)
-            return
+        # RefreshSupports lived here. Supports were copied onto the Problem at
+        # creation and into every boundary condition at registration, so editing
+        # them afterwards left stale copies that had to be re-imported. Since the
+        # 2026-08 compas_dem restructure supports live only on the model and the
+        # solvers read `Block.is_support` directly — there is nothing to refresh.
 
         # =============================================================================
         # New
@@ -104,7 +85,7 @@ def RunCommand():
             problem = session.create_problem(model, name=name)
             print(f"Created {problem.name} (active), layer {session.indexed_problem_layer(name)}.")
             print("NOTE: supports are IMPORTED from the model (Block.is_support). Edit them in Model_supports and refresh the problem.")
-            print("Next: Problem_createbc to add a boundary condition — loads, boundary conditions and results live there.")
+            print("Next: Problem_contactlaw and Problem_setsolver, then Problem_loads.")
             return
 
         # =============================================================================
@@ -140,7 +121,7 @@ def RunCommand():
             # Re-ensure the layer and regenerate the boundary condition geometry, so
             # activating a problem restores its layers even if they were deleted.
             session.ensure_indexed_problem_layer(name)
-            session.draw_problem_bcs(name, model)
+            session.draw_problem_conditions(name, model)
             print(f"Active problem: {name} (layers restored and redrawn).")
             return
 

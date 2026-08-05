@@ -66,15 +66,47 @@ def print_predefined(cls) -> list:
     props = ["fck", "ft", "Ecm", "density", "poisson"]
     keys = sorted(cls.predefined_material)
 
-    header = f"{'material':<20}" + "".join(f"{p:>12}" for p in props)
-    print(header)
-    print("-" * len(header))
-    for key in keys:
-        values = cls.predefined_material[key]
-        cells = "".join(f"{'-' if values.get(p) is None else values.get(p)!s:>12}" for p in props)
-        print(f"{key:<20}{cells}")
+    rows = [[key] + [cell(cls.predefined_material[key].get(p)) for p in props] for key in keys]
+    print_table(["material"] + props, rows)
 
     return keys
+
+
+def cell(value) -> str:
+    """One table cell: a compact number, or "-" for a missing value.
+
+    `str(value)` on a float can run to 18 characters (0.19999999999999998), which
+    is wider than any fixed column and pushed every cell after it out of line.
+    A float is only ever read here, never parsed back, so 4 significant digits
+    is enough and always fits.
+    """
+    if value is None:
+        return "-"
+    if isinstance(value, float):
+        return f"{value:.4g}"
+    return str(value)
+
+
+def print_table(headers, rows) -> None:
+    """Print a table whose columns are sized to their contents.
+
+    Widths are measured rather than assumed: a hardcoded width silently breaks
+    the row whenever one value is wider than it, and every column after that one
+    shifts.
+    """
+    widths = [max(len(str(h)), *(len(str(r[i])) for r in rows)) if rows else len(str(h)) for i, h in enumerate(headers)]
+
+    def line(cells):
+        # first column left-aligned (names), the numbers right-aligned
+        out = [str(cells[0]).ljust(widths[0])]
+        out += [str(c).rjust(w) for c, w in zip(cells[1:], widths[1:])]
+        return "  ".join(out)
+
+    header = line(headers)
+    print(header)
+    print("-" * len(header))
+    for row in rows:
+        print(line(row))
 
 
 def prompt_properties(defaults, title="Material properties", back=False):

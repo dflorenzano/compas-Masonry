@@ -47,8 +47,7 @@ def build_model() -> BlockModel:
 
 def build_problem(model: BlockModel) -> Problem:
     problem = Problem(model, name="Problem_1")
-    problem.add_gravity()
-    problem.add_supports_from_model(model)
+    # supports live on the model; self-weight is applied unconditionally
     problem.solver(Solver.CRA())
     return problem
 

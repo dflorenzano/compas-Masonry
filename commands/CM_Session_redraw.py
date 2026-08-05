@@ -14,7 +14,7 @@ def RunCommand():
     if not confirm("Redraw the current scene?"):
         return
 
-    session.scene.redraw()
+    session.redraw()
 
 
 # =============================================================================

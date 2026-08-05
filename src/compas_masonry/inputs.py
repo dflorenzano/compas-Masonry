@@ -519,16 +519,27 @@ class Options:
                 index_field[field.add_to(go)] = field
             back_index = go.AddOption("Back") if self.back else None
 
+            # One separator style for the whole line. It used to mix "[…]",
+            # "(…)" and an em dash in one prompt, which ran together into an
+            # unreadable line — and the em dash is not ASCII, so Rhino's command
+            # line renders it inconsistently. Segments joined by " | ", units as
+            # "Keyword [unit]", ASCII throughout.
+            segments = [self.prompt]
+
             annotations = [a for a in (f.annotation() for f in fields) if a]
-            prompt = self.prompt
             if annotations:
-                prompt = f"{prompt} [{', '.join(annotations)}]"
+                segments.append(", ".join(annotations))
+
             # units of the CURRENTLY VISIBLE fields, since `visible` predicates
             # swap whole parameter sets in and out between passes
-            units = ", ".join(f"{f.keyword} {f.units}" for f in fields if f.units)
+            units = ", ".join(f"{f.keyword} [{f.units}]" for f in fields if f.units)
             if units:
-                prompt = f"{prompt} ({units})"
-            go.SetCommandPrompt(f"{prompt} — {self.accept}" if self.accept else prompt)
+                segments.append(units)
+
+            if self.accept:
+                segments.append(self.accept)
+
+            go.SetCommandPrompt(" | ".join(segments))
 
             result = go.Get()
 

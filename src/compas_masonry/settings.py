@@ -60,8 +60,8 @@ class BlockModelSettings(BaseModel):
     scale_forces: float = Field(default=1.0, ge=1e-6, le=1e3, title="Scale Result Forces (relative)")
 
     # How far to fade the model's blocks while results are drawn on top of them.
-    # 0 = opaque, 1 = invisible. Only visible in render-material display modes
-    # (Rendered / Raytraced) — see MasonrySession.set_model_transparency.
+    # 0 = untouched (colour by layer), 1 = white. Applied as a custom OBJECT
+    # colour, so it shows in every display mode — see MasonrySession.fade_model.
     results_model_transparency: float = Field(default=0.8, ge=0.0, le=1.0, title="Fade Blocks When Showing Results")
 
     contact_tolerance: float = Field(default=1e-3, ge=1e-6, le=1e3, title="Contact Tolerance")

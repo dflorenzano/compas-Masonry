@@ -2,14 +2,14 @@
 # venv: brg-csd
 # r: compas_masonry>=0.2.7
 
-"""TNA_blockexports_options — RhinoCommon variant of TNA_blockexports.
+"""TNA_blockexport — RhinoCommon variant of TNA_blockexports.
 
 Generation mode and thickness bounds are one prompt; the tessellation pattern
 (dozens of entries) stays a list dialog, and is only asked when Pattern is
 picked. tmax >= tmin is checked after accepting, since the bound depends on
 another option.
 
-Semantics are unchanged: see TNA_blockexports.
+Semantics are unchanged: see TNA_blockexport.
 """
 
 import pathlib

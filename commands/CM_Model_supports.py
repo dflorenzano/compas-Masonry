@@ -21,7 +21,6 @@ import compas_rhino.objects
 from compas_dem.models import BlockModel
 from compas_masonry.inputs import choose
 from compas_masonry.session import MasonrySession as Session
-from compas_rui.feedback import confirm
 from compas_rui.feedback import warn
 
 
@@ -46,45 +45,32 @@ def RunCommand():
         nodes = {n for n in (session.find_node(g, guid_element_map) for g in guids) if n is not None}
         if not nodes:
             return warn("No blocks resolved from the selection.")
-        for node in nodes:
-            model.graph.node_element(node).is_support = option == "Add"
+        # go through the model's own API rather than setting is_support by hand:
+        # supports are a model concern and this is where compas_dem keeps them
+        if option == "Add":
+            model.add_supports(sorted(nodes))
+        else:
+            for node in nodes:
+                model.remove_support(node)
         print(f"{option}: {len(nodes)} support(s).")
 
     elif option == "Clear":
-        for node in model.graph.nodes():
-            model.graph.node_element(node).is_support = False
+        for node in list(model.graph.nodes()):
+            if model.graph.node_element(node).is_support:
+                model.remove_support(node)
         print("Cleared all supports.")
 
     session["blockmodel"] = model
     session.sync_support_layers()
     session.redraw()
 
-    refresh_problems(session, model)
 
-
-def refresh_problems(session, model) -> None:
-    """Offer to re-import the new supports into every existing problem."""
-    if not session.problems:
-        return
-
-    stale = []
-    current = sorted(block.graphnode for block in model.elements() if block.is_support)
-    for name, problem in session.problems.items():
-        if sorted(problem.supports) != current:
-            stale.append(name)
-
-    if not stale:
-        return
-
-    print(f"{len(stale)} problem(s) still hold the previous supports: {', '.join(stale)}")
-    if not confirm("Refresh the supports on them? (prescribed displacements are kept)"):
-        print("Left unchanged. Run Problem_create > RefreshSupports later to apply them.")
-        return
-
-    for name in stale:
-        before, after = session.refresh_problem_supports(name, model)
-        print(f"  {name}: {len(before)} -> {len(after)} support(s).")
-        session.draw_problem_bcs(name, model)
+# `refresh_problems` lived here. Supports used to be copied onto every Problem at
+# creation and into every BoundaryCondition at registration, so editing them here
+# left stale copies behind and this command had to offer to re-import them. Since
+# the 2026-08 compas_dem restructure supports live only on the model and the
+# solvers read `Block.is_support` directly, so there is nothing to refresh — and
+# the prompt that fired on a first run, before any support existed, is gone with it.
 
 
 if __name__ == "__main__":

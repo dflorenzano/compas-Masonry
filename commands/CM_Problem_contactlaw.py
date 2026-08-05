@@ -43,7 +43,7 @@ def set_contact_law(problem):
     else:
         kwargs["phi"] = values["phi"]
 
-    problem.add_contact_model("MohrCoulomb", **kwargs)
+    problem.set_contact_model("MohrCoulomb", **kwargs)
 
     # Read back from the stored model rather than echoing the input: phi and mu
     # are two views of the same thing (mu = tan(phi)), and MohrCoulomb derives
@@ -62,7 +62,7 @@ def set_joint_model(problem):
     if values is None:
         return
 
-    problem.add_joint_model(values["kn"], values["kt"])
+    problem.set_joint_model(values["kn"], values["kt"])
     print(f"Joint model set: kn={values['kn']}, kt={values['kt']}")
 
 

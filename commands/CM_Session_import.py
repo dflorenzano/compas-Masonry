@@ -83,7 +83,7 @@ def RunCommand():
 
     for name in problems:
         session.ensure_indexed_problem_layer(name)
-        session.draw_problem_bcs(name, model)
+        session.draw_problem_conditions(name, model)
 
     rs.Redraw()
 

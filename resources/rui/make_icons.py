@@ -2,7 +2,7 @@
 
 This is icon System B. Toolbars do NOT use the per-command icons in the rhproj:
 they use ONE PNG strip, and each command references a tile by INDEX. See
-temp/ICONS.md §2.2.
+temp/wiki_icons.md §2.2.
 
     python resources/rui/make_icons.py --dry-run
     python resources/rui/make_icons.py

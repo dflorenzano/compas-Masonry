@@ -6,9 +6,13 @@
 
 - Follows Problem_solve. No result geometry is in the document until this
   command runs.
-- Results are stored per solved SET, keyed by solver and boundary conditions
-  ("RBE_BC1-BC2"), and drawn under the last BC of that set:
-  "Masonry::<i>_<problem>::BC<n>_<bc>::Results::<key>".
+- Results are stored per solve, keyed by solver and timestamp
+  ("RBE_2026-08-04T15-30-12"), and drawn at PROBLEM level:
+  "Masonry::<i>_<problem>::Results::<key>".
+
+  A problem IS the load case, so a result belongs to the problem. The timestamp
+  means a re-solve after changing a material or a contact law is kept beside the
+  earlier run instead of overwriting it.
 
 Two kinds of result, because the solvers answer different questions:
 
@@ -19,9 +23,10 @@ Two kinds of result, because the solvers answer different questions:
   exaggerated by `Results.displacement_scale` (fed from
   settings.blockmodel.scale_displacement). This is the LMGC90 shape.
 
-So the mode defaults to Forces when every transformation is an identity: drawing
-displaced geometry there would stack an exact duplicate of the model on top of
-itself and read as a no-op.
+So Displaced is only offered for a solver that produces displacements, read off
+the result key rather than off the problem's current solver — the setting may
+have changed since the solve, the key cannot. `moves_anything` stays as the
+fallback for a result whose key does not name a known solver.
 """
 
 import pathlib
@@ -29,32 +34,40 @@ import pathlib
 import rhinoscriptsyntax as rs  # type: ignore
 
 from compas_dem.models import BlockModel
-from compas_masonry.boundaryconditions import bc_name
 from compas_masonry.inputs import choose
 from compas_masonry.session import MasonrySession as Session
 from compas_rui.feedback import warn
 
+# Solvers that move blocks. CRA and RBE answer on the contact edges and store an
+# identity transformation per block, so a Displaced view of one of their results
+# stacks an exact copy of the model on itself and reads as a no-op.
+DISPLACEMENT_SOLVERS = ("LMGC90", "3DEC")
+
 
 def stored_results(session, problem_name) -> dict:
-    """The results stored for a problem, keyed by result key ("RBE_BC1")."""
+    """The results stored for a problem, keyed by result key ("RBE_2026-08-04T15-30-12")."""
     return (session.get("results") or {}).get(problem_name) or {}
 
 
-def target_bc(problem, results):
-    """The (index, bc) a result set is drawn under: the LAST BC it covers.
+def solver_of(key) -> str:
+    """The solver named by a result key: "RBE_2026-08-04T15-30-12" -> "RBE"."""
+    return key.split("_")[0] if key else ""
 
-    Falls back to the first BC if the stored names no longer match the problem's
-    boundary conditions (renamed or deleted since the solve).
+
+def offers_displacement(keys, results, model) -> bool:
+    """Whether Displaced is worth offering for the selected result sets.
+
+    Decided by the solver named in the key, not by the problem's current solver:
+    Problem_setsolver may have been run since, and re-pointing it at LMGC90 does not
+    retroactively give an RBE result any displacements.
     """
-    names = (results.metadata or {}).get("boundary_conditions") or []
-    current = [bc_name(bc, i) for i, bc in enumerate(problem.boundary_conditions)]
-    for name in reversed(names):
-        if name in current:
-            index = current.index(name)
-            return index, problem.boundary_conditions[index]
-    if not problem.boundary_conditions:
-        return None
-    return 0, problem.boundary_conditions[0]
+    for key in keys:
+        if solver_of(key) in DISPLACEMENT_SOLVERS:
+            return True
+    # a key that names no known solver (hand-built, or a solver added later):
+    # fall back to asking the result itself
+    unknown = [k for k in keys if solver_of(k) not in DISPLACEMENT_SOLVERS + ("CRA", "RBE")]
+    return any(moves_anything(results[k], model) for k in unknown)
 
 
 def moves_anything(results, model) -> bool:
@@ -86,29 +99,24 @@ def report_forces(results) -> None:
     print(f"  {len(magnitudes)} contact resultant(s): max {max(magnitudes):.4g}, total {sum(magnitudes):.4g}")
 
 
-def show(session, model, problem_name, problem, key, results, mode) -> None:
-    picked = target_bc(problem, results)
-    if picked is None:
-        return warn(f"{key}: the problem has no boundary condition to draw under.")
-    index, bc = picked
-    name = bc_name(bc, index)
-    base = session.bc_layer(problem_name, name, index, "Results")
+def show(session, model, problem_name, key, results, mode) -> None:
+    base = session.results_layer(problem_name, key)
 
     drew_anything = False
 
     if mode in ("Forces", "Both"):
-        drawn = session.draw_result_forces(problem_name, bc, index, results, model, key=key)
+        drawn = session.draw_result_forces(problem_name, results, model, key=key)
         if drawn:
-            print(f"{key}: drew {drawn} contact resultant(s) under {base}::{key}::Forces")
+            print(f"{key}: drew {drawn} contact resultant(s) under {base}::Forces")
             report_forces(results)
             drew_anything = True
         else:
             warn(f"{key}: the stored result carries no contact forces.")
 
     if mode in ("Displaced", "Both"):
-        drawn = session.draw_results(problem_name, bc, index, results, model, key=key)
+        drawn = session.draw_results(problem_name, results, model, key=key)
         if drawn:
-            print(f"{key}: drew {drawn} displaced block(s) under {base}::{key}::Displaced (scale {session.settings.blockmodel.scale_displacement}).")
+            print(f"{key}: drew {drawn} displaced block(s) under {base}::Displaced (scale {session.settings.blockmodel.scale_displacement}).")
             drew_anything = True
         else:
             warn(f"{key}: the stored result has no transformation for any block of the model.")
@@ -129,7 +137,6 @@ def RunCommand():
     name = session.choose_problem(message="Problem to show results for", keywords=True)
     if name is None:
         return
-    problem = session.problems[name]
 
     results = stored_results(session, name)
     if not results:
@@ -144,25 +151,30 @@ def RunCommand():
             return
         selected = list(picked)
 
-    # Default to what the first selected result actually holds: CRA/RBE move
-    # nothing, so Displaced would draw a duplicate of the model.
-    default = "Displaced" if moves_anything(results[selected[0]], model) else "Forces"
-    mode = choose("Draw", ["Forces", "Displaced", "Both"], default=default)
-    if mode is None:
-        return
+    # Only offer Displaced for a solver that produces displacements. For a
+    # CRA/RBE set there is nothing to choose, so do not ask at all.
+    if offers_displacement(selected, results, model):
+        mode = choose("Draw", ["Forces", "Displaced", "Both"], default="Displaced")
+        if mode is None:
+            return
+    else:
+        mode = "Forces"
+        print(f"{solver_of(selected[0])} reports contact forces, not displacements — drawing forces.")
 
     fade = choose("Fade the blocks while the results are shown", ["Fade", "Keep"], default="Fade")
     if fade is None:
         return
 
     for key in selected:
-        show(session, model, name, problem, key, results[key], mode)
+        show(session, model, name, key, results[key], mode)
 
-    transparency = session.settings.blockmodel.results_model_transparency if fade == "Fade" else 0.0
+    amount = session.settings.blockmodel.results_model_transparency if fade == "Fade" else 0.0
     try:
-        session.set_model_transparency(transparency)
+        touched = session.fade_model(amount)
         if fade == "Fade":
-            print(f"Blocks faded to {transparency:.0%} transparency — visible in Rendered display mode (Shaded ignores render materials).")
+            print(f"{touched} block object(s) faded {amount:.0%} toward white — a custom object colour, so it shows in every display mode.")
+        else:
+            print(f"{touched} block object(s) restored to their layer colour.")
     except Exception as e:
         warn(f"The results are drawn, but the blocks could not be faded: {e}")
 

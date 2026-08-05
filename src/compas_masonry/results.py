@@ -7,7 +7,7 @@ session, so it is testable headlessly and shared by the drawing code in
 `session.py` and by the reporting commands.
 
 The derivations follow a tested reference viewer for the sibling `masonry_dem`
-package (see `temp/REFACTOR_GUIDE.md` §7), remapped to this `Results` API —
+package (see `temp/wiki_plugin_guide.md` §7), remapped to this `Results` API —
 notably `resultant_global(edge)`, where the reference has `force(edge)`.
 
 What each solver fills in differs, so every helper tolerates missing data and

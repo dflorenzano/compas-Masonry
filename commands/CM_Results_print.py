@@ -60,8 +60,7 @@ def print_summary(key, results, model) -> None:
     print(f"\n=== {key} ===")
     solver = meta.get("solver")
     if solver:
-        bcs = ", ".join(meta.get("boundary_conditions") or [])
-        print(f"solver     : {solver}   boundary conditions: {bcs}")
+        print(f"solver     : {solver}")
     if meta.get("solved_at"):
         print(f"solved     : {meta['solved_at']}  ({meta.get('duration_s', '?')} s)")
     if meta.get("mu") is not None:

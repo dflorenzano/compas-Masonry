@@ -48,29 +48,40 @@ the `ipopt` executable, which must be on the `PATH` Rhino sees.
 > [!IMPORTANT]
 > These currently need **compas_cra 0.5.0**, which is not on PyPI yet, together
 > with **pyomo >= 6.7.3**. The published compas_cra 0.4.0 cannot be used with a
-> NumPy 2 environment. Until 0.5.0 is released, this is a manual install step.
+> NumPy 2 environment, and only 0.5.0 accepts the external loads compas_dem
+> passes it. Until it is released, this is a manual install step.
 
 **LMGC90** (contact dynamics, and the only solver here that returns
-displacements) is not available inside Rhino: `compas_lmgc90` is a compiled
-extension and there is no build for Rhino 8's Python 3.9.
+displacements) runs in Rhino as of `compas_lmgc90` **0.1.9**, which publishes
+cp39 wheels. It is the only way to apply a prescribed displacement: CRA and RBE
+exclude support blocks from the equilibrium system, so they have no displacement
+degrees of freedom and refuse a problem carrying one.
 
 ## User Interface
 
-COMPAS-Masonry defines 33 Rhino commands, all prefixed `CM_` and grouped by the
+COMPAS-Masonry defines 28 Rhino commands, all prefixed `CM_` and grouped by the
 stage they belong to:
 
 | Group | Commands |
 |---|---|
-| **Session** | `CM_Masonry_Start`, `CM_Session_settings`, `CM_Session_redraw`, `CM_Session_undo`, `CM_Session_redo`, `CM_Session_clear`, `CM_Masonry_import`, `CM_Masonry_export` |
-| **Model** | `CM_Model_blocks`, `CM_Model_contacts`, `CM_Model_supports`, `CM_Model_material`, `CM_Model_materialassign`, `CM_Model_import`, `CM_Model_export` |
-| **Problem** | `CM_Problem_create`, `CM_Problem_contactlaw`, `CM_Problem_solver`, `CM_Problem_createbc`, `CM_Problem_addload`, `CM_Problem_displacements`, `CM_Problem_solve`, `CM_Problem_export` |
-| **Results** | `CM_Results_show`, `CM_Results_print`, `CM_Results_blockdata`, `CM_Results_export` |
-| **TNA** | `CM_TNA_envelope`, `CM_TNA_formdiagram`, `CM_TNA_supports`, `CM_TNA_loads`, `CM_TNA_analysis`, `CM_TNA_blockexports` |
+| **Session** | `CM_Masonry_start`, `CM_Session_undo`, `CM_Session_redo`, `CM_Session_import`, `CM_Session_save`, `CM_Session_redraw`, `CM_Session_clear`, `CM_Session_settings` |
+| **Model** | `CM_Model_blocks`, `CM_Model_contacts`, `CM_Model_supports`, `CM_Model_material`, `CM_Model_materialassign` |
+| **Problem** | `CM_Problem_create`, `CM_Problem_contactlaw`, `CM_Problem_setsolver`, `CM_Problem_loads`, `CM_Problem_displacements`, `CM_Problem_solve` |
+| **Results** | `CM_Results_show`, `CM_Results_print`, `CM_Results_block` |
+| **TNA** | `CM_TNA_envelope`, `CM_TNA_formdiagram`, `CM_TNA_supports`, `CM_TNA_loads`, `CM_TNA_analysis`, `CM_TNA_blockexport` |
 
 A typical run goes left to right through those groups: build the model, compute
 its contacts, mark supports, assign a material, create a problem with a contact
-law and a solver, give it boundary conditions with their loads, solve, and draw
-the results.
+law and a solver, add loads, solve, and draw the results.
+
+**A problem is the load case.** Loads and prescribed movements are added straight
+to a problem; solving applies all of them. To compare two load cases, duplicate
+the problem in `CM_Problem_create`.
+
+Saving works the way RhinoVAULT's does: `CM_Session_save` writes the whole
+session to one JSON file and `CM_Session_import` opens it. There are no
+per-artefact import/export commands. Results are left out deliberately — they are
+re-derived by `CM_Problem_solve`.
 
 These commands can be executed using the Rhino command line (simply start typing the command name),
 or with the corresponding buttons of the COMPAS-Masonry toolbar.

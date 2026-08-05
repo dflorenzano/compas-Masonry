@@ -2,7 +2,7 @@
 
     python resources/rui/verify_icons.py
 
-Catches the failures listed in temp/ICONS.md §4-5 — a missing icon, an index out of
+Catches the failures listed in temp/wiki_icons.md §4-5 — a missing icon, an index out of
 range, a sheet that only filled one of the three button sizes — while they are
 still cheap to fix.
 """

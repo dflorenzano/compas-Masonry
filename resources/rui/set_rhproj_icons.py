@@ -1,7 +1,7 @@
 """STEP 2 — bind resources/icons/<command>.svg into COMPAS-Masonry.rhproj.
 
 This is icon System A: one SVG per command, stored inline, driving the Script
-Editor and the command palette. See temp/ICONS.md §2.1.
+Editor and the command palette. See temp/wiki_icons.md §2.1.
 
 For each codes[] entry it REPLACES image wholesale — flattening the CSS, wrapping
 the icon in Rhino's dark-aware outer SVG, and rendering the 24x24 light/dark PNG

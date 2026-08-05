@@ -117,7 +117,7 @@ def RunCommand():
     if solver is None:
         return
 
-    problem.solver(solver)
+    problem.set_solver(solver)
     session.save_problems()
     print(f"Solver set on {name}: {solver}")
 

@@ -2,7 +2,7 @@
 # venv: brg-csd
 # r: compas_masonry>=0.2.7
 
-"""Results_blockdata — the result data of the blocks you select.
+"""Results_block — the result data of the blocks you select.
 
 Results_print reports the whole set; this answers "what happened to *this*
 block": its displacement, and every contact it takes part in, with the force,

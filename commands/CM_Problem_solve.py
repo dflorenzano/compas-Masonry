@@ -2,31 +2,38 @@
 # venv: brg-csd
 # r: compas_masonry>=0.2.7
 
-"""Problem_solve_options — solve a Problem for a selection of its boundary conditions.
+"""Problem_solve — solve a Problem.
 
-- Pick the problem, then the boundary conditions to include. Every selected BC
-  is solved TOGETHER, in the order the BC list gives — there is no stepped
-  solve, and no separate solve order to configure.
-- Solving draws NOTHING. One `Results` per solve is stored on the session under
-  a key naming the solver and the BCs ("RBE_BC1-BC2"); Results_show is what puts
-  geometry in the document.
-- A key that is already stored is reused rather than re-solved, unless a
-  re-solve is asked for explicitly.
+**Every boundary condition on the problem is solved.** There is no selection: a
+problem IS the load case, and a different set of loads means a different problem
+(duplicate it in Problem_create). The BC multi-select this command used to open
+is gone with the compas_dem restructure, along with the private-list swap that
+worked around `boundary_conditions` having no setter — `problem.solve()` takes no
+arguments at all now.
 
-Three things about the environment shape this command, all verified rather than
+Solving draws NOTHING. One `Results` per solve is stored on the session under a
+key naming the solver and the time it ran ("RBE_2026-08-04T15-30-12"), so a
+re-solve after changing a material or a contact law never overwrites the earlier
+run and the two can be compared. Results_show is what puts geometry in the
+document.
+
+Four things about the environment shape this command, all verified rather than
 assumed:
 
 1. `ipopt` — compas_cra hands its pyomo model to `SolverFactory("ipopt")`, an
    executable lookup on PATH. Rhino does not inherit a shell PATH, so
    `session.ensure_solver_path()` runs first and reports what it found.
-2. `BlockModel.solve(problem, boundary_conditions=[...])` assigns
-   `problem.boundary_conditions`, which has no setter -> `AttributeError` before
-   any solver runs. Until that upstream fix lands, the BC list is swapped on the
-   private attribute around the call and restored in a `finally` — which is also
-   non-destructive, where a plain setter would drop the problem's other BCs.
-3. CRA/RBE dereference `block.material.density`, and LMGC90 refuses more than
-   one BC. Both are checked up front, so a failure names the command to run
-   instead of surfacing a traceback.
+2. **compas_cra must be new enough to take external loads.** compas_dem now
+   passes `loads=` into `cra_solve`/`rbe_solve`; a site-env carrying the released
+   compas_cra raises `TypeError: cra_solve() got an unexpected keyword argument
+   'loads'` in the middle of a solve. Checked up front instead — see
+   `cra_accepts_loads`.
+3. **CRA and RBE cannot apply prescribed movements.** They have no displacement
+   degrees of freedom for support blocks, so compas_dem refuses rather than
+   returning a self-weight answer for a settlement problem. Checked here so the
+   message names the command to run.
+4. CRA/RBE dereference `block.material.density`, and need a contact law for the
+   friction coefficient. Both are checked so a failure names the fix.
 
 `Results` is a compas Data, so it serializes onto the session as is.
 """
@@ -35,15 +42,39 @@ import pathlib
 import time
 
 from compas_dem.models import BlockModel
-from compas_masonry.boundaryconditions import bc_name
-from compas_masonry.inputs import choose
 from compas_masonry.session import MasonrySession as Session
 from compas_rui.feedback import warn
 
 
-def result_key(solver_name, names) -> str:
-    """Key a result set by its solver and the BCs it covers: "RBE_BC1-BC2"."""
-    return f"{solver_name}_{'-'.join(names)}"
+def result_key(solver_name) -> str:
+    """Key a result set by its solver and when it ran: "RBE_2026-08-04T15-30-12".
+
+    A problem is the load case, so there are no BC names left to key by. The
+    timestamp means a re-solve after changing a material or a contact law is kept
+    beside the earlier run rather than overwriting it — colons are avoided because
+    the key becomes a Rhino layer name.
+    """
+    return f"{solver_name}_{time.strftime('%Y-%m-%dT%H-%M-%S')}"
+
+
+def cra_accepts_loads() -> bool:
+    """Whether the installed compas_cra takes the `loads=` compas_dem passes it.
+
+    compas_dem applies external loads in CRA/RBE by handing `loads=` to
+    `cra_solve`. Released compas_cra has no such parameter, so the solve dies
+    mid-run with a TypeError that says nothing about which package is stale. The
+    fix is the unreleased `feature/external-loads` fork.
+    """
+    try:
+        import inspect
+
+        from compas_cra.equilibrium import cra_solve
+    except ImportError:
+        return True  # not installed at all: a different error, reported elsewhere
+    try:
+        return "loads" in inspect.signature(cra_solve).parameters
+    except (TypeError, ValueError):
+        return True
 
 
 def store(session, problem_name, key, results) -> None:
@@ -59,18 +90,32 @@ def check_ready(model, problem, name):
     if model.graph.number_of_edges() == 0:
         return "No contacts in the model. Run Model_contacts first — every solver works off the contact interfaces."
 
-    if getattr(problem, "_solver", None) is None:
-        return f"{name} has no solver. Run Problem_solver first."
+    if problem.solver is None:
+        return f"{name} has no solver. Run Problem_setsolver first."
 
     if not problem.contact_properties.contact_model:
         return f"{name} has no contact law. Run Problem_contactlaw first — check_model_validity requires one."
 
-    has_supports = bool(problem.supports) or any(block.is_support for block in model.elements())
-    if not has_supports:
+    # supports live on the model only — a problem never carries a copy
+    if not any(block.is_support for block in model.elements()):
         return "The model has no supports. Run Model_supports first."
 
-    if not problem.boundary_conditions:
-        return f"{name} has no boundary condition. Run Problem_createbc first."
+    solver_name = problem.solver.name
+
+    # CRA/RBE have no displacement DOFs for support blocks, so compas_dem refuses
+    # a problem carrying one rather than silently returning a self-weight answer
+    if solver_name in ("CRA", "RBE") and problem.displacements:
+        return (
+            f"{name} carries {len(problem.displacements)} prescribed movement(s), which {solver_name} cannot apply "
+            "(support blocks have no displacement degrees of freedom). Use LMGC90, PRD or BLA, or remove them in Problem_displacements."
+        )
+
+    if solver_name in ("CRA", "RBE") and not cra_accepts_loads():
+        return (
+            "The installed compas_cra does not accept external loads, so this solve would fail inside the backend "
+            "(TypeError: cra_solve() got an unexpected keyword argument 'loads'). "
+            "Install the compas_cra 'feature/external-loads' branch into the Rhino site-env."
+        )
 
     # CRA/RBE read block.material.density directly. compas_dem raises a clear
     # ValueError now, but naming the command to run is more useful than that.
@@ -83,31 +128,25 @@ def check_ready(model, problem, name):
     return None
 
 
-def solve(model, problem, bcs):
-    """Solve `problem` for exactly `bcs`, without mutating the problem.
+def solve(problem):
+    """Run the problem's solver over every boundary condition it carries.
 
-    `boundary_conditions` is deliberately NOT passed: `BlockModel.solve` would
-    then do `problem.boundary_conditions = boundary_conditions`, and that
-    property has no setter — verified, it raises `AttributeError: can't set
-    attribute` before any solver runs. Left empty, solve reads
-    `problem.boundary_conditions` instead, so swapping the private list here
-    selects the subset and the `finally` puts the full list back.
+    `problem.solve()` takes no arguments: solving moved onto Problem, and the
+    subset selection is gone. The private-list swap that used to live here worked
+    around `BlockModel.solve` assigning to a property with no setter — both the
+    assignment and the property are gone.
 
     Returns the Results, or None on failure (reported through `warn`).
     """
-    original = problem._boundary_conditions
     try:
-        problem._boundary_conditions = list(bcs)
-        return model.solve(problem)
+        return problem.solve()
     except ImportError as e:
         # the solver backends (compas_cra, compas_lmgc90, ...) are optional
         warn(f"The solver backend is not installed: {e}")
     except NotImplementedError as e:
-        warn(f"The solver does not support this selection: {e}")
+        warn(f"The solver does not support this problem: {e}")
     except Exception as e:
         warn(f"Solve failed: {e}")
-    finally:
-        problem._boundary_conditions = original
     return None
 
 
@@ -129,26 +168,8 @@ def RunCommand():
     if not_ready:
         return warn(not_ready)
 
-    solver = problem._solver
-
-    picked = session.choose_bcs(problem, message="Boundary conditions to solve (all are solved together)")
-    if not picked:
-        return
-
-    if solver.name == "LMGC90" and len(picked) > 1:
-        return warn("The LMGC90 backend takes only one boundary condition per problem. Select a single BC, or use CRA / RBE.")
-
-    names = [bc_name(bc, i) for i, bc in picked]
-    key = result_key(solver.name, names)
-
-    stored = (session.get("results") or {}).get(name) or {}
-    if key in stored:
-        again = choose(f"{key} has already been solved", ["Reuse", "Solve"], default="Reuse")
-        if again is None:
-            return
-        if again == "Reuse":
-            print(f"Reusing the stored result for {key}. Next: Results_show.")
-            return
+    solver = problem.solver
+    key = result_key(solver.name)
 
     # ipopt is an executable, looked up on PATH by compas_cra's pyomo model
     ipopt = session.ensure_solver_path()
@@ -158,16 +179,19 @@ def RunCommand():
         warn(f"ipopt was not found on PATH, nor in settings.solver_bin ({session.settings.solver_bin}).")
         print("CRA and RBE solve through it, so this will fail. Set the directory in Session_settings > Solver Executables Directory.")
 
-    print(f"Solving {name} ({solver.name}) for {len(picked)} boundary condition(s): {', '.join(names)}")
+    conditions = problem.boundary_conditions
+    if conditions:
+        print(f"Solving {name} ({solver.name}) with {len(problem.loads)} load(s) and {len(problem.displacements)} prescribed movement(s).")
+    else:
+        print(f"Solving {name} ({solver.name}) under self-weight only.")
 
     started = time.time()
-    results = solve(model, problem, [bc for _, bc in picked])
+    results = solve(problem)
     if results is None:
         return
     elapsed = time.time() - started
 
     results.metadata["solver"] = solver.name
-    results.metadata["boundary_conditions"] = names
     results.metadata["solved_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
     results.metadata["duration_s"] = round(elapsed, 3)
 

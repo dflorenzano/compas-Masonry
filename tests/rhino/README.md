@@ -26,17 +26,18 @@ Per command, verify at minimum:
 
 ### Whole-workflow checks
 
-The end-to-end run is `CM_Masonry_Start` → blocks → contacts → supports →
-material → materialassign → problem create → contactlaw → solver →
-createbc → addload / displacements → solve → results show. Worth checking:
+The end-to-end run is `CM_Masonry_start` → blocks → contacts → supports →
+material → materialassign → problem create → contactlaw → setsolver →
+loads / displacements → solve → results show. Worth checking:
 
 - [ ] **Solve reports the ipopt it found.** No ipopt means the whole solve dies inside pyomo saying nothing about `PATH` — see `REFACTOR_GUIDE.md` §1.4.
 - [ ] **A CRA solve that returns `infeasible`** is usually `d_bnd`, not a modelling error (§6).
-- [ ] **Results default to Forces** for CRA/RBE. They return no displacements, so a Displaced view draws a duplicate of the model and looks like a no-op.
+- [ ] **Results default to Forces** for CRA/RBE — Displaced is not offered at all.
+- [ ] **A point load actually changes the reactions.** If it does not, the site-env's compas_cra is stale (needs `feature/external-loads`).
 - [ ] **Reactions balance.** `CM_Results_print > Reactions` prints their sum; it should account for the weight of the **non-support** blocks (supports carry their own weight straight to ground).
-- [ ] **A new BC carries gravity only if its kind is Gravity or Mixed**, and a Displacements BC refuses loads.
-- [ ] **Sublayers appear only when they hold something** — a gravity-only BC grows no `Displacements` layer.
-- [ ] **Editing supports after creating a problem** offers to refresh it, and prescribed displacements survive that refresh.
+- [ ] **Adding a load offers New-or-existing group**, and each group gets its own layer under `BoundaryConditions`.
+- [ ] **A group's layer disappears when its last condition is removed** (`prune_bc_group_layers`).
+- [ ] **A prescribed movement on a CRA/RBE problem warns on add and is refused at solve**, naming LMGC90/PRD/BLA.
 - [ ] **`CM_Session_clear` empties the document** — no `Masonry` layers, no leftover geometry.
 
 ### After a build
