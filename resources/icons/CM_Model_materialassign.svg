@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 32 32">
+  <defs>
+    <style>
+      .cls-1, .cls-2, .cls-3, .cls-4, .cls-5, .cls-6 {
+        fill: none;
+      }
+
+      .cls-7 {
+        fill: url(#radial-gradient-2);
+      }
+
+      .cls-8 {
+        fill: url(#linear-gradient);
+      }
+
+      .cls-2, .cls-3, .cls-9, .cls-10, .cls-4, .cls-5 {
+        stroke: #000;
+      }
+
+      .cls-2, .cls-3, .cls-6 {
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .cls-2, .cls-6 {
+        stroke-width: .25px;
+      }
+
+      .cls-3 {
+        stroke-width: .4px;
+      }
+
+      .cls-9 {
+        fill: url(#radial-gradient);
+      }
+
+      .cls-9, .cls-10, .cls-4, .cls-5 {
+        stroke-miterlimit: 10;
+      }
+
+      .cls-9, .cls-10, .cls-5 {
+        stroke-width: .75px;
+      }
+
+      .cls-11 {
+        clip-path: url(#clippath-1);
+      }
+
+      .cls-12 {
+        clip-path: url(#clippath-3);
+      }
+
+      .cls-13 {
+        clip-path: url(#clippath-4);
+      }
+
+      .cls-14 {
+        clip-path: url(#clippath-2);
+      }
+
+      .cls-15 {
+        clip-path: url(#clippath-5);
+      }
+
+      .cls-10 {
+        fill: #fff;
+      }
+
+      .cls-4 {
+        stroke-width: .5px;
+      }
+
+      .cls-16 {
+        opacity: .5;
+      }
+
+      .cls-6 {
+        stroke: #93278f;
+      }
+
+      .cls-17 {
+        clip-path: url(#clippath);
+      }
+    </style>
+    <clipPath id="clippath">
+      <rect class="cls-1" x="40.56" y="0" width="32" height="32"/>
+    </clipPath>
+    <clipPath id="clippath-1">
+      <rect class="cls-1" x="40.56" y="0" width="32" height="32"/>
+    </clipPath>
+    <clipPath id="clippath-2">
+      <rect class="cls-1" x="40.56" y="0" width="32" height="32"/>
+    </clipPath>
+    <clipPath id="clippath-3">
+      <rect class="cls-1" x="-40" width="32" height="32"/>
+    </clipPath>
+    <clipPath id="clippath-4">
+      <rect class="cls-1" x="0" width="32" height="32"/>
+    </clipPath>
+    <linearGradient id="linear-gradient" x1="3.32" y1="12.85" x2="11.45" y2="12.85" gradientTransform="translate(0 34) scale(1 -1)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2e4ab5"/>
+      <stop offset="1" stop-color="#bdc9fa"/>
+    </linearGradient>
+    <radialGradient id="radial-gradient" cx="-46.21" cy="-.28" fx="-46.21" fy="-.28" r="3.17" gradientTransform="translate(60.14 26) scale(1.14 .79)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#de7126"/>
+      <stop offset="1" stop-color="#de9027"/>
+    </radialGradient>
+    <radialGradient id="radial-gradient-2" cx="14.19" cy="15.5" fx="14.19" fy="15.5" r="5.9" gradientTransform="matrix(1,0,0,1,0,0)" xlink:href="#radial-gradient"/>
+    <clipPath id="clippath-5">
+      <rect class="cls-1" x="80.85" y="0" width="32" height="32"/>
+    </clipPath>
+    <image id="image" width="6135" height="3378" xlink:href="../../../../../Documents/GitHub/obsidian/ETH_PhD/600_Dev/610_Libs/compas_masonry/icons/wip/arch1/viewfront.png"/>
+    <image id="image-2" width="6135" height="3378" xlink:href="../../../../../Documents/GitHub/obsidian/ETH_PhD/600_Dev/610_Libs/compas_masonry/icons/wip/arch1/View.png"/>
+  </defs>
+  <g id="Layer_2" data-name="Layer 2">
+    <g class="cls-17">
+      <use transform="translate(21.14 -5.24) scale(.01)" xlink:href="#image"/>
+    </g>
+    <g class="cls-11">
+      <use transform="translate(21.14 -5.24) scale(.01)" xlink:href="#image"/>
+    </g>
+    <g class="cls-14">
+      <use transform="translate(21.14 -5.24) scale(.01)" xlink:href="#image"/>
+    </g>
+  </g>
+  <g id="Layer_4" data-name="Layer 4">
+    <g class="cls-12">
+      <use transform="translate(-58.06 -1.24) scale(.01)" xlink:href="#image-2"/>
+    </g>
+    <g>
+      <g>
+        <g class="cls-13">
+          <use transform="translate(-18.06 -1.24) scale(.01)" xlink:href="#image-2"/>
+        </g>
+        <line class="cls-2" x1="10.59" y1="12.64" x2="5.99" y2="14.38"/>
+        <line class="cls-2" x1="10.59" y1="12.64" x2="11.92" y2="11.01"/>
+        <line class="cls-2" x1="5.99" y1="14.38" x2="2.94" y2="10.89"/>
+        <line class="cls-2" x1="5.99" y1="14.38" x2="8.34" y2="11.5"/>
+        <line class="cls-2" x1="2.94" y1="10.89" x2="6.23" y2="6.86"/>
+        <line class="cls-2" x1="6.23" y1="6.86" x2="10.83" y2="5.12"/>
+        <line class="cls-2" x1="6.23" y1="6.86" x2="10.97" y2="6.04"/>
+        <line class="cls-2" x1="10.83" y1="5.12" x2="15.58" y2="4.3"/>
+        <line class="cls-2" x1="9.76" y1="17.25" x2="5.15" y2="18.99"/>
+        <line class="cls-2" x1="9.76" y1="17.25" x2="10.59" y2="12.64"/>
+        <line class="cls-2" x1="5.15" y1="18.99" x2="1.77" y2="17.34"/>
+        <line class="cls-2" x1="1.77" y1="17.34" x2="2.94" y2="10.89"/>
+        <line class="cls-2" x1="5.15" y1="18.99" x2="5.99" y2="14.38"/>
+        <line class="cls-2" x1="21.23" y1="21.79" x2="22.07" y2="27.21"/>
+        <line class="cls-2" x1="28.89" y1="19.52" x2="30.06" y2="27.11"/>
+        <line class="cls-2" x1="30.06" y1="27.11" x2="25.45" y2="28.85"/>
+        <line class="cls-2" x1="25.45" y1="28.85" x2="22.07" y2="27.21"/>
+        <line class="cls-2" x1="24.28" y1="21.26" x2="25.45" y2="28.85"/>
+        <line class="cls-2" x1="8.34" y1="11.5" x2="6.23" y2="6.86"/>
+        <line class="cls-2" x1="8.34" y1="11.5" x2="11.73" y2="10.92"/>
+        <line class="cls-2" x1="15.49" y1="12.75" x2="18.88" y2="16.63"/>
+        <line class="cls-2" x1="16.24" y1="8.6" x2="20.85" y2="6.86"/>
+        <line class="cls-2" x1="20.85" y1="6.86" x2="25.6" y2="12.3"/>
+        <line class="cls-2" x1="11.73" y1="10.92" x2="10.97" y2="6.04"/>
+        <line class="cls-2" x1="10.97" y1="6.04" x2="15.58" y2="4.3"/>
+        <line class="cls-2" x1="10.97" y1="6.04" x2="16.24" y2="8.6"/>
+        <line class="cls-2" x1="15.58" y1="4.3" x2="20.85" y2="6.86"/>
+        <line class="cls-2" x1="16.24" y1="8.6" x2="20.99" y2="14.04"/>
+        <line class="cls-2" x1="18.88" y1="16.63" x2="20.99" y2="14.04"/>
+        <line class="cls-2" x1="18.88" y1="16.63" x2="21.23" y2="21.79"/>
+        <line class="cls-2" x1="20.99" y1="14.04" x2="25.6" y2="12.3"/>
+        <line class="cls-2" x1="25.6" y1="12.3" x2="28.89" y2="19.52"/>
+        <line class="cls-2" x1="28.89" y1="19.52" x2="25.93" y2="20.64"/>
+        <line class="cls-2" x1="24.28" y1="21.26" x2="21.23" y2="21.79"/>
+        <line class="cls-2" x1="20.99" y1="14.04" x2="24.28" y2="21.26"/>
+        <line class="cls-2" x1="24.28" y1="21.26" x2="25.93" y2="20.64"/>
+        <line class="cls-2" x1="15.49" y1="12.75" x2="16.24" y2="8.6"/>
+        <line class="cls-2" x1="11.73" y1="10.92" x2="15.49" y2="12.75"/>
+        <polygon class="cls-3" points="1.77 17.34 2.94 10.89 6.23 6.86 10.83 5.12 15.58 4.3 20.85 6.86 25.6 12.3 28.89 19.52 30.06 27.11 25.45 28.85 22.07 27.21 21.23 21.79 18.88 16.63 15.49 12.75 11.92 11.01 10.59 12.64 9.76 17.34 5.15 18.99 1.77 17.34"/>
+      </g>
+      <g>
+        <g id="POLYLINE-31">
+          <line class="cls-6" x1="6.14" y1="24.19" x2="6.26" y2="24.34"/>
+        </g>
+        <g id="POLYLINE-32">
+          <line class="cls-6" x1="6.14" y1="24.19" x2="6.16" y2="24.45"/>
+        </g>
+        <rect class="cls-10" x="2.44" y="20.32" width="9.88" height="9.39"/>
+        <line class="cls-5" x1="2.35" y1="21.96" x2="12.32" y2="21.96"/>
+        <rect class="cls-8" x="2.81" y="20.69" width="9.14" height=".91"/>
+        <rect class="cls-9" x="3.75" y="23.27" width="7.23" height="5.01"/>
+      </g>
+      <g>
+        <line class="cls-7" x1="7.38" y1="20.32" x2="20.99" y2="10.67"/>
+        <g>
+          <line class="cls-4" x1="7.38" y1="20.32" x2="20.99" y2="10.67"/>
+          <path d="M21.54,11.44c.42-.3.52-.89.22-1.31-.3-.42-.89-.52-1.31-.22-.42.3-.52.89-.22,1.31.3.42.89.52,1.31.22Z"/>
+        </g>
+      </g>
+    </g>
+    <g class="cls-15">
+      <g>
+        <image width="6135" height="3378" transform="translate(19.37 -7.12) scale(.02)" xlink:href="../../../../../Documents/GitHub/obsidian/ETH_PhD/600_Dev/610_Libs/compas_masonry/icons/wip/arch1/Interfaces.png"/>
+        <use class="cls-16" transform="translate(19.37 -7.12) scale(.02)" xlink:href="#image-2"/>
+      </g>
+    </g>
+  </g>
+</svg>

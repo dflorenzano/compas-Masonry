@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 32 32">
+  <defs>
+    <style>
+      .cls-1, .cls-2, .cls-3, .cls-4, .cls-5 {
+        fill: none;
+      }
+
+      .cls-6 {
+        fill: #147f11;
+      }
+
+      .cls-2 {
+        stroke-width: .25px;
+      }
+
+      .cls-2, .cls-3 {
+        stroke: #000;
+      }
+
+      .cls-2, .cls-3, .cls-4, .cls-5 {
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .cls-3 {
+        stroke-width: .4px;
+      }
+
+      .cls-7 {
+        isolation: isolate;
+      }
+
+      .cls-8, .cls-9 {
+        mix-blend-mode: multiply;
+      }
+
+      .cls-10 {
+        clip-path: url(#clippath-1);
+      }
+
+      .cls-11 {
+        clip-path: url(#clippath-2);
+      }
+
+      .cls-4 {
+        stroke: #0092d2;
+        stroke-width: .4px;
+      }
+
+      .cls-9 {
+        fill: #c92d2d;
+      }
+
+      .cls-5 {
+        stroke: #147f11;
+        stroke-width: .15px;
+      }
+
+      .cls-12 {
+        clip-path: url(#clippath);
+      }
+    </style>
+    <clipPath id="clippath">
+      <rect class="cls-1" x="41.41" width="32" height="32"/>
+    </clipPath>
+    <clipPath id="clippath-1">
+      <rect class="cls-1" x="0" width="32" height="32"/>
+    </clipPath>
+    <clipPath id="clippath-2">
+      <rect class="cls-1" x="-42.35" y="0" width="32" height="32"/>
+    </clipPath>
+    <image id="image" width="6135" height="3378" xlink:href="../../../../../Documents/GitHub/obsidian/ETH_PhD/600_Dev/610_Libs/compas_masonry/icons/wip/displaced/View.png"/>
+    <image id="image-2" width="6135" height="3378" xlink:href="../../../../../Documents/GitHub/obsidian/ETH_PhD/600_Dev/610_Libs/compas_masonry/icons/wip/displaced/Support.png"/>
+  </defs>
+  <g class="cls-7">
+    <g id="Layer_1" data-name="Layer 1">
+      <g class="cls-12">
+        <g>
+          <use transform="translate(26.19 -2.11) scale(.01)" xlink:href="#image-2"/>
+          <use class="cls-8" transform="translate(26.19 -2.1) scale(.01)" xlink:href="#image"/>
+        </g>
+      </g>
+      <g class="cls-10">
+        <g>
+          <use transform="translate(-15.22 -2.11) scale(.01)" xlink:href="#image-2"/>
+          <use class="cls-8" transform="translate(-15.22 -2.1) scale(.01)" xlink:href="#image"/>
+          <polygon class="cls-3" points="1.61 22.61 5.48 22.61 6.95 22.45 7.78 18.83 6.34 18.42 4.77 17.39 2.95 16.73 1.61 22.61"/>
+          <polygon class="cls-3" points="29.06 16.76 27.77 17.19 24.29 18.82 25.12 22.45 26.6 22.61 30.47 22.61 29.06 16.76"/>
+          <polygon class="cls-9" points="29.06 16.76 27.77 17.19 24.29 18.82 25.12 22.45 26.59 22.61 30.47 22.61 29.06 16.76"/>
+          <polygon class="cls-9" points="1.61 22.61 5.48 22.61 6.95 22.45 7.78 18.83 6.34 18.42 4.77 17.39 2.95 16.73 1.61 22.61"/>
+        </g>
+      </g>
+    </g>
+    <g id="Layer_2" data-name="Layer 2">
+      <g class="cls-11">
+        <image width="6135" height="3378" transform="translate(-61.77 -5.24) scale(.01)" xlink:href="../../../../../Documents/GitHub/obsidian/ETH_PhD/600_Dev/610_Libs/compas_masonry/icons/wip/arch1/viewfront.png"/>
+      </g>
+      <g>
+        <line class="cls-2" x1="6.44" y1="18.41" x2="3.2" y2="16.28"/>
+        <line class="cls-2" x1="25.63" y1="18.41" x2="29" y2="16.49"/>
+        <line class="cls-2" x1="22.72" y1="15.23" x2="18.71" y2="13.64"/>
+        <line class="cls-2" x1="13.64" y1="14.09" x2="9.55" y2="15.43"/>
+        <line class="cls-2" x1="18.71" y1="13.64" x2="14.41" y2="13.94"/>
+        <line class="cls-2" x1="14.41" y1="13.94" x2="13.29" y2="10.23"/>
+        <line class="cls-2" x1="14.64" y1="14.98" x2="13.67" y2="11.79"/>
+        <line class="cls-2" x1="14.41" y1="13.94" x2="14.64" y2="14.98"/>
+        <line class="cls-2" x1="19.31" y1="9.81" x2="13.29" y2="10.23"/>
+        <line class="cls-2" x1="18.34" y1="14.73" x2="14.64" y2="14.98"/>
+        <line class="cls-2" x1="18.71" y1="13.64" x2="19.31" y2="9.81"/>
+        <line class="cls-2" x1="18.71" y1="13.64" x2="18.34" y2="14.73"/>
+        <line class="cls-2" x1="24.92" y1="12.04" x2="19.31" y2="9.81"/>
+        <line class="cls-2" x1="21.78" y1="16.1" x2="18.34" y2="14.73"/>
+        <line class="cls-2" x1="22.72" y1="15.23" x2="24.92" y2="12.04"/>
+        <line class="cls-2" x1="22.72" y1="15.23" x2="21.78" y2="16.1"/>
+        <line class="cls-2" x1="13.64" y1="14.09" x2="13.29" y2="10.23"/>
+        <line class="cls-2" x1="9.55" y1="15.43" x2="7.55" y2="12.11"/>
+        <line class="cls-2" x1="9.55" y1="15.43" x2="10.45" y2="16.27"/>
+        <line class="cls-2" x1="13.29" y1="10.23" x2="7.55" y2="12.11"/>
+        <line class="cls-2" x1="13.67" y1="11.79" x2="13.29" y2="10.23"/>
+        <line class="cls-2" x1="13.98" y1="15.11" x2="10.45" y2="16.27"/>
+        <line class="cls-2" x1="13.98" y1="15.11" x2="13.67" y2="11.79"/>
+        <line class="cls-2" x1="13.64" y1="14.09" x2="13.98" y2="15.11"/>
+        <line class="cls-2" x1="9.55" y1="15.43" x2="6.44" y2="18.41"/>
+        <line class="cls-2" x1="5.18" y1="17.59" x2="4.77" y2="17.39"/>
+        <line class="cls-2" x1="6.44" y1="18.41" x2="5.48" y2="22.61"/>
+        <line class="cls-2" x1="6.44" y1="18.41" x2="2.95" y2="16.73"/>
+        <line class="cls-2" x1="5.48" y1="22.61" x2="1.61" y2="22.61"/>
+        <line class="cls-2" x1="5.48" y1="22.61" x2="6.95" y2="22.45"/>
+        <line class="cls-2" x1="2.95" y1="16.73" x2="1.61" y2="22.61"/>
+        <line class="cls-2" x1="4.77" y1="17.39" x2="2.95" y2="16.73"/>
+        <line class="cls-2" x1="7.78" y1="18.83" x2="6.95" y2="22.45"/>
+        <line class="cls-2" x1="6.44" y1="18.41" x2="7.78" y2="18.83"/>
+        <line class="cls-2" x1="7.55" y1="12.11" x2="3.2" y2="16.28"/>
+        <line class="cls-2" x1="10.45" y1="16.27" x2="7.78" y2="18.83"/>
+        <line class="cls-2" x1="25.63" y1="18.41" x2="22.72" y2="15.23"/>
+        <line class="cls-2" x1="27.65" y1="17.26" x2="29.13" y2="16.73"/>
+        <line class="cls-2" x1="29" y1="16.49" x2="24.92" y2="12.04"/>
+        <line class="cls-2" x1="24.29" y1="18.83" x2="21.78" y2="16.1"/>
+        <line class="cls-2" x1="25.63" y1="18.41" x2="24.29" y2="18.83"/>
+        <line class="cls-2" x1="25.64" y1="18.41" x2="29.13" y2="16.73"/>
+        <line class="cls-2" x1="26.6" y1="22.61" x2="25.64" y2="18.41"/>
+        <line class="cls-2" x1="30.47" y1="22.61" x2="29.13" y2="16.73"/>
+        <line class="cls-2" x1="25.12" y1="22.45" x2="24.29" y2="18.83"/>
+        <line class="cls-2" x1="26.6" y1="22.61" x2="30.47" y2="22.61"/>
+        <line class="cls-2" x1="26.6" y1="22.61" x2="25.12" y2="22.45"/>
+      </g>
+      <g>
+        <g>
+          <line class="cls-5" x1="18.34" y1="14.72" x2="18.26" y2="14.64"/>
+          <path class="cls-6" d="M18.46,14.6c.07.06.07.17,0,.24-.06.07-.17.07-.24,0-.07-.06-.07-.17,0-.24.06-.07.17-.07.24,0Z"/>
+        </g>
+        <line class="cls-5" x1="18.41" y1="14.79" x2="18.34" y2="14.72"/>
+        <g>
+          <line class="cls-5" x1="24.92" y1="12.03" x2="24.81" y2="11.74"/>
+          <path class="cls-6" d="M25.08,11.97c.03.09-.01.19-.1.22-.09.03-.19-.01-.22-.1-.03-.09.01-.19.1-.22.09-.03.19.01.22.1Z"/>
+        </g>
+        <line class="cls-5" x1="25.03" y1="12.33" x2="24.92" y2="12.03"/>
+        <g>
+          <line class="cls-5" x1="18.71" y1="13.63" x2="18.62" y2="13.54"/>
+          <path class="cls-6" d="M18.83,13.5c.07.06.07.17,0,.24-.06.07-.17.07-.24,0s-.07-.17,0-.24c.06-.07.17-.07.24,0Z"/>
+        </g>
+        <line class="cls-5" x1="18.8" y1="13.71" x2="18.71" y2="13.63"/>
+        <line class="cls-4" x1="25.73" y1="20.8" x2="24.1" y2="16.45"/>
+        <line class="cls-4" x1="19.8" y1="11.64" x2="18.17" y2="10.71"/>
+        <g>
+          <line class="cls-5" x1="25.64" y1="18.4" x2="25.03" y2="16.76"/>
+          <path class="cls-6" d="M25.8,18.34c.03.09-.01.18-.1.22-.09.03-.18-.01-.22-.1s.01-.18.1-.22c.09-.03.19.01.22.1Z"/>
+        </g>
+        <line class="cls-5" x1="26.35" y1="20.28" x2="25.64" y2="18.4"/>
+        <g>
+          <line class="cls-5" x1="19.34" y1="9.81" x2="18.74" y2="9.51"/>
+          <path class="cls-6" d="M19.42,9.66c.08.04.12.14.07.23-.04.08-.14.12-.23.07-.08-.04-.12-.14-.07-.23.04-.08.14-.12.23-.07Z"/>
+        </g>
+        <line class="cls-5" x1="19.88" y1="10.09" x2="19.34" y2="9.81"/>
+        <line class="cls-4" x1="23.49" y1="16.34" x2="21.87" y2="13.7"/>
+        <line class="cls-4" x1="14.31" y1="10.68" x2="12.68" y2="11.45"/>
+        <g>
+          <line class="cls-5" x1="7.55" y1="12.1" x2="7.39" y2="12.46"/>
+          <path class="cls-6" d="M7.4,12.03c.04-.09.14-.12.22-.09.09.04.12.14.09.22-.04.09-.14.12-.22.09-.09-.04-.12-.14-.09-.22Z"/>
+        </g>
+        <line class="cls-5" x1="7.72" y1="11.73" x2="7.55" y2="12.1"/>
+        <g>
+          <line class="cls-5" x1="9.56" y1="15.39" x2="9.05" y2="16.06"/>
+          <path class="cls-6" d="M9.43,15.29c.06-.07.16-.09.24-.03.07.06.09.16.03.24-.06.07-.16.09-.24.03-.07-.06-.09-.16-.03-.24Z"/>
+        </g>
+        <line class="cls-5" x1="10.04" y1="14.78" x2="9.56" y2="15.39"/>
+        <g>
+          <line class="cls-5" x1="10.45" y1="16.26" x2="10.02" y2="16.81"/>
+          <path class="cls-6" d="M10.32,16.15c.06-.07.16-.09.24-.03.07.06.09.16.03.24-.06.07-.16.09-.24.03-.07-.06-.09-.16-.03-.24Z"/>
+        </g>
+        <line class="cls-5" x1="10.88" y1="15.71" x2="10.45" y2="16.26"/>
+        <line class="cls-4" x1="10.29" y1="13.7" x2="8.66" y2="16.18"/>
+        <g>
+          <line class="cls-5" x1="6.44" y1="18.4" x2="5.78" y2="20.1"/>
+          <path class="cls-6" d="M6.28,18.34c.03-.09.13-.13.22-.1.09.03.13.13.1.22-.03.09-.13.13-.22.1-.09-.03-.13-.13-.1-.22Z"/>
+        </g>
+        <line class="cls-5" x1="7.09" y1="16.7" x2="6.44" y2="18.4"/>
+        <g>
+          <line class="cls-5" x1="7.78" y1="18.83" x2="7.21" y2="20.28"/>
+          <path class="cls-6" d="M7.62,18.76c.03-.09.13-.13.22-.1.09.03.13.13.1.22-.03.09-.13.13-.22.1-.09-.03-.13-.13-.1-.22Z"/>
+        </g>
+        <line class="cls-5" x1="8.34" y1="17.37" x2="7.78" y2="18.83"/>
+        <g>
+          <line class="cls-5" x1="24.29" y1="18.82" x2="23.73" y2="17.3"/>
+          <path class="cls-6" d="M24.45,18.76c.03.09-.01.18-.1.22-.09.03-.18-.01-.22-.1-.03-.09.01-.18.1-.22.09-.03.18.01.22.1Z"/>
+        </g>
+        <line class="cls-5" x1="24.86" y1="20.34" x2="24.29" y2="18.82"/>
+        <line class="cls-4" x1="7.97" y1="16.54" x2="6.34" y2="20.72"/>
+        <g>
+          <line class="cls-5" x1="21.78" y1="16.09" x2="21.32" y2="15.42"/>
+          <path class="cls-6" d="M21.92,15.99c.05.08.03.18-.04.24-.08.05-.18.03-.24-.04s-.03-.18.04-.24c.08-.05.18-.03.24.04Z"/>
+        </g>
+        <line class="cls-5" x1="22.25" y1="16.76" x2="21.78" y2="16.09"/>
+        <line class="cls-5" x1="13.29" y1="10.22" x2="12.63" y2="10.53"/>
+        <g>
+          <line class="cls-5" x1="13.95" y1="9.9" x2="13.29" y2="10.22"/>
+          <path class="cls-6" d="M13.22,10.07c-.08.04-.12.14-.08.23s.14.12.23.08c.08-.04.12-.14.08-.23-.04-.08-.14-.12-.23-.08Z"/>
+        </g>
+        <g>
+          <line class="cls-5" x1="22.72" y1="15.22" x2="22.17" y2="14.45"/>
+          <path class="cls-6" d="M22.86,15.12c.05.08.04.18-.04.24-.08.05-.18.04-.24-.04-.05-.08-.04-.18.04-.24.08-.05.18-.04.24.04Z"/>
+        </g>
+        <line class="cls-5" x1="23.27" y1="15.99" x2="22.72" y2="15.22"/>
+      </g>
+    </g>
+  </g>
+</svg>
