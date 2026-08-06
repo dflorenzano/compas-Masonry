@@ -66,12 +66,18 @@ def RunCommand():
     model = data.get("blockmodel")
     problems = data.get("problems") or {}
 
+    # after the last bail-out, before the first change — an import replaces
+    # everything, so the state it replaced is exactly what undo is for
+    session.ensure_baseline()
+
     # set_model clears the model, its problems and its results, and redraws
     session.clear_model()
     if model is not None:
         session.set_model(model)
 
     for name, problem in problems.items():
+        if model is not None:
+            problem._bind_model(model)
         session.problems[name] = problem
     session.save_problems()
 
@@ -91,6 +97,7 @@ def RunCommand():
     print(f"  blockmodel: {'yes' if model is not None else 'no'}")
     print(f"  problems  : {len(problems)} ({', '.join(problems) or '-'})")
     print("Results are not part of the file — re-run Problem_solve.")
+    session.record(f"Import: {pathlib.Path(filepath).name}")
 
 
 # =============================================================================

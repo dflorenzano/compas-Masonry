@@ -102,7 +102,7 @@ def RunCommand():
     if fillobj:
         fillobj.show = show_fill
 
-    session.scene.redraw()
+    session.redraw()
 
 
 # TO_DO: visualize the BlockModel settings

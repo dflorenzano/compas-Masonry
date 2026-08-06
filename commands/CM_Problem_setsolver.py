@@ -117,9 +117,16 @@ def RunCommand():
     if solver is None:
         return
 
+    # after the last bail-out, before the first change — see Session_undo
+    session.ensure_baseline()
+
     problem.set_solver(solver)
     session.save_problems()
     print(f"Solver set on {name}: {solver}")
+    # `solver.name`, not `type(solver).__name__` — `Solver.CRA()` is a factory that
+    # returns a plain Solver, so the class name is always "Solver". This label is
+    # what undo prints, so it has to say which solver.
+    session.record(f"{name}: solver {solver.name}")
 
 
 # =============================================================================

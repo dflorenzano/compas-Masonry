@@ -185,6 +185,11 @@ def RunCommand():
     else:
         print(f"Solving {name} ({solver.name}) under self-weight only.")
 
+    # Right before the solve: everything above either bails out or only reads, and
+    # a solve is the one action here that is expensive to repeat — so the state it
+    # was launched from is worth being able to return to.
+    session.ensure_baseline()
+
     started = time.time()
     results = solve(problem)
     if results is None:
@@ -202,6 +207,7 @@ def RunCommand():
 
     print(f"Solved in {elapsed:.1f}s, stored on {name} as {key}.")
     print("Next: Results_show to draw it (nothing is drawn by solving).")
+    session.record(f"Solve {name}: {key}")
 
 
 # =============================================================================

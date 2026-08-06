@@ -209,6 +209,12 @@ def RunCommand():
     if option is None:
         return
 
+    # Each branch below has its own bail-outs, so this can fire for a command the
+    # user then cancels. That costs at most ONE extra snapshot in the whole
+    # session — `ensure_baseline` is a no-op once history exists — and the state
+    # it captures is a legitimate one to return to.
+    session.ensure_baseline()
+
     # =============================================================================
     # Create
     # =============================================================================
@@ -300,6 +306,7 @@ def RunCommand():
 
     # Persist the mutated model so the change survives to the next command.
     session["blockmodel"] = model
+    session.record(f"Material: {option}")
 
 
 # =============================================================================

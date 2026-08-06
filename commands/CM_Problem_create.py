@@ -65,6 +65,11 @@ def RunCommand():
         if option is None:
             return
 
+        # Every branch below still has its own bail-outs, so this can fire for a
+        # cancelled command. It costs at most one extra snapshot per session —
+        # `ensure_baseline` is a no-op once history exists.
+        session.ensure_baseline()
+
         # RefreshSupports lived here. Supports were copied onto the Problem at
         # creation and into every boundary condition at registration, so editing
         # them afterwards left stale copies that had to be re-imported. Since the
@@ -86,6 +91,7 @@ def RunCommand():
             print(f"Created {problem.name} (active), layer {session.indexed_problem_layer(name)}.")
             print("NOTE: supports are IMPORTED from the model (Block.is_support). Edit them in Model_supports and refresh the problem.")
             print("Next: Problem_contactlaw and Problem_setsolver, then Problem_loads.")
+            session.record(f"New problem: {name}")
             return
 
         # =============================================================================
@@ -106,6 +112,7 @@ def RunCommand():
             source = session.problems[source_name]
             problem = session.create_problem(model, name=name, source=source)
             print(f"Created {problem.name} as a duplicate of {source_name} (active).")
+            session.record(f"Duplicate problem: {name}")
             return
 
         # =============================================================================
@@ -123,6 +130,7 @@ def RunCommand():
             session.ensure_indexed_problem_layer(name)
             session.draw_problem_conditions(name, model)
             print(f"Active problem: {name} (layers restored and redrawn).")
+            session.record(f"Active problem: {name}")
             return
 
         # =============================================================================
@@ -139,6 +147,7 @@ def RunCommand():
 
             session.delete_problem(name)
             print(f"Deleted {name}. Remaining problem layers renumbered.")
+            session.record(f"Delete problem: {name}")
             return
 
 

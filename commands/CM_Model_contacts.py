@@ -20,6 +20,7 @@ from compas_dem.models import BlockModel
 from compas_masonry.inputs import Options
 from compas_masonry.session import MasonrySession as Session
 from compas_model.models import InteractionGraph
+from compas_rui.feedback import confirm
 from compas_rui.feedback import warn
 
 # EdgeContact and VertexContact (degenerate, post-displacement contacts) are
@@ -36,6 +37,38 @@ def RunCommand():
     if model is None:
         warn("No block model in the session.")
         return
+
+    # =============================================================================
+    # Stored results do not survive this
+    # =============================================================================
+
+    # Recomputing contacts rebuilds the interaction graph, and a Results is keyed
+    # by graph node index and by "u,v" edge strings — so results from the old
+    # graph would stay in the session describing edges that no longer exist,
+    # still matching on `model_id` because it IS the same model. Nothing would
+    # report a mismatch: `draw_results` looks up `results.transformation(
+    # block.graphnode)` by the block's CURRENT index, so shifted numbering draws
+    # another block's transformation as if it were correct.
+    #
+    # Asked BEFORE anything is touched, deliberately. The teardown below removes
+    # every interaction *before* the tolerance prompt, so a confirmation placed
+    # any later would leave the model with no contacts when the user says no.
+    count = session.count_results()
+    plural = "s" if count != 1 else ""
+    if count and not confirm(
+        f"Recomputing contacts invalidates the {count} stored result set{plural}, "
+        f"which will be deleted along with anything drawn from them. Continue?"
+    ):
+        return
+
+    # The last bail-out is above; from here the command always changes something,
+    # so this is where the pre-change baseline belongs — including the result
+    # deletion just below, which must itself be undoable.
+    session.ensure_baseline()
+
+    if count:
+        session.clear_results()
+        print(f"Deleted {count} stored result set{plural} — the graph they described is gone.")
 
     # clear() deletes each object's drawn geometry while its guids are still
     # valid; removing without clearing first strands those guids in the scene.
@@ -94,6 +127,7 @@ def RunCommand():
     session.redraw()
 
     rs.Redraw()
+    session.record("Contacts")
 
 
 # =============================================================================

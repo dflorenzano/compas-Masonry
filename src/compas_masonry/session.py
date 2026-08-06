@@ -9,6 +9,13 @@ class MasonrySession(LazyLoadSession):
     settingsclass = MasonrySettings
     settings: MasonrySettings  # type: ignore
 
+    # How many states history keeps. LazyLoadSession defaults to 53, and every
+    # record is a FULL copy of the session's data directory — not a diff — so the
+    # depth multiplies the whole model, every problem and every stored result set
+    # by that number on disk. 10 is a working figure, not a measured one; measure
+    # with a real model before raising it.
+    _depth = 10
+
     # set a fail message
 
     # =============================================================================
@@ -40,7 +47,7 @@ class MasonrySession(LazyLoadSession):
 
         # "problems" is the key the plugin actually writes; deleting "problem"
         # left every Problem in the session pointing at a model that was gone.
-        for key in ("blockmodel", "problems", "active_problem", "results"):
+        for key in ("blockmodel", "problems", "active_problem", "results", "shown_results"):
             self.delete(key)
 
         # obj.clear() purges the object's own guids, which raises on a guid Rhino
@@ -73,6 +80,10 @@ class MasonrySession(LazyLoadSession):
         "problems",
         "active_problem",
         "results",
+        # WHICH results are on screen, written by Results_show. Solving draws
+        # nothing, so this is the only record of it — and a restore clears the whole
+        # layer tree, so without it every undo silently destroyed the result view.
+        "shown_results",
         "envelope",
         "formdiagram",
         "analysis",
@@ -94,6 +105,19 @@ class MasonrySession(LazyLoadSession):
         to Default first, and the empty root is recreated afterwards so the next
         command draws into the tree it expects.
         """
+        self._clear_document()
+
+        for key in self.SESSION_KEYS:
+            self.delete(key)
+
+    def _clear_document(self) -> None:
+        """Remove everything the plugin drew, leaving session state untouched.
+
+        Split out of `clear_all` for undo/redo. A restore has just put the
+        previous state's files back on disk, and `clear_all`'s `delete(key)` loop
+        would unlink exactly those files — so a restore needs the document
+        emptied and the data left alone. `clear_all` is that plus the deletion.
+        """
         import rhinoscriptsyntax as rs  # type: ignore
 
         import compas_rhino.layers
@@ -107,9 +131,6 @@ class MasonrySession(LazyLoadSession):
             # scene while the Rhino objects live on, untracked (§1.7 rule 2).
             sceneobject.clear()
             self.scene.remove(sceneobject)
-
-        for key in self.SESSION_KEYS:
-            self.delete(key)
 
         self._release_current_layer()
 
@@ -136,6 +157,305 @@ class MasonrySession(LazyLoadSession):
         if not rs.IsLayer("Default"):
             rs.AddLayer("Default")
         rs.CurrentLayer("Default")
+
+    # =============================================================================
+    # History (undo / redo)
+    # =============================================================================
+    #
+    # LazyLoadSession implements half of this. `record()` works: it dumps the working
+    # copy and photocopies it into `__records/<timestamp>/`. `undo()` and `redo()` move
+    # the FILES back and stop — they never touch `_data` or `_scene`. And `get()` only
+    # reads from disk when a key is MISSING from `_data`, so every already-loaded key
+    # keeps returning the pre-undo object and the restored file is never opened: undo
+    # changes nothing observable. The module's own header comment lists the missing
+    # steps ("clear data dict", "load scene ... link items by guid"); neither was written.
+    #
+    # The second half is added here, and deliberately NOT the way that comment
+    # describes it. `_scene.json` is never loaded back, because `Scene.__data__`
+    # re-serializes the ITEMS: a reloaded scene object's `.item` would be a copy of the
+    # model's block rather than the block itself, so setting `is_support` on the model
+    # would stop colouring the block, silently. `SceneObject.settings` also carries no
+    # `layer` or `group`. The scene is rebuilt from the restored data instead — the same
+    # path Session_import already takes. See temp/wiki_session_primer.md §8.4.
+
+    def record(self, name: str) -> None:
+        """Snapshot the current state. Fixes three things the parent gets wrong.
+
+        **1. The persisted cursor is one behind.** `LazyLoadSession.record` writes
+        `_history.json` through `dump()` BEFORE it updates `_current`. Inside one
+        process that never shows, because `_current` is corrected in memory a line
+        later. It shows here because a Rhino command is a fresh `Session(...)` every
+        time and `__init__` calls `load_history()`, which reads the stale cursor
+        back. `record()` then discards the "forward branch" against it::
+
+            if self.current < len(self.history) - 1:
+                self.history[:] = self.history[: self.current + 1]
+
+        A real branch discard, correct in itself — but aimed at a cursor stuck at 0
+        it truncates on EVERY command. The list never grew past two entries and undo
+        answered "Nothing more to undo!" no matter how much work had been done.
+        Re-dumping the history is enough: `_current` is correct by the time the
+        parent returns, and `_history.json` is not part of a snapshot (a record
+        folder holds only `data/` and the four `_*.json` state files), so writing it
+        again cannot disturb the record just taken.
+
+        **2. Dropped records leak their folders.** Both places the parent shortens
+        the history — the branch discard above and the depth trim,
+        `self.history[:] = self.history[h - self.depth:]` — do it with a slice
+        assignment and never delete the folders. `clear_history()` cannot reach them
+        afterwards either, because it iterates the LIST. The depth trim runs on
+        every record past `_depth`, so the orphans grow without bound: one full copy
+        of the session per command, ~6.5 MB each on a real model.
+
+        **3. The data is serialized twice per command.** `dump()` re-serializes
+        every key in `_data` to the paths `set()` has already autosynced —
+        byte-identical files, and measured at 0.45s per command on a 6.5 MB
+        BlockModel, against 3ms for the copy that follows. Emptying the cache around
+        the call skips that loop; the working copy on disk is what gets snapshotted
+        either way, and scene/settings/tolerance/version are still written because
+        they do not come from `_data`.
+
+        That last one makes the snapshot exactly the working copy, which is the rule
+        already in force: mutate something reached through `session[...]` and you
+        must re-set the key or it is not on disk at all (hence `save_problems`).
+        Anything breaking that rule was already missing from `data/`. It is skipped
+        when `autosync` is off, because then the working copy really is stale and
+        the full dump is the only thing writing it.
+
+        **4. The scene is serialized too, and nothing ever reads it.** A snapshot
+        deliberately carries an EMPTY `_scene.json` — see the comment on the swap
+        below for why, and for how to reverse the decision.
+        """
+        import shutil
+
+        before = {record for record, _ in self.history}
+
+        # A SNAPSHOT DELIBERATELY CARRIES AN EMPTY SCENE.
+        #
+        # `_scene.json` has no reader. The `scene` property only loads the file when
+        # `_scene` is falsy, an empty Scene is truthy (it defines neither `__len__`
+        # nor `__bool__`), and `__new__` always assigns one — so that branch can
+        # never fire. And the restore rebuilds the scene from the data on purpose,
+        # because `Scene.__data__` re-serializes the ITEMS: reloading it would give
+        # every scene object a COPY of the model's block instead of the block
+        # itself, and lose `layer` and `group` besides (§8.4 of the primer).
+        #
+        # Writing the real one therefore costs a full object-graph walk over every
+        # block, at roughly twice the bytes of the model (12.7 MB against 6.5 MB on
+        # a real file), on every single command, for a file nothing will ever open.
+        # An empty scene keeps the path present so `undo()`'s `shutil.copy` of it
+        # cannot raise FileNotFoundError, and costs nothing to produce.
+        #
+        # TO REVERSE THIS — if a snapshot is ever wanted to carry a real scene —
+        # delete the two swap lines below and their `finally`, leaving:
+        #
+        #     if self.settings.autosync:
+        #         data, self._data = self._data, {}
+        #         try:
+        #             super().record(name)
+        #         finally:
+        #             self._data = data
+        #     else:
+        #         super().record(name)
+        #
+        # That alone only makes the file real again; ACTUALLY restoring from it
+        # additionally needs `_restore_data`/`_redraw_state` to call `load_scene()`
+        # and then relink every scene object's item to the matching data item by
+        # guid, and reassign `layer` and `group` — the work §8.4 explains and the
+        # reason the scene is rebuilt rather than reloaded in the first place.
+        # The replacement inherits the live scene's context rather than letting
+        # `Scene()` re-detect it: detection reaches for `scriptcontext.doc`, which
+        # is a Rhino global, and the context is a property of the session rather
+        # than of this one throwaway object.
+        scene = self._scene
+        self._scene = self.sceneclass(context=scene.context)
+        try:
+            if self.settings.autosync:
+                data, self._data = self._data, {}
+                try:
+                    super().record(name)
+                finally:
+                    self._data = data
+            else:
+                super().record(name)
+        finally:
+            self._scene = scene
+
+        for dropped in before - {record for record, _ in self.history}:
+            shutil.rmtree(self.recordsdir / dropped, ignore_errors=True)
+
+        self.dump_history()
+
+    def ensure_baseline(self) -> None:
+        """Record an "Initial state" snapshot if history is empty.
+
+        `undo()` refuses at `current == 0`, so the oldest entry in history is a
+        floor rather than a destination — it can never be returned to. Without a
+        baseline recorded before the first change, the first command of a session
+        is therefore permanently un-undoable.
+
+        Call at the TOP of a recording command, before it mutates anything: the
+        baseline has to capture the state as it was BEFORE the first action, which
+        is why it cannot be folded into the `record()` at the end.
+        """
+        if not self.history:
+            self.record("Initial state")
+
+    def undo(self) -> bool:
+        """Step one state back, and rebuild memory and the document to match.
+
+        Returns
+        -------
+        bool
+            False if there was nothing to undo, in which case nothing was touched.
+
+        """
+        if not super().undo():
+            return False
+        self._restore_state()
+        return True
+
+    def redo(self) -> bool:
+        """Step one state forward, and rebuild memory and the document to match.
+
+        Returns
+        -------
+        bool
+            False if there was nothing to redo, in which case nothing was touched.
+
+        """
+        if not super().redo():
+            return False
+        self._restore_state()
+        return True
+
+    def _restore_state(self) -> None:
+        """Rebuild memory and the Rhino document from the record now on disk.
+
+        Called after the parent's undo/redo has swapped the files. Split in two,
+        because the half that can silently destroy data needs no Rhino and the
+        half that needs Rhino cannot destroy anything: `_restore_data` is
+        therefore testable headless, and `tests/test_session_history.py` pins it.
+        """
+        self._restore_data()
+        self._redraw_state()
+
+    def _restore_data(self) -> None:
+        """Reload the session from the record now on disk. No Rhino, no drawing.
+
+        The order is not arbitrary:
+
+        1. Drop the in-memory cache, so the next `get()` re-reads a restored file
+           instead of returning the object from before the step.
+        2. Prime every session key straight away — see the warning below.
+        3. Rebuild settings explicitly, because `load_settings()` cannot.
+        4. Rebind every problem to the restored model.
+
+        """
+        import compas
+
+        self._data.clear()
+
+        # PRIME BEFORE TOUCHING ANY PROPERTY. `setdefault` — which the `problems`
+        # property calls — does NOT consult the disk:
+        #
+        #     if key not in self.data:
+        #         self.set(key, factory())
+        #
+        # so reading `self.problems` while the cache is empty would `set()` a fresh
+        # empty dict and autosync it straight over the problems.json just restored,
+        # silently destroying every problem the undo brought back. `get()` is the
+        # only accessor that falls through to the file, so it has to run first.
+        for key in self.SESSION_KEYS:
+            self.get(key)
+
+        # `dump()` writes `settings.model_dump()`, a plain dict, but `load_settings()`
+        # hands that straight to the `settings` setter, which requires a settingsclass
+        # instance and raises ValueError. So the instance is constructed here rather
+        # than calling load_settings().
+        if self.settingsfile.exists():
+            self._settings = self.settingsclass(**compas.json_load(self.settingsfile))
+
+        # A Problem serializes as a guid REFERENCE to its model, so every problem
+        # comes back unbound and `problem.model` raises until the real object is
+        # handed over. Same call Session_import makes, same reason.
+        model = self.get("blockmodel")
+        if model is not None:
+            for problem in self.problems.values():
+                problem._bind_model(model)
+
+    def _redraw_state(self) -> None:
+        """Empty the document and redraw it from the restored session data.
+
+        `_clear_document`, not `clear_all`: the data has just been restored and
+        `clear_all` would delete the very keys and files this is drawing from.
+        """
+        import rhinoscriptsyntax as rs  # type: ignore
+
+        self._clear_document()
+
+        model = self.get("blockmodel")
+        if model is not None:
+            self.draw_model()
+
+        for name in self.problems:
+            self.ensure_indexed_problem_layer(name)
+            self.draw_problem_conditions(name, model)
+
+        self.draw_shown_results(model)
+
+        rs.Redraw()
+
+    def draw_shown_results(self, model=None) -> int:
+        """Redraw the result geometry `Results_show` had on screen.
+
+        Result geometry is the one thing a restore cannot infer from the data.
+        Solving draws nothing — `Results_show` does, and it takes choices (which
+        result keys, and Forces / Displaced / Both) that live nowhere but in the
+        document. `_clear_document` destroys the document. So `Results_show`
+        records what it drew under "shown_results", and this replays it.
+
+        Keys that are not in the restored `results` are skipped rather than
+        reported: undoing to before a solve is *supposed* to take its geometry
+        with it, and the key naming it survives only because it is a record of
+        intent, not of data.
+
+        The fade is not recorded. `fade_model()` defaults its amount to
+        `settings.blockmodel.results_model_transparency`, which is where the
+        setting belongs and where it is heading.
+
+        Returns
+        -------
+        int
+            The number of result objects drawn.
+
+        """
+        shown = self.get("shown_results") or {}
+        model = model or self.get("blockmodel")
+        if not shown or model is None:
+            return 0
+
+        stored = self.get("results") or {}
+
+        drawn = 0
+        for problem_name, view in shown.items():
+            available = stored.get(problem_name) or {}
+            mode = view.get("mode", "Forces")
+            for key in view.get("keys", []):
+                results = available.get(key)
+                if results is None:
+                    continue
+                if mode in ("Forces", "Both"):
+                    drawn += self.draw_result_forces(problem_name, results, model, key=key)
+                if mode in ("Displaced", "Both"):
+                    drawn += self.draw_results(problem_name, results, model, key=key)
+
+        if drawn:
+            # the blocks were just redrawn by draw_model, so they carry their layer
+            # colour again and the fade has to be re-applied on top
+            self.fade_model()
+
+        return drawn
 
     def set_model(self, model) -> None:
         """Install `model` as the session BlockModel and draw it.
@@ -389,6 +709,7 @@ class MasonrySession(LazyLoadSession):
 
     # Display scales now live in settings.blockmodel (scale_loads /
     # scale_gravity / scale_displacement) so they're tunable in Session_settings.
+
     @property
     def _scales(self):
         bm = self.settings.blockmodel
@@ -930,6 +1251,54 @@ class MasonrySession(LazyLoadSession):
                 )
 
         rs.Redraw()
+
+    def count_results(self) -> int:
+        """How many result sets are stored, across every problem.
+
+        `results` is `{problem_name: {result_key: Results}}`, so the count is the
+        number of solver runs held, not the number of problems.
+        """
+        stored = self.get("results") or {}
+        return sum(len(sets) for sets in stored.values())
+
+    def clear_results(self) -> int:
+        """Delete every stored result set, and the Rhino geometry drawn from it.
+
+        Called when something invalidates the results rather than merely changing
+        them — recomputing contacts, for one: a `Results` is keyed by graph node
+        index and by `"u,v"` edge strings, so rebuilding the interaction graph
+        voids every result derived from the old one, while `model_id` still
+        matches because it IS the same model.
+
+        Deleting the session key is not enough on its own. Result geometry is
+        drawn as raw Rhino objects onto the Results layers (`draw_results`,
+        `draw_result_forces`), not through the scene, so the key alone would
+        leave displaced blocks and force lines in the document with no data
+        behind them — and `Session_clear` is the only other thing that would
+        ever sweep them.
+
+        Returns
+        -------
+        int
+            The number of result sets deleted.
+
+        """
+        from compas_rhino.layers import delete_layers
+
+        stored = self.get("results") or {}
+        count = sum(len(sets) for sets in stored.values())
+
+        layers = [self.results_layer(name) for name in stored]
+        if layers:
+            # Rhino refuses to delete the current layer, and the user has very
+            # likely just been looking at a result.
+            self._release_current_layer()
+            delete_layers(layers)
+
+        self.delete("results")
+        # the record of what was on screen cannot outlive the results it names
+        self.delete("shown_results")
+        return count
 
     def draw_results(self, problem_name, results, model=None, key=None) -> int:
         """Draw the displaced geometry of a Results object under its problem.

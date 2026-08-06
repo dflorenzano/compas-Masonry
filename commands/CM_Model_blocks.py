@@ -94,6 +94,11 @@ def get_json():
 def RunCommand():
     session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
+    # Before `clear_model`, not after: that call is already a change, and it runs
+    # before the user has picked anything, so a baseline taken later would make
+    # the clear itself un-undoable.
+    session.ensure_baseline()
+
     session.clear_model()
 
     option = choose("BlockModel", ["Arch", "Dome", "BarrelVault", "RhinoMeshes", "RhinoPolysurfaces", "Json"])
@@ -136,6 +141,7 @@ def RunCommand():
     session.set_model(model)
 
     rs.Redraw()
+    session.record(f"BlockModel: {option}")
 
 
 # =============================================================================

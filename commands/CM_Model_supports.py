@@ -45,6 +45,10 @@ def RunCommand():
         nodes = {n for n in (session.find_node(g, guid_element_map) for g in guids) if n is not None}
         if not nodes:
             return warn("No blocks resolved from the selection.")
+        # after the last bail-out, before the first change: the baseline has to
+        # capture the state as it was BEFORE this command, or the first action of
+        # a session can never be undone (undo refuses at the oldest record).
+        session.ensure_baseline()
         # go through the model's own API rather than setting is_support by hand:
         # supports are a model concern and this is where compas_dem keeps them
         if option == "Add":
@@ -55,6 +59,7 @@ def RunCommand():
         print(f"{option}: {len(nodes)} support(s).")
 
     elif option == "Clear":
+        session.ensure_baseline()
         for node in list(model.graph.nodes()):
             if model.graph.node_element(node).is_support:
                 model.remove_support(node)
@@ -63,6 +68,7 @@ def RunCommand():
     session["blockmodel"] = model
     session.sync_support_layers()
     session.redraw()
+    session.record(f"Supports: {option}")
 
 
 # `refresh_problems` lived here. Supports used to be copied onto every Problem at

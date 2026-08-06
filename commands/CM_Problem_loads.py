@@ -348,6 +348,10 @@ def RunCommand():
     if option is None:
         return
 
+    # `add_load` / `remove_load` mutate the problem before reporting back, so the
+    # baseline has to be taken here rather than behind the `changed` gate.
+    session.ensure_baseline()
+
     if option == "Add":
         values = ask_load(problem)
         if values is None:
@@ -361,6 +365,7 @@ def RunCommand():
 
     session.save_problems()
     session.draw_problem_conditions(name, model)
+    session.record(f"{name}: {option.lower()} load")
 
 
 # =============================================================================

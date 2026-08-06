@@ -29,7 +29,13 @@ def RunCommand():
     session["params"] = {}
     session.clear_all()
 
+    # History goes with it. Records pointing at a model that has just been deleted
+    # are worse than no history: undo would restore a model the user cleared on
+    # purpose, into a document that no longer has its layers.
+    session.clear_history()
+
     print("Session cleared: model, problems, boundary conditions, results, and every Masonry layer.")
+    print("Undo history cleared too — a cleared session cannot be undone.")
 
 
 # =============================================================================

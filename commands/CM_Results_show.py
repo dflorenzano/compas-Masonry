@@ -165,8 +165,20 @@ def RunCommand():
     if fade is None:
         return
 
+    # after the last bail-out, before the first change — see Session_undo
+    session.ensure_baseline()
+
     for key in selected:
         show(session, model, name, key, results[key], mode)
+
+    # Record WHAT is on screen. Solving draws nothing and this command's choices
+    # (which keys, and Forces/Displaced/Both) exist nowhere else — so without this
+    # an undo, which clears the whole layer tree before redrawing, silently threw
+    # the result view away with no means of rebuilding it. Kept per problem, so
+    # showing results for a second problem does not forget the first.
+    shown = session.get("shown_results") or {}
+    shown[name] = {"keys": list(selected), "mode": mode}
+    session["shown_results"] = shown
 
     amount = session.settings.blockmodel.results_model_transparency if fade == "Fade" else 0.0
     try:
@@ -177,6 +189,12 @@ def RunCommand():
             print(f"{touched} block object(s) restored to their layer colour.")
     except Exception as e:
         warn(f"The results are drawn, but the blocks could not be faded: {e}")
+
+    # Showing results IS a state change, because `shown_results` above is the only
+    # record of what is on screen. Without recording here it never reaches a
+    # snapshot, and the first undo deletes it along with the rest of the working
+    # copy — which is exactly how the result view went missing the first time.
+    session.record(f"Show results: {name} ({mode})")
 
 
 # =============================================================================

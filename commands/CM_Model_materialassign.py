@@ -65,9 +65,13 @@ def RunCommand():
     if not elements:
         return warn("No blocks resolved from the selection.")
 
+    # after the last bail-out, before the first change — see Session_undo
+    session.ensure_baseline()
+
     model.assign_material(material, elements=elements)
     session["blockmodel"] = model
     session.redraw()
+    session.record(f"Assign material: {material_label(material)}")
 
 
 # =============================================================================

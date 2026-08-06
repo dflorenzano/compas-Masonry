@@ -84,12 +84,18 @@ def RunCommand():
     if option is None:
         return
 
+    # `set_contact_law` / `set_joint_model` prompt further and may be cancelled,
+    # so this can fire for a command that changes nothing — at most one extra
+    # snapshot per session, since `ensure_baseline` is a no-op after the first.
+    session.ensure_baseline()
+
     if option == "ContactLaw":
         set_contact_law(problem)
     elif option == "JointModel":
         set_joint_model(problem)
 
     session.save_problems()
+    session.record(f"{name}: {option}")
 
 
 # =============================================================================
