@@ -906,9 +906,10 @@ class MasonrySession(LazyLoadSession):
 
         if source is not None:
             # Data.copy() round-trips through JSON -> deep copy with a fresh guid.
-            # `boundary_conditions` is a LIST, so copy each BC rather than the list
-            # (list.copy() would share the BC objects).
-            problem._boundary_conditions = [bc.copy() for bc in source.boundary_conditions]
+            # `boundary_conditions` is a LIST of BoundaryConditionGroups, so copy
+            # each group rather than the list (list.copy() would share the groups,
+            # and editing the duplicate would edit the original).
+            problem._boundary_conditions = [group.copy() for group in source.boundary_conditions]
             problem._contact_properties = source.contact_properties.copy()
             problem._solver = source._solver.copy() if source._solver else None
 
@@ -1048,61 +1049,13 @@ class MasonrySession(LazyLoadSession):
                     rs.RenameLayer(layer, target)
                     break
 
-    def choose_boundary_condition(self, problem, message="Boundary condition"):
-        """Print the boundary conditions of a problem and prompt for one.
-
-        Replaces `choose_bc`. There is no BC container to pick any more — this
-        picks one *entry*, which is what Remove operations need.
-
-        Returns
-        -------
-        tuple[int, object] or None
-            (index, boundary condition), or None if there are none / cancelled.
-
-        """
-        import rhinoscriptsyntax as rs  # type: ignore
-
-        from compas_masonry.boundaryconditions import bc_labels
-
-        conditions = problem.boundary_conditions
-        if not conditions:
-            return None
-
-        labels = bc_labels(problem)
-        for label in labels:
-            print(label)
-        label = rs.ListBox(labels, message=message, title="Boundary conditions")
-        if not label:
-            return None
-        index = int(label.split(":")[0])
-        return index, conditions[index]
-
-    def choose_boundary_conditions(self, problem, message="Boundary conditions"):
-        """Pick several boundary conditions at once (for bulk removal).
-
-        `choose_bcs` used to pick which BCs to *solve*. That selection is gone —
-        every boundary condition on a problem is solved, and a different set means
-        a different problem — so this is only used for editing now.
-
-        Returns
-        -------
-        list[tuple[int, object]] or None
-
-        """
-        import rhinoscriptsyntax as rs  # type: ignore
-
-        from compas_masonry.boundaryconditions import bc_labels
-
-        conditions = problem.boundary_conditions
-        if not conditions:
-            return None
-
-        selected = rs.MultiListBox(bc_labels(problem), message=message, title="Boundary conditions")
-        if not selected:
-            return None
-
-        indices = sorted(int(label.split(":")[0]) for label in selected)
-        return [(i, conditions[i]) for i in indices]
+    # `choose_boundary_condition` and `choose_boundary_conditions` lived here and
+    # were deleted on 2026-08-07 with the move to BoundaryConditionGroup. They had
+    # NO callers by then: both indexed the problem's flat list of conditions, which
+    # is now a list of groups, and the two commands that remove things
+    # (Problem_loads, Problem_displacements) build their own pick lists — they need
+    # the (group, condition) pair to remove one, which a flat index cannot give.
+    # `boundaryconditions.group_labels` / `bc_labels` are the label builders.
 
     def bc_parent_layer(self, problem_name) -> str:
         """Grouping layer for a problem's conditions: "…::BoundaryConditions"."""
@@ -1212,29 +1165,33 @@ class MasonrySession(LazyLoadSession):
     def draw_problem_conditions(self, problem_name, model=None) -> None:
         """Clear and redraw every boundary condition of a problem.
 
-        Replaces `draw_bc` / `draw_problem_bcs`. A problem IS the load case, so
-        there is nothing to iterate above the conditions themselves.
+        One Rhino layer per `BoundaryConditionGroup`, at
+        "…::BoundaryConditions::<group name>" — the group IS the display grouping,
+        so nothing session-side tracks which condition belongs where.
 
-        Loads become arrows under "…::BoundaryConditions::Loads"; prescribed
-        movements become arrows (translation) and circles around the rotation axis
-        (rotation) under "…::BoundaryConditions::Displacements". No displaced copy
-        of the geometry is drawn — that is what Results_show does.
+        Loads become arrows; a moment and a prescribed rotation become circles
+        about their axis. No displaced copy of the geometry is drawn — that is
+        what Results_show does.
 
-        Dispatch is on the CLASS of each condition, which is where the meaning now
-        lives. Supports are not drawn here at all: they are a model concern
+        Dispatch is on the CLASS of each condition, with one exception: a moment
+        is a `PointLoad` carrying a `moment` and a zero force (that is what
+        `add_moment` builds), so `is_moment` is what separates the two.
+
+        Supports are not drawn here at all: they are a model concern
         (`Block.is_support`) and are already drawn red on the model layer.
         """
         import rhinoscriptsyntax as rs  # type: ignore
 
-        from compas_masonry.boundaryconditions import anchor_point
         from compas_masonry.boundaryconditions import components
-        from compas_masonry.boundaryconditions import group_name
+        from compas_masonry.boundaryconditions import is_moment
+        from compas_masonry.boundaryconditions import load_point
+        from compas_masonry.boundaryconditions import loads_of
 
         problem = self.problems.get(problem_name)
         if problem is None:
             return
 
-        model = model or self.get("blockmodel")
+        model = model or self.model
         if model is None:
             return
 
@@ -1244,101 +1201,92 @@ class MasonrySession(LazyLoadSession):
         gravity_scale, load_scale, disp_scale = self._scales
         blocks = {block.graphnode: block for block in model.elements()}
 
-        # One layer per GROUP, created on first use. The group is the condition's
-        # own name, so "add to Wind" and "add to Live" land on different layers
-        # without anything session-side tracking which is which.
-        group_layers = {}
-
-        def layer_for(bc):
-            group = group_name(bc)
-            if group not in group_layers:
-                group_layers[group] = self.ensure_bc_sublayer(problem_name, group)
-            return group_layers[group]
-
-        for bc in problem.loads:
-            loads_layer = layer_for(bc)
-            kind = type(bc).__name__
-
-            # --- BodyForce: global, so drawn once at the world origin ---------
-            if kind == "BodyForce":
-                self._draw_bc_vector(
-                    loads_layer,
-                    "body_force",
-                    [0.0, 0.0, 0.0],
-                    [a * gravity_scale for a in bc.acceleration],
-                    {"acceleration": bc.acceleration, "loading_type": bc.loading_type},
-                )
+        for group in problem.boundary_conditions:
+            # An empty group draws nothing and gets no layer — `prune_bc_group_layers`
+            # would remove it again anyway, and a layer that appears and vanishes as
+            # a group fills up is worse than one that appears when there is something
+            # in it.
+            if not loads_of(group) and not group.displacements:
                 continue
+            layer = self.ensure_bc_sublayer(problem_name, group.name)
 
-            block = blocks.get(bc.block)
-            if block is None:
-                continue
+            for bc in loads_of(group):
+                kind = type(bc).__name__
 
-            # --- PointLoad: at its resolved anchor ----------------------------
-            if kind == "PointLoad":
-                origin = anchor_point(bc, block)
-                if origin is None:
+                # --- BodyForce: global, so drawn once at the world origin -----
+                if kind == "BodyForce":
+                    self._draw_bc_vector(
+                        layer,
+                        "body_force",
+                        [0.0, 0.0, 0.0],
+                        [a * gravity_scale for a in bc.acceleration],
+                        {"acceleration": bc.acceleration, "loading_type": bc.loading_type},
+                    )
                     continue
-                self._draw_bc_vector(
-                    loads_layer,
-                    "point_load",
-                    origin,
-                    [f * load_scale for f in bc.force],
-                    {
-                        "force": bc.force,
-                        "anchor": bc.anchor,
-                        "anchor_value": bc.anchor_value,
-                        "loading_type": bc.loading_type,
-                    },
-                )
 
-            # --- Moment: a circle about its axis, like a prescribed rotation ---
-            elif kind == "Moment":
-                self._draw_rotation_circle(
-                    loads_layer,
-                    list(block.modelgeometry.centroid()),
-                    [m * load_scale for m in bc.moment],
-                    1.0,
-                    kind="moment",
-                    color=self.COLOR_FORCE,
-                )
+                block = blocks.get(bc.block_index)
+                if block is None:
+                    continue
 
-            # --- SurfaceLoad: the loaded face, plus a traction arrow ----------
-            elif kind == "SurfaceLoad":
-                params = {"traction": bc.traction, "face_index": bc.face, "loading_type": bc.loading_type}
-                # the face itself, so which face carries the load is visible —
-                # the arrow alone does not show that
-                self._draw_bc_face(loads_layer, "surface_load_face", block, bc.face, params)
-                self._draw_bc_vector(
-                    loads_layer,
-                    "surface_load",
-                    list(block.modelgeometry.face_centroid(bc.face)),
-                    [f * load_scale for f in bc.traction],
-                    params,
-                )
+                # --- Moment: a circle about its axis, like a rotation ---------
+                if is_moment(bc):
+                    self._draw_rotation_circle(
+                        layer,
+                        list(block.modelgeometry.centroid()),
+                        [m * load_scale for m in bc.moment],
+                        1.0,
+                        kind="moment",
+                        color=self.COLOR_FORCE,
+                    )
 
-        for bc in problem.displacements:
-            block = blocks.get(bc.block)
-            if block is None:
-                continue
+                # --- PointLoad: at the point it was resolved to ---------------
+                elif kind == "PointLoad":
+                    origin = load_point(bc, block)
+                    if origin is None:
+                        continue
+                    self._draw_bc_vector(
+                        layer,
+                        "point_load",
+                        origin,
+                        [f * load_scale for f in bc.force],
+                        {"force": bc.force, "point": bc.point, "loading_type": bc.loading_type},
+                    )
 
-            disp_layer = layer_for(bc)
-            origin = list(block.modelgeometry.centroid())
-            # unconstrained (None) components draw as 0.0, never written back
-            vector = components(bc)
-            if not any(vector):
-                continue
+                # --- SurfaceLoad: the loaded face, plus a load arrow ----------
+                elif kind == "SurfaceLoad":
+                    params = {"load": bc.load, "face_index": bc.face_index, "loading_type": bc.loading_type}
+                    # the face itself, so which face carries the load is visible —
+                    # the arrow alone does not show that
+                    self._draw_bc_face(layer, "surface_load_face", block, bc.face_index, params)
+                    self._draw_bc_vector(
+                        layer,
+                        "surface_load",
+                        list(block.modelgeometry.face_centroid(bc.face_index)),
+                        [f * load_scale for f in bc.load],
+                        params,
+                    )
 
-            if type(bc).__name__ == "Rotation":
-                self._draw_rotation_circle(disp_layer, origin, vector, disp_scale)
-            else:
-                self._draw_bc_vector(
-                    disp_layer,
-                    "displacement",
-                    origin,
-                    [v * disp_scale for v in vector],
-                    {"components": list(getattr(bc, "components", vector))},
-                )
+            for bc in group.displacements:
+                block = blocks.get(bc.block_index)
+                if block is None:
+                    continue
+
+                origin = list(block.modelgeometry.centroid())
+                # unconstrained (None) components draw as 0.0, never written back
+                vector = components(bc)
+                if not any(vector):
+                    continue
+
+                if type(bc).__name__ == "Rotation":
+                    self._draw_rotation_circle(layer, origin, vector, disp_scale)
+                else:
+                    self._draw_bc_vector(
+                        layer,
+                        "displacement",
+                        origin,
+                        [v * disp_scale for v in vector],
+                        {"translation": list(bc.translation)},
+                    )
 
         rs.Redraw()
 

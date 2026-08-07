@@ -4,18 +4,23 @@
 
 """Problem_displacements — prescribed displacements and rotations on a Problem.
 
-Same shape as Problem_loads, on the 2026-08 compas_dem API: a prescribed movement
-is a typed object (`Translation`, `Rotation`) registered directly on the problem.
-There is no BoundaryCondition container to pick — a problem IS the load case.
+Same shape as Problem_loads: a prescribed movement is a typed object
+(`Translation`, `Rotation`) held by a `BoundaryConditionGroup`, and the group is
+chosen in the same window as the movement — extend an existing one, or New. Each
+group gets one layer under "…::BoundaryConditions::<group>".
 
-Movements are *grouped* for display by their own name — "Displacement_1",
-"Settlement" — one layer each under "…::BoundaryConditions::<group>". The group
-is chosen in the same window as the movement: extend an existing one, or New.
+**Only DISPLACEMENT groups are offered here**, and Problem_loads offers only the
+load ones. See Problem_loads' docstring for what that split is and is not.
 
 `Translation` takes dx/dy/dz **per component**, where `None` means "this DOF is
 unconstrained" — which is not the same as prescribing 0.0. The window mirrors
 that: a Constrain toggle per axis, and an axis's value appears only when that
-axis is constrained. `Rotation` is the same, with rx/ry/rz.
+axis is constrained.
+
+`Rotation` does NOT work that way: it takes one rotation vector, and
+`add_rotation` has no per-component None. An axis left free here is written as
+0.0, so a rotation prescribes all three components whether you set them or not.
+The toggles are kept for symmetry of the window, but that is what they mean.
 
 Visualization: NO displaced copy of the geometry. A prescribed translation is an
 arrow, a prescribed rotation a circle around its axis. Results_show is what draws
@@ -39,12 +44,12 @@ import rhinoscriptsyntax as rs  # type: ignore
 
 import compas_rhino.objects
 from compas_dem.models import BlockModel
-from compas_dem.problem import Rotation
-from compas_dem.problem import Translation
 from compas_masonry.boundaryconditions import describe
-from compas_masonry.boundaryconditions import group_name
 from compas_masonry.boundaryconditions import group_names
+from compas_masonry.boundaryconditions import groups_of_kind
 from compas_masonry.boundaryconditions import next_group_name
+from compas_masonry.boundaryconditions import remove_condition
+from compas_masonry.boundaryconditions import remove_group
 from compas_masonry.inputs import Options
 from compas_masonry.inputs import choose
 from compas_masonry.session import MasonrySession as Session
@@ -71,14 +76,15 @@ def warn_if_solver_cannot_apply(problem) -> None:
     Better here than at solve time: the user is about to spend effort defining
     something the configured solver cannot use.
     """
-    solver = problem.solver
+    solver = Session.solver_of(problem)
     name = getattr(solver, "name", None)
     if name is None:
         print("No solver set yet. Note that CRA and RBE cannot apply prescribed movements — use LMGC90, PRD or BLA.")
         return
     if name not in DISPLACEMENT_SOLVERS:
-        warn(f"{name} cannot apply prescribed movements: it has no displacement degrees of freedom for support blocks.")
-        print(f"  The movement will be stored, but solving with {name} will refuse it.")
+        warn(f"{name} applies no boundary conditions at all: it solves self-weight equilibrium and never reads them.")
+        print(f"  The movement will be stored, but Problem_solve REFUSES to run {name} on a problem that carries one —")
+        print("  otherwise it would return a self-weight answer that silently ignored it.")
         print(f"  Applying one needs {', '.join(DISPLACEMENT_SOLVERS)} — set it in Problem_setsolver.")
 
 
@@ -116,47 +122,88 @@ def ask_movement(problem):
     if values is None:
         return None
 
-    group = values["newgroup"].strip() if values["group"] == NEW else values["group"]
-    if not group:
-        warn("A movement group needs a name.")
-        return None
-    values["group"] = group
+    # `group` stays the SELECTOR (NEW, or an existing group's name); `newgroup`
+    # carries the normalized name. See the same spot in CM_Problem_loads.
+    if values["group"] == NEW:
+        name = values["newgroup"].strip()
+        if not name:
+            warn("A movement group needs a name.")
+            return None
+        values["newgroup"] = name
     return values
 
 
-def add_movement(session, model, problem, values):
-    group = values["group"]
+def resolve_group(problem, values):
+    """The BoundaryConditionGroup to write into: an existing one, or a new one.
 
+    Called after the block selection, never before: `add_boundary_condition`
+    registers the group straight away, so creating it first and then cancelling
+    the selection would leave an empty group holding the name.
+    """
+    name = values["group"]
+
+    if name != NEW:
+        for group in groups_of_kind(problem, "displacement"):
+            if group.name == name:
+                return group
+        warn(f"Movement group [{name}] is no longer on this problem.")
+        return None
+
+    try:
+        return problem.add_boundary_condition(values["newgroup"])
+    except ValueError as e:
+        # names are unique across the whole problem, load groups included
+        warn(str(e))
+        return None
+
+
+def add_movement(session, model, problem, values):
     nodes = selected_nodes(session, model, "Select blocks to prescribe a movement on")
     if not nodes:
         return False
 
     if values["kind"] == "Translation":
         # None where the axis is unconstrained — never 0.0, which would prescribe
-        # a movement of exactly zero and pin the block
+        # a movement of exactly zero and pin the block. `add_displacement` passes
+        # the list straight through as dx/dy/dz, so the Nones survive.
         components = {axis: (values[f"d{axis}"] if values[f"use_{axis}"] else None) for axis in ("x", "y", "z")}
         if all(v is None for v in components.values()):
             warn("Every axis is free, so there is nothing to prescribe.")
             return False
+        group = resolve_group(problem, values)
+        if group is None:
+            return False
+        displacement = [components["x"], components["y"], components["z"]]
         for node in nodes:
-            problem.add(Translation(block=node, dx=components["x"], dy=components["y"], dz=components["z"], name=group))
-        print(f"Added a prescribed translation on {len(nodes)} block(s) to [{group}].")
+            problem.add_displacement(block_index=node, displacement=displacement, boundary_condition=group)
+        print(f"Added a prescribed translation on {len(nodes)} block(s) to [{group.name}].")
     else:
         components = {axis: (values[f"r{axis}"] if values[f"use_r{axis}"] else None) for axis in ("x", "y", "z")}
         if all(v is None for v in components.values()):
             warn("Every axis is free, so there is nothing to prescribe.")
             return False
+        group = resolve_group(problem, values)
+        if group is None:
+            return False
+        # `Rotation` takes one vector rather than per-component values, and
+        # `add_rotation` does not accept None — an unconstrained axis is 0.0 here
+        rotation = [0.0 if components[axis] is None else components[axis] for axis in ("x", "y", "z")]
         for node in nodes:
-            problem.add(Rotation(block=node, rx=components["x"], ry=components["y"], rz=components["z"], name=group))
-        print(f"Added a prescribed rotation on {len(nodes)} block(s) to [{group}].")
+            problem.add_rotation(block_index=node, rotation=rotation, boundary_condition=group)
+        print(f"Added a prescribed rotation on {len(nodes)} block(s) to [{group.name}].")
 
     warn_if_solver_cannot_apply(problem)
     return True
 
 
 def remove_movement(problem):
-    movements = problem.displacements
-    if not movements:
+    """Remove movements, one at a time or a whole group at once.
+
+    Same rule as Problem_loads: removing a group removes the group object and
+    frees its name; removing one movement leaves the group standing.
+    """
+    groups = groups_of_kind(problem, "displacement")
+    if not groups:
         warn("This problem carries no prescribed movements.")
         return False
 
@@ -164,34 +211,38 @@ def remove_movement(problem):
     if scope is None:
         return False
 
-    conditions = problem.boundary_conditions
+    names = [group.name for group in groups]
 
     if scope == "Group":
-        groups = group_names(problem, "displacement")
-        group = groups[0] if len(groups) == 1 else rs.ListBox(groups, message="Movement group to remove", title="Displacements")
-        if not group:
+        name = names[0] if len(names) == 1 else rs.ListBox(names, message="Movement group to remove", title="Displacements")
+        if not name:
             return False
-        doomed = [bc for bc in movements if group_name(bc) == group]
-        for bc in doomed:
-            conditions.remove(bc)
-        print(f"Removed {len(doomed)} prescribed movement(s) in group [{group}].")
+        group = groups[names.index(name)]
+        count = len(group.displacements)
+        remove_group(problem, group)
+        print(f"Removed group [{name}] and the {count} prescribed movement(s) in it.")
         return True
 
-    labels = [f"{i}: [{group_name(bc)}] {describe(bc)}" for i, bc in enumerate(movements)]
+    entries = [(group, bc) for group in groups for bc in group.displacements]
+    if not entries:
+        warn("This problem carries no prescribed movements.")
+        return False
+
+    labels = [f"{i}: [{group.name}] {describe(bc)}" for i, (group, bc) in enumerate(entries)]
     label = rs.ListBox(labels, message="Prescribed movement to remove", title="Displacements")
     if not label:
         return False
 
-    bc = movements[int(label.split(":")[0])]
-    conditions.remove(bc)
-    print(f"Removed {describe(bc)}")
+    group, bc = entries[int(label.split(":")[0])]
+    remove_condition(group, bc)
+    print(f"Removed {describe(bc)} from [{group.name}]")
     return True
 
 
 def RunCommand():
     session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
-    model: BlockModel = session.get("blockmodel")
+    model: BlockModel = session.model
     if model is None:
         return warn("No existing BlockModel in session. Please create one first.")
     if not session.problems:
@@ -221,7 +272,7 @@ def RunCommand():
     if not changed:
         return
 
-    session.save_problems()
+    session.save_analysis()
     session.draw_problem_conditions(name, model)
     session.record(f"{name}: {option.lower()} prescribed movement")
 

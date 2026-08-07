@@ -6,15 +6,17 @@
 
 Renamed from Problem_addload, and rebuilt on the 2026-08 compas_dem API.
 
-**A problem IS the load case.** There is no BoundaryCondition container to pick
-any more: a load is a typed object (`PointLoad`, `Moment`, `SurfaceLoad`,
-`BodyForce`) registered directly on the problem. Solving applies every one of
-them; a different set of loads means a different problem.
+**A load belongs to a boundary condition group.** compas_dem's
+`BoundaryConditionGroup` collects the conditions that act together; a problem
+holds several, and solving applies all of them. The group is chosen in the same
+window as the load itself: pick an existing one to extend it, or New to start
+another. Each group gets its own layer under "…::BoundaryConditions::<group>".
 
-Loads are still *grouped* for display, by their own name — "Load_1", "Wind" —
-and each group gets its own layer under "…::BoundaryConditions::<group>". The
-group is chosen in the same window as the load itself: pick an existing one to
-extend it, or New to start another.
+**Only LOAD groups are offered here**, and Problem_displacements offers only the
+displacement ones — so the two kinds never share a group. That split is a plugin
+convention enforced in these two commands and in `boundaryconditions.group_kind`;
+compas_dem itself is happy to hold both in one group, and a group built from a
+script that does is drawn correctly and simply offered in one of the two.
 
 Load types:
 
@@ -47,14 +49,13 @@ import rhinoscriptsyntax as rs  # type: ignore
 
 import compas_rhino.objects
 from compas_dem.models import BlockModel
-from compas_dem.problem import BodyForce
-from compas_dem.problem import Moment
-from compas_dem.problem import PointLoad
-from compas_dem.problem import SurfaceLoad
 from compas_masonry.boundaryconditions import describe
-from compas_masonry.boundaryconditions import group_name
 from compas_masonry.boundaryconditions import group_names
+from compas_masonry.boundaryconditions import groups_of_kind
+from compas_masonry.boundaryconditions import loads_of
 from compas_masonry.boundaryconditions import next_group_name
+from compas_masonry.boundaryconditions import remove_condition
+from compas_masonry.boundaryconditions import remove_group
 from compas_masonry.inputs import Options
 from compas_masonry.inputs import choose
 from compas_masonry.session import MasonrySession as Session
@@ -210,18 +211,55 @@ def ask_load(problem):
     if values is None:
         return None
 
-    group = values["newgroup"].strip() if values["group"] == NEW else values["group"]
-    if not group:
-        warn("A load group needs a name.")
-        return None
-    values["group"] = group
+    # `group` stays the SELECTOR (either NEW or an existing group's name) and
+    # `newgroup` carries the normalized name. Writing the name into `group` here —
+    # which is what the name-as-group version did, when a group was only ever a
+    # string — makes `resolve_group` look for an existing group called "Load_1"
+    # that has not been created yet, and refuse every new group.
+    if values["group"] == NEW:
+        name = values["newgroup"].strip()
+        if not name:
+            warn("A load group needs a name.")
+            return None
+        values["newgroup"] = name
     return values
 
 
+def resolve_group(problem, values):
+    """The BoundaryConditionGroup to write into: an existing one, or a new one.
+
+    Called at the LAST moment, after every prompt the user could still cancel at.
+    `add_boundary_condition` registers the group immediately, so creating it up
+    front and then cancelling the block selection would leave an empty group —
+    and an empty group is not harmless: it takes the name, and `group_kind` has
+    to guess its kind from that name.
+    """
+    name = values["group"]
+
+    if name != NEW:
+        for group in groups_of_kind(problem, "load"):
+            if group.name == name:
+                return group
+        warn(f"Load group [{name}] is no longer on this problem.")
+        return None
+
+    try:
+        return problem.add_boundary_condition(values["newgroup"])
+    except ValueError as e:
+        # names are unique across the whole problem, displacement groups included
+        warn(str(e))
+        return None
+
+
 def add_load(session, model, problem, values):
-    """Build the load object(s) and register them on the problem."""
+    """Build the load object(s) and register them on the problem.
+
+    Everything goes through `Problem.add_*`, which resolves anchors against the
+    model geometry and writes into the group. There is no load class to import
+    here any more: a `PointLoad` at a vertex is `add_point_load_at_vertex`, and a
+    moment is `add_moment` (a PointLoad with a zero force, not a class).
+    """
     kind = values["kind"]
-    group = values["group"]
     loading_type = values["loading"].lower()
 
     if kind == "BodyForce":
@@ -229,8 +267,11 @@ def add_load(session, model, problem, values):
         if not any(acceleration):
             warn("A body force needs a non-zero acceleration.")
             return False
-        problem.add(BodyForce(acceleration=acceleration, loading_type=loading_type, name=group))
-        print(f"Added body force {acceleration} m/s2 to [{group}] — applied to every block by its mass.")
+        group = resolve_group(problem, values)
+        if group is None:
+            return False
+        problem.add_global_body_force(*acceleration, loading_type=loading_type, boundary_condition=group)
+        print(f"Added body force {acceleration} m/s2 to [{group.name}] — applied to every block by its mass.")
         print("  Gravity is applied by the solver from block density, so this is the ADDED component only.")
         return True
 
@@ -246,8 +287,11 @@ def add_load(session, model, problem, values):
         if not any(moment):
             warn("A moment needs a non-zero value.")
             return False
-        problem.add(Moment(block=node, moment=moment, loading_type=loading_type, name=group))
-        print(f"Added moment {moment} Nm on block {node} to [{group}].")
+        group = resolve_group(problem, values)
+        if group is None:
+            return False
+        problem.add_moment(block_index=node, moment=moment, loading_type=loading_type, boundary_condition=group)
+        print(f"Added moment {moment} Nm on block {node} to [{group.name}].")
         return True
 
     block = model.graph.node_element(node)
@@ -266,16 +310,22 @@ def add_load(session, model, problem, values):
         if len(picked) > 1:
             warn(f"Several {what}s given; using {index}.")
 
+        group = resolve_group(problem, values)
+        if group is None:
+            return False
+
+        # the anchor is resolved to a point HERE, against the geometry as it is
+        # now — compas_dem stores the coordinates, not the vertex/face index
         if what == "vertex":
-            problem.add(PointLoad.at_vertex(block=node, vertex=index, force=force, loading_type=loading_type, name=group))
+            problem.add_point_load_at_vertex(block_index=node, vertex_index=index, force=force, loading_type=loading_type, boundary_condition=group)
         else:
-            problem.add(PointLoad.at_face(block=node, face=index, force=force, loading_type=loading_type, name=group))
-        print(f"Added point load {force} N on block {node} at {what} {index} to [{group}].")
+            problem.add_point_load_at_face(block_index=node, face_index=index, force=force, loading_type=loading_type, boundary_condition=group)
+        print(f"Added point load {force} N on block {node} at {what} {index} to [{group.name}].")
         return True
 
     if kind == "Surface":
-        traction = [values["tx"], values["ty"], values["tz"]]
-        if not any(traction):
+        load = [values["tx"], values["ty"], values["tz"]]
+        if not any(load):
             warn("A surface load needs a non-zero traction.")
             return False
 
@@ -283,12 +333,16 @@ def add_load(session, model, problem, values):
         if not faces:
             return False
 
+        group = resolve_group(problem, values)
+        if group is None:
+            return False
+
         # SurfaceLoad takes a single face, so a multi-face pick is one object per
         # face — each keeps its own area when the solver resolves it
         for face in faces:
-            problem.add(SurfaceLoad(block=node, face=face, traction=traction, loading_type=loading_type, name=group))
+            problem.add_surface_load(block_index=node, face_index=face, load=load, loading_type=loading_type, boundary_condition=group)
         listed = ", ".join(str(f) for f in faces)
-        print(f"Added surface load {traction} N/m2 on block {node}, face(s) {listed}, to [{group}].")
+        print(f"Added surface load {load} N/m2 on block {node}, face(s) {listed}, to [{group.name}].")
         print("  A traction is multiplied by the face area, so this is a pressure, not a total force.")
         return True
 
@@ -296,9 +350,15 @@ def add_load(session, model, problem, values):
 
 
 def remove_load(problem):
-    """Remove loads, either one at a time or a whole group at once."""
-    loads = problem.loads
-    if not loads:
+    """Remove loads, either one at a time or a whole group at once.
+
+    Removing a group removes the GROUP OBJECT, not just its contents, so the name
+    is free again afterwards. Removing one load leaves the group standing, empty
+    if it was the last one — deliberate, so "clear this group and refill it" does
+    not lose the name mid-way.
+    """
+    groups = groups_of_kind(problem, "load")
+    if not groups:
         warn("This problem carries no loads.")
         return False
 
@@ -306,34 +366,39 @@ def remove_load(problem):
     if scope is None:
         return False
 
-    conditions = problem.boundary_conditions
+    names = [group.name for group in groups]
 
     if scope == "Group":
-        groups = group_names(problem, "load")
-        group = groups[0] if len(groups) == 1 else rs.ListBox(groups, message="Load group to remove", title="Loads")
-        if not group:
+        name = names[0] if len(names) == 1 else rs.ListBox(names, message="Load group to remove", title="Loads")
+        if not name:
             return False
-        doomed = [bc for bc in loads if group_name(bc) == group]
-        for bc in doomed:
-            conditions.remove(bc)
-        print(f"Removed {len(doomed)} load(s) in group [{group}].")
+        group = groups[names.index(name)]
+        count = len(loads_of(group))
+        remove_group(problem, group)
+        print(f"Removed group [{name}] and the {count} load(s) in it.")
         return True
 
-    labels = [f"{i}: [{group_name(bc)}] {describe(bc)}" for i, bc in enumerate(loads)]
+    # one flat pick list across every load group, each entry tagged with its group
+    entries = [(group, bc) for group in groups for bc in loads_of(group)]
+    if not entries:
+        warn("This problem carries no loads.")
+        return False
+
+    labels = [f"{i}: [{group.name}] {describe(bc)}" for i, (group, bc) in enumerate(entries)]
     label = rs.ListBox(labels, message="Load to remove", title="Loads")
     if not label:
         return False
 
-    bc = loads[int(label.split(":")[0])]
-    conditions.remove(bc)
-    print(f"Removed {describe(bc)}")
+    group, bc = entries[int(label.split(":")[0])]
+    remove_condition(group, bc)
+    print(f"Removed {describe(bc)} from [{group.name}]")
     return True
 
 
 def RunCommand():
     session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
-    model: BlockModel = session.get("blockmodel")
+    model: BlockModel = session.model
     if model is None:
         return warn("No existing BlockModel in session. Please create one first.")
     if not session.problems:
@@ -363,7 +428,7 @@ def RunCommand():
     if not changed:
         return
 
-    session.save_problems()
+    session.save_analysis()
     session.draw_problem_conditions(name, model)
     session.record(f"{name}: {option.lower()} load")
 
