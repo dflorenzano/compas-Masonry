@@ -21,7 +21,7 @@ import pytest
 pytest.importorskip("compas_dem")
 pytest.importorskip("compas_cgal")  # BlockModel hard-imports it
 
-from compas_dem.problem import PointLoad  # noqa: E402
+from compas_dem.models import Analysis  # noqa: E402
 from compas_dem.problem import Problem  # noqa: E402
 from compas_masonry.session import MasonrySession  # noqa: E402
 
@@ -51,12 +51,20 @@ def session(tmp_path):
 
 @pytest.fixture
 def populated(session, arch_model):
-    """A session holding a model and one problem carrying one load."""
-    problem = Problem(arch_model, name="Problem_1")
-    problem.add(PointLoad.at_centroid(block=0, force=[0, 0, -1000]))
+    """A session holding a model and one problem carrying one load.
 
-    session["blockmodel"] = arch_model
-    session["problems"] = {"Problem_1": problem}
+    Model and problems travel together in ONE key now: `Analysis`. The two-key
+    form this used to build (`blockmodel` + `problems`) is what made a reloaded
+    problem come back unbound.
+    """
+    problem = Problem(arch_model, name="Problem_1")
+    group = problem.add_boundary_condition("Load_1")
+    problem.add_point_load_at_centroid(block_index=0, force=[0, 0, -1000], boundary_condition=group)
+
+    analysis = Analysis(model=arch_model, name="test")
+    analysis.add_problem(problem)
+
+    session["analysis"] = analysis
     session["active_problem"] = "Problem_1"
     return session
 
@@ -66,31 +74,50 @@ def populated(session, arch_model):
 # =============================================================================
 
 
-def test_setdefault_does_not_read_from_disk(populated):
-    """`session.problems` on an empty cache CLOBBERS the file. Pinned deliberately.
+def test_setdefault_still_clobbers_a_cold_cache(populated):
+    """`setdefault` on an empty cache DESTROYS the file. Pinned deliberately.
 
     `LazyLoadSession.setdefault` is:
 
         if key not in self.data:
             self.set(key, factory())
 
-    `set()` autosyncs, so reading the `problems` property while `_data` is empty
-    writes an empty dict straight over `data/problems.json`. That is why
-    `_restore_data` primes every key with `get()` — the only accessor that falls
-    through to the file — before anything touches a property.
+    `set()` autosyncs, so calling it while `_data` is empty writes an empty
+    container straight over the file on disk. Shown here on `results`, which
+    Problem_solve reaches through `session.setdefault("results", dict)`.
 
-    If this test ever fails, upstream fixed `setdefault` and the priming loop in
-    `_restore_data` can be reconsidered (it stays harmless either way).
+    This is why `_restore_data` primes every key with `get()` — the only accessor
+    that falls through to the file — before anything else runs.
+
+    If this test ever fails, upstream fixed `setdefault` and the priming loop can
+    be reconsidered (it stays harmless either way).
     """
-    populated.record("with a problem")
-    assert populated.problems  # sanity: it is there
+    populated["results"] = {"Problem_1": {"CRA_x": "placeholder"}}
+    populated.record("with results")
 
     populated._data.clear()
-    clobbered = populated.problems  # the property, NOT get()
+    clobbered = populated.setdefault("results", dict)
 
     assert clobbered == {}
-    # read the FILE, not the cache — the point is that the restored file is gone
-    assert compas.json_load(populated.datadir / "problems.json") == {}
+    # read the FILE, not the cache — the point is that the data on disk is gone
+    assert compas.json_load(populated.datadir / "results.json") == {}
+
+
+def test_the_analysis_property_reads_through_to_disk(populated):
+    """The one key that must never be reachable by `setdefault`.
+
+    `analysis` holds the model AND every problem, so clobbering it destroys the
+    whole session in one call — where the old `problems` key cost only the
+    problems. `MasonrySession.analysis` therefore goes through `get()` and only
+    creates an empty Analysis when the disk really has nothing.
+    """
+    populated.record("with a problem")
+
+    populated._data.clear()
+    analysis = populated.analysis  # the property, on a COLD cache
+
+    assert analysis.model is not None
+    assert [problem.name for problem in analysis.problems] == ["Problem_1"]
 
 
 def test_restore_data_primes_before_touching_properties(populated):
@@ -119,7 +146,7 @@ def test_restore_data_brings_back_the_previous_state(populated, arch_model):
     populated.record("one problem")
 
     second = Problem(arch_model, name="Problem_2")
-    populated["problems"] = {**populated.problems, "Problem_2": second}
+    populated.add_problem(second)
     populated.record("two problems")
 
     assert sorted(populated.problems) == ["Problem_1", "Problem_2"]
@@ -130,29 +157,35 @@ def test_restore_data_brings_back_the_previous_state(populated, arch_model):
     assert list(populated.problems) == ["Problem_1"]
 
 
-def test_restore_data_rebinds_problems_to_the_model(populated):
-    """A reloaded Problem is UNBOUND — `problem.model` raises until rebound.
+def test_restore_binds_problems_to_the_model_with_no_rebind_step(populated):
+    """A reloaded Problem is UNBOUND on its own — `problem.model` raises. The
+    Analysis is what hands the model back, inside `__from_data__`.
 
-    This is the one live-object pointer in the plugin's stored state; everything
-    else links by guid or by name and survives JSON on its own.
+    `_restore_data` used to end with an explicit loop calling `_bind_model` on
+    every problem. That loop is gone, and this pins that nothing needs to replace
+    it: the binding falls out of storing one object instead of two.
     """
     populated.record("one problem")
     populated._restore_data()
 
     problem = populated.problems["Problem_1"]
     assert problem.model is not None
-    assert str(problem.model.guid) == problem.model_guid
+    assert str(problem.model.guid) == problem.model_id
+    # the same object, not a second copy deserialized alongside it
+    assert problem.model is populated.model
 
 
-def test_reloaded_problem_is_unbound_without_the_rebind(populated):
-    """Pins WHY the rebind exists, by showing the failure it prevents."""
-    populated.record("one problem")
+def test_a_problem_stored_on_its_own_would_come_back_unbound(populated):
+    """Pins WHY the analysis holds both, by showing what storing a problem alone
+    does: it serializes a guid reference and returns unbound, so every load path
+    would need its own rebinding step (and one that forgot would fail at solve
+    time, not at load time)."""
+    problem = populated.problems["Problem_1"]
 
-    populated._data.clear()
-    problem = populated.get("problems")["Problem_1"]
+    alone = compas.json_loads(compas.json_dumps(problem))
 
     with pytest.raises(ValueError):
-        problem.model
+        alone.model
 
 
 def test_restore_data_survives_an_empty_session(session):
@@ -323,8 +356,11 @@ def test_record_snapshots_the_autosynced_working_copy(populated):
     snapshot = populated.recordsdir / record_id / populated.datadirname
 
     assert compas.json_load(snapshot / "active_problem.json") == "Problem_1"
-    assert compas.json_load(snapshot / "blockmodel.json") is not None
-    assert list(compas.json_load(snapshot / "problems.json")) == ["Problem_1"]
+    # ONE file, model and problems together — there is no blockmodel.json or
+    # problems.json any more
+    analysis = compas.json_load(snapshot / "analysis.json")
+    assert analysis.model is not None
+    assert [problem.name for problem in analysis.problems] == ["Problem_1"]
 
 
 def test_record_still_dumps_scene_and_settings(session):

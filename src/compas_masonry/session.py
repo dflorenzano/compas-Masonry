@@ -75,6 +75,10 @@ class MasonrySession(LazyLoadSession):
         for key in ("analysis", "active_problem", "results", "shown_results"):
             self.delete(key)
 
+        # A new model is the point at which a leftover `blockmodel.json` from the
+        # old key layout stops being harmless clutter and starts being wrong.
+        self.purge_retired_keys()
+
         # obj.clear() purges the object's own guids, which raises on a guid Rhino
         # can no longer resolve — same trap as a redraw, so prune first.
         self.prune_stale_guids()
@@ -125,6 +129,29 @@ class MasonrySession(LazyLoadSession):
         "envelope",
         "formdiagram",
     ]
+
+    # Keys this plugin used to own. Their files are NOT removed by anything that
+    # iterates SESSION_KEYS, so a session folder written before 2026-08-07 keeps a
+    # `blockmodel.json` and a `problems.json` for ever — dead weight that `record()`
+    # copies into every single snapshot (measured: 158 KB per record on a 50-block
+    # arch), and a loaded gun besides: they hold a model in the PRE-revert
+    # compas_dem shape, so any code still reading the old key finds a plausible
+    # answer instead of nothing and draws the wrong model's contacts.
+    RETIRED_KEYS = ["blockmodel", "problems"]
+
+    def purge_retired_keys(self) -> list:
+        """Delete the data files of keys the plugin no longer owns.
+
+        Returns the names that were actually removed, so a caller can say so
+        rather than deleting in silence.
+        """
+        removed = []
+        for key in self.RETIRED_KEYS:
+            path = self.datadir / f"{key}.json"
+            if path.exists():
+                path.unlink()
+                removed.append(key)
+        return removed
 
     def clear_all(self) -> None:
         """Empty the session: scene objects, every session key, every layer.

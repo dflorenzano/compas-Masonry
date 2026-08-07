@@ -74,8 +74,8 @@ def get_solver():
     options.add_number("duration", 1.0, minimum=0.0, keyword="Duration", units="s", prompt="Duration", visible=is_("LMGC90"))
     options.add_integer("n_steps", 100, minimum=1, keyword="Steps", prompt="Number of steps", visible=is_("LMGC90"))
 
-    # every solver
-    options.add_toggle("verbose", False, off="Quiet", on="Verbose", text=True, keyword="Output")
+    # CRA/RBE only — see the LMGC90 note where the solver is built
+    options.add_toggle("verbose", False, off="Quiet", on="Verbose", text=True, keyword="Output", visible=is_("CRA", "RBE"))
     options.add_toggle("timer", False, off="NoTiming", on="Timing", text=True, keyword="Timer", visible=is_("CRA", "RBE"))
 
     values = options.get()
@@ -96,13 +96,19 @@ def get_solver():
         warn("compas_lmgc90 is not importable here (it is not built for Rhino's python3.9), so an LMGC90 solve would fail.")
         print("The solver is still set, so the problem is ready for an environment that has it.")
 
-    return Solver.LMGC90(duration=values["duration"], n_steps=values["n_steps"], verbose=int(verbose))
+    # `verbose` is NOT passed. For LMGC90 it is not a flag but a PRINT INTERVAL:
+    # `lmgc90_solve` does `step % verbose == 0` (lmgc90.py:275), so the Quiet
+    # toggle used to send 0 and every LMGC90 solve died with ZeroDivisionError.
+    # `Solver.LMGC90` defaults it to 1000, which prints roughly nothing on a
+    # normal run — so the right fix is to leave it alone rather than translate the
+    # toggle. Hence the Output toggle is CRA/RBE only above.
+    return Solver.LMGC90(duration=values["duration"], n_steps=values["n_steps"])
 
 
 def RunCommand():
     session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
-    model: BlockModel = session.get("blockmodel")
+    model: BlockModel = session.model
     if model is None:
         return warn("No existing BlockModel in session. Please create one first.")
     if not session.problems:
@@ -121,7 +127,7 @@ def RunCommand():
     session.ensure_baseline()
 
     problem.set_solver(solver)
-    session.save_problems()
+    session.save_analysis()
     print(f"Solver set on {name}: {solver}")
     # `solver.name`, not `type(solver).__name__` — `Solver.CRA()` is a factory that
     # returns a plain Solver, so the class name is always "Solver". This label is

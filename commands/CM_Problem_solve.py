@@ -4,12 +4,11 @@
 
 """Problem_solve — solve a Problem.
 
-**Every boundary condition on the problem is solved.** There is no selection: a
-problem IS the load case, and a different set of loads means a different problem
-(duplicate it in Problem_create). The BC multi-select this command used to open
-is gone with the compas_dem restructure, along with the private-list swap that
-worked around `boundary_conditions` having no setter — `problem.solve()` takes no
-arguments at all now.
+**Every boundary condition group on the problem is solved.** There is no
+selection: `problem.solve()` takes no arguments and applies every group it
+carries. A different set of loads means a different problem — duplicate it in
+Problem_create. `Problem.set_solve_order()` exists upstream if the order matters;
+no command exposes it yet.
 
 Solving draws NOTHING. One `Results` per solve is stored on the session under a
 key naming the solver and the time it ran ("RBE_2026-08-04T15-30-12"), so a
@@ -17,22 +16,19 @@ re-solve after changing a material or a contact law never overwrites the earlier
 run and the two can be compared. Results_show is what puts geometry in the
 document.
 
-Four things about the environment shape this command, all verified rather than
+Three things about the environment shape this command, all verified rather than
 assumed:
 
 1. `ipopt` — compas_cra hands its pyomo model to `SolverFactory("ipopt")`, an
    executable lookup on PATH. Rhino does not inherit a shell PATH, so
    `session.ensure_solver_path()` runs first and reports what it found.
-2. **compas_cra must be new enough to take external loads.** compas_dem now
-   passes `loads=` into `cra_solve`/`rbe_solve`; a site-env carrying the released
-   compas_cra raises `TypeError: cra_solve() got an unexpected keyword argument
-   'loads'` in the middle of a solve. Checked up front instead — see
-   `cra_accepts_loads`.
-3. **CRA and RBE cannot apply prescribed movements.** They have no displacement
-   degrees of freedom for support blocks, so compas_dem refuses rather than
-   returning a self-weight answer for a settlement problem. Checked here so the
-   message names the command to run.
-4. CRA/RBE dereference `block.material.density`, and need a contact law for the
+2. **CRA and RBE ignore boundary conditions entirely.** `cra_solve` and
+   `rbe_solve` take the problem, the model, a friction coefficient and a density
+   — and never read `problem.boundary_conditions`. They solve self-weight
+   equilibrium. So a problem carrying loads or prescribed movements does not
+   fail under CRA: it returns a **self-weight answer that looks like a result**,
+   which is worse. Refused here, because nothing downstream will.
+3. CRA/RBE dereference `block.material.density`, and need a contact law for the
    friction coefficient. Both are checked so a failure names the fix.
 
 `Results` is a compas Data, so it serializes onto the session as is.
@@ -42,6 +38,8 @@ import pathlib
 import time
 
 from compas_dem.models import BlockModel
+from compas_masonry.boundaryconditions import conditions_of
+from compas_masonry.boundaryconditions import loads_of
 from compas_masonry.session import MasonrySession as Session
 from compas_rui.feedback import warn
 
@@ -57,24 +55,13 @@ def result_key(solver_name) -> str:
     return f"{solver_name}_{time.strftime('%Y-%m-%dT%H-%M-%S')}"
 
 
-def cra_accepts_loads() -> bool:
-    """Whether the installed compas_cra takes the `loads=` compas_dem passes it.
-
-    compas_dem applies external loads in CRA/RBE by handing `loads=` to
-    `cra_solve`. Released compas_cra has no such parameter, so the solve dies
-    mid-run with a TypeError that says nothing about which package is stale. The
-    fix is the unreleased `feature/external-loads` fork.
-    """
-    try:
-        import inspect
-
-        from compas_cra.equilibrium import cra_solve
-    except ImportError:
-        return True  # not installed at all: a different error, reported elsewhere
-    try:
-        return "loads" in inspect.signature(cra_solve).parameters
-    except (TypeError, ValueError):
-        return True
+# `cra_accepts_loads()` lived here and was deleted on 2026-08-07. It inspected
+# `compas_cra.equilibrium.cra_solve` for a `loads=` parameter, because compas_dem
+# used to pass one and the released compas_cra would raise a TypeError mid-solve.
+# compas_dem no longer passes loads to CRA at all — `cra_solve` takes the problem,
+# the model, mu and density and reads no boundary conditions — so there is nothing
+# to be compatible with. What replaced it is the guard below, which refuses the
+# solve outright rather than checking whether it would crash.
 
 
 def store(session, problem_name, key, results) -> None:
@@ -90,7 +77,7 @@ def check_ready(model, problem, name):
     if model.graph.number_of_edges() == 0:
         return "No contacts in the model. Run Model_contacts first — every solver works off the contact interfaces."
 
-    if problem.solver is None:
+    if Session.solver_of(problem) is None:
         return f"{name} has no solver. Run Problem_setsolver first."
 
     if not problem.contact_properties.contact_model:
@@ -100,22 +87,21 @@ def check_ready(model, problem, name):
     if not any(block.is_support for block in model.elements()):
         return "The model has no supports. Run Model_supports first."
 
-    solver_name = problem.solver.name
+    solver_name = Session.solver_of(problem).name
 
-    # CRA/RBE have no displacement DOFs for support blocks, so compas_dem refuses
-    # a problem carrying one rather than silently returning a self-weight answer
-    if solver_name in ("CRA", "RBE") and problem.displacements:
-        return (
-            f"{name} carries {len(problem.displacements)} prescribed movement(s), which {solver_name} cannot apply "
-            "(support blocks have no displacement degrees of freedom). Use LMGC90, PRD or BLA, or remove them in Problem_displacements."
-        )
-
-    if solver_name in ("CRA", "RBE") and not cra_accepts_loads():
-        return (
-            "The installed compas_cra does not accept external loads, so this solve would fail inside the backend "
-            "(TypeError: cra_solve() got an unexpected keyword argument 'loads'). "
-            "Install the compas_cra 'feature/external-loads' branch into the Rhino site-env."
-        )
+    # CRA/RBE read no boundary conditions at all — they solve self-weight
+    # equilibrium — so a problem carrying any would come back with a plausible
+    # answer to a question nobody asked. Refuse instead of returning that.
+    if solver_name in ("CRA", "RBE"):
+        groups = problem.boundary_conditions
+        conditions = sum(len(conditions_of(group)) for group in groups)
+        if conditions:
+            listed = ", ".join(group.name for group in groups)
+            return (
+                f"{name} carries {conditions} boundary condition(s) in [{listed}], and {solver_name} applies none of them — "
+                f"it solves self-weight equilibrium only, so it would return a result that silently ignores them. "
+                "Use LMGC90, or remove them in Problem_loads / Problem_displacements."
+            )
 
     # CRA/RBE read block.material.density directly. compas_dem raises a clear
     # ValueError now, but naming the command to run is more useful than that.
@@ -153,7 +139,7 @@ def solve(problem):
 def RunCommand():
     session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
-    model: BlockModel = session.get("blockmodel")
+    model: BlockModel = session.model
     if model is None:
         return warn("No existing BlockModel in session. Please create one first.")
     if not session.problems:
@@ -168,7 +154,7 @@ def RunCommand():
     if not_ready:
         return warn(not_ready)
 
-    solver = problem.solver
+    solver = Session.solver_of(problem)
     key = result_key(solver.name)
 
     # ipopt is an executable, looked up on PATH by compas_cra's pyomo model
@@ -179,9 +165,12 @@ def RunCommand():
         warn(f"ipopt was not found on PATH, nor in settings.solver_bin ({session.settings.solver_bin}).")
         print("CRA and RBE solve through it, so this will fail. Set the directory in Session_settings > Solver Executables Directory.")
 
-    conditions = problem.boundary_conditions
-    if conditions:
-        print(f"Solving {name} ({solver.name}) with {len(problem.loads)} load(s) and {len(problem.displacements)} prescribed movement(s).")
+    groups = problem.boundary_conditions
+    if groups:
+        loads = sum(len(loads_of(group)) for group in groups)
+        movements = sum(len(group.displacements) for group in groups)
+        listed = ", ".join(group.name for group in groups)
+        print(f"Solving {name} ({solver.name}) with {loads} load(s) and {movements} prescribed movement(s) in [{listed}].")
     else:
         print(f"Solving {name} ({solver.name}) under self-weight only.")
 

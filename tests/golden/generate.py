@@ -47,8 +47,10 @@ def build_model() -> BlockModel:
 
 def build_problem(model: BlockModel) -> Problem:
     problem = Problem(model, name="Problem_1")
-    # supports live on the model; self-weight is applied unconditionally
-    problem.solver(Solver.CRA())
+    # supports live on the model; self-weight is applied unconditionally, and CRA
+    # reads no boundary conditions at all — so the problem carries none
+    problem.set_contact_model("MohrCoulomb", mu=0.6)
+    problem.set_solver(Solver.CRA())
     return problem
 
 
@@ -62,7 +64,7 @@ def main():
     print(f"arch_problem.json    model_id={problem.model_id}")
 
     try:
-        results = model.solve(problem)
+        results = problem.solve()
     except ImportError as e:
         print(f"arch_results.json    SKIPPED (solver backend not installed: {e})")
         return

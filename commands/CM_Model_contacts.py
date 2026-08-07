@@ -112,6 +112,14 @@ def RunCommand():
 
     model.compute_contacts(tolerance=values["contact_tolerance"], minimum_area=values["contact_minimum_area"])
 
+    # `compute_contacts` mutates the model IN PLACE, and the session is a cache in
+    # front of files: only `set()` writes. Without this the interaction graph never
+    # reached disk — every snapshot `record()` takes below, and every reload after a
+    # restart, came back with the blocks but ZERO contacts, so the next solve
+    # reported "No contacts in the model" on a model that visibly had them.
+    # See wiki_session_primer.md §8.2.
+    session.save_model()
+
     # =============================================================================
     # Update scene
     # =============================================================================
