@@ -29,6 +29,30 @@ class MasonrySession(LazyLoadSession):
         "Masonry::Model::Contacts",
     ]
 
+    @property
+    def analysis(self):
+        """The Analysis: the BlockModel plus every Problem defined over it.
+
+        Created empty on first access. Read through `get()`, NEVER `setdefault()`
+        — `setdefault` does not consult the disk (`if key not in self.data`), so on
+        a cold cache it would write an empty Analysis straight over a real one and
+        destroy the model and every problem with it. That is the trap documented in
+        `wiki_session_primer.md` §8.6, and this key is now the one place where it
+        would cost everything at once.
+        """
+        from compas_dem.models import Analysis
+
+        analysis = self.get("analysis")
+        if analysis is None:
+            analysis = Analysis(name="COMPAS-Masonry")
+            self["analysis"] = analysis
+        return analysis
+
+    @property
+    def model(self):
+        """The session BlockModel, or None if no model has been created yet."""
+        return self.analysis.model
+
     def clear_model(self) -> None:
         """Remove the current BlockModel and everything that depends on it.
 
@@ -45,9 +69,10 @@ class MasonrySession(LazyLoadSession):
         from compas_dem.interactions import VertexContact
         from compas_model.models import InteractionGraph
 
-        # "problems" is the key the plugin actually writes; deleting "problem"
-        # left every Problem in the session pointing at a model that was gone.
-        for key in ("blockmodel", "problems", "active_problem", "results", "shown_results"):
+        # Deleting `analysis` drops the model AND every problem in one move — they
+        # are one object now, and a problem without its model is exactly the stale
+        # state this used to leave behind when only some of the keys were cleared.
+        for key in ("analysis", "active_problem", "results", "shown_results"):
             self.delete(key)
 
         # obj.clear() purges the object's own guids, which raises on a guid Rhino
@@ -73,11 +98,24 @@ class MasonrySession(LazyLoadSession):
     # what makes "clear the session" actually empty the document.
     ROOT_LAYER = "Masonry"
 
-    # Session keys the plugin owns. `problems` (not "problem") is the real key —
-    # getting that wrong leaves stale Problems pointing at a deleted model.
+    # Session keys the plugin owns.
+    #
+    # `analysis` holds the model AND every problem defined over it, in one
+    # `compas_dem.models.Analysis`. It replaced the separate `blockmodel` and
+    # `problems` keys on 2026-08-07, because a Problem serializes as a guid
+    # REFERENCE to its model: two keys meant every load path had to hand the model
+    # back by hand (`_bind_model`) and every one that forgot produced problems that
+    # raised on `problem.model` only at solve time. `Analysis.__from_data__` calls
+    # `problem.load_model()` for us, so that whole class of bug is gone.
+    #
+    # The cost, and it is real: one key means `set()` re-serializes the MODEL too
+    # on every problem edit — measured at 0.45s for a 6.5 MB BlockModel — where
+    # the old `problems` key wrote kilobytes. Accepted deliberately; if it bites,
+    # the fix is a dirty-flag on the analysis, not a second key.
+    #
+    # `results` is still its own key. It moves into the Analysis in a later pass.
     SESSION_KEYS = [
-        "blockmodel",
-        "problems",
+        "analysis",
         "active_problem",
         "results",
         # WHICH results are on screen, written by Results_show. Solving draws
@@ -86,7 +124,6 @@ class MasonrySession(LazyLoadSession):
         "shown_results",
         "envelope",
         "formdiagram",
-        "analysis",
     ]
 
     def clear_all(self) -> None:
@@ -217,7 +254,7 @@ class MasonrySession(LazyLoadSession):
 
         That last one makes the snapshot exactly the working copy, which is the rule
         already in force: mutate something reached through `session[...]` and you
-        must re-set the key or it is not on disk at all (hence `save_problems`).
+        must re-set the key or it is not on disk at all (hence `save_analysis`).
         Anything breaking that rule was already missing from `data/`. It is skipped
         when `autosync` is off, because then the working copy really is stale and
         the full dump is the only thing writing it.
@@ -356,16 +393,12 @@ class MasonrySession(LazyLoadSession):
 
         self._data.clear()
 
-        # PRIME BEFORE TOUCHING ANY PROPERTY. `setdefault` — which the `problems`
-        # property calls — does NOT consult the disk:
-        #
-        #     if key not in self.data:
-        #         self.set(key, factory())
-        #
-        # so reading `self.problems` while the cache is empty would `set()` a fresh
-        # empty dict and autosync it straight over the problems.json just restored,
-        # silently destroying every problem the undo brought back. `get()` is the
-        # only accessor that falls through to the file, so it has to run first.
+        # PRIME BEFORE TOUCHING ANY PROPERTY. A key read through anything other
+        # than `get()` does NOT consult the disk — the `analysis` property creates
+        # an empty Analysis when it finds nothing cached, and on a cold cache that
+        # would autosync straight over the analysis.json just restored, taking the
+        # model and every problem with it. `get()` is the only accessor that falls
+        # through to the file, so it has to run first.
         for key in self.SESSION_KEYS:
             self.get(key)
 
@@ -376,13 +409,10 @@ class MasonrySession(LazyLoadSession):
         if self.settingsfile.exists():
             self._settings = self.settingsclass(**compas.json_load(self.settingsfile))
 
-        # A Problem serializes as a guid REFERENCE to its model, so every problem
-        # comes back unbound and `problem.model` raises until the real object is
-        # handed over. Same call Session_import makes, same reason.
-        model = self.get("blockmodel")
-        if model is not None:
-            for problem in self.problems.values():
-                problem._bind_model(model)
+        # Nothing to rebind. A Problem still serializes as a guid REFERENCE to its
+        # model, but `Analysis.__from_data__` calls `problem.load_model()` for every
+        # problem it deserializes — which is the whole reason the model and the
+        # problems share one key.
 
     def _redraw_state(self) -> None:
         """Empty the document and redraw it from the restored session data.
@@ -394,7 +424,7 @@ class MasonrySession(LazyLoadSession):
 
         self._clear_document()
 
-        model = self.get("blockmodel")
+        model = self.model
         if model is not None:
             self.draw_model()
 
@@ -431,7 +461,7 @@ class MasonrySession(LazyLoadSession):
 
         """
         shown = self.get("shown_results") or {}
-        model = model or self.get("blockmodel")
+        model = model or self.model
         if not shown or model is None:
             return 0
 
@@ -469,14 +499,29 @@ class MasonrySession(LazyLoadSession):
         model : :class:`compas_dem.models.BlockModel`
 
         """
+        from compas_dem.models import Analysis
+
+        # A FRESH Analysis, not `analysis.set_model(model)`: that would call
+        # `problem.load_model()` on every problem still registered, and each one
+        # raises because its `model_id` belongs to the model being replaced. The
+        # problems are invalid anyway — `clear_model` has just deleted them — so
+        # starting a new analysis says that plainly instead of raising.
         self.clear_model()
-        self["blockmodel"] = model
+        self["analysis"] = Analysis(model=model, name="COMPAS-Masonry")
         self.draw_model()
+
+    def save_model(self) -> None:
+        """Persist in-place edits to the model (supports, materials, contacts).
+
+        The model lives inside the analysis, so this is `save_analysis` under a
+        name that says what the caller changed.
+        """
+        self.save_analysis()
 
     def draw_model(self) -> None:
         """Draw the session BlockModel: blocks, and (if contacts have been
         computed) the interaction graph and contact interfaces."""
-        model = self.get("blockmodel")
+        model = self.model
         if model is None:
             return
 
@@ -571,7 +616,7 @@ class MasonrySession(LazyLoadSession):
         """
         self.prune_stale_guids()
         self.scene.redraw()
-        model = self.get("blockmodel")
+        model = self.model
         if model is not None:
             self._tag_block_guids(model)
             self._tag_block_materials(model)
@@ -645,7 +690,7 @@ class MasonrySession(LazyLoadSession):
         """
         model: BlockModel
 
-        model = model or self.get("blockmodel")
+        model = model or self.model
         return {str(model.graph.node_element(n).guid): n for n in model.graph.nodes()}
 
     def find_node(self, guid, guid_element_map=None):
@@ -675,7 +720,7 @@ class MasonrySession(LazyLoadSession):
         dict
             A dictionary mapping Material guids to Material instances.
         """
-        model = model or self.get("blockmodel")
+        model = model or self.model
         return {str(material.guid): material for material in model.materials()}
 
     def find_material(self, guid, guid_material_map=None):
@@ -717,12 +762,59 @@ class MasonrySession(LazyLoadSession):
 
     @property
     def problems(self) -> dict:
-        """The dict of Problems attached to the current model, keyed by name."""
-        return self.setdefault("problems", dict)
+        """The Problems of the analysis, keyed by name, in registration order.
 
-    def save_problems(self) -> None:
-        """Re-set the problems dict so autosync dumps the mutated Problems to disk."""
-        self["problems"] = self.problems
+        DERIVED, and therefore read-only: the analysis owns a LIST, and this dict
+        is rebuilt on every access. Assigning into it (`session.problems[name] = p`)
+        writes to a throwaway and is silently lost — use `add_problem` /
+        `remove_problem`, which write through to the analysis.
+
+        Problem names are assumed unique; `next_problem_name` and
+        `create_problem` are what keep them so.
+        """
+        return {problem.name: problem for problem in self.analysis.problems}
+
+    def add_problem(self, problem) -> None:
+        """Register a problem on the analysis and persist it.
+
+        `Analysis.add_problem` also loads the analysis model into the problem, so
+        the model reference is bound from this moment rather than at the next
+        deserialization.
+        """
+        self.analysis.add_problem(problem)
+        self.save_analysis()
+
+    def remove_problem(self, name) -> bool:
+        """Drop a problem from the analysis by name. True if one was removed."""
+        for problem in list(self.analysis.problems):
+            if problem.name == name:
+                # `Analysis.problems` is a plain list attribute with no remove
+                # method of its own.
+                self.analysis.problems.remove(problem)
+                self.save_analysis()
+                return True
+        return False
+
+    @staticmethod
+    def solver_of(problem):
+        """The Solver configured on a problem, or None.
+
+        compas_dem's `Problem` has `set_solver()` and a private `_solver`, but no
+        public getter — so this is the one place that reaches for the private
+        attribute, rather than every command doing it and having to explain why.
+        Callable without an instance: `MasonrySession.solver_of(problem)`.
+        """
+        return getattr(problem, "_solver", None)
+
+    def save_analysis(self) -> None:
+        """Re-set the analysis key so autosync dumps the mutated objects to disk.
+
+        Replaced `save_problems`. Mutating a Problem in place changes nothing on
+        disk — the session is a cache in front of files and only `set()` writes —
+        and now that the model travels in the same key, this rewrites the model
+        too. See the note on SESSION_KEYS about what that costs.
+        """
+        self["analysis"] = self.analysis
 
     @property
     def active_problem_name(self):
@@ -825,8 +917,7 @@ class MasonrySession(LazyLoadSession):
         # which is why `add_supports_from_model` and the whole refresh dance that
         # kept those copies in step are both gone.
 
-        self.problems[name] = problem
-        self.save_problems()
+        self.add_problem(problem)
         self.set_active_problem(name)
 
         self.ensure_indexed_problem_layer(name)
@@ -851,8 +942,7 @@ class MasonrySession(LazyLoadSession):
 
         layer = self.indexed_problem_layer(name)
 
-        self.problems.pop(name, None)
-        self.save_problems()
+        self.remove_problem(name)
         if self.active_problem_name == name:
             self.set_active_problem(next(iter(self.problems), None))
         # Rhino will not delete the current layer, and it is very likely to be
@@ -1323,7 +1413,7 @@ class MasonrySession(LazyLoadSession):
         from compas_rhino.layers import clear_layer
         from compas_rhino.layers import create_layers_from_path
 
-        model = model or self.get("blockmodel")
+        model = model or self.model
         if model is None or results is None:
             return 0
 
@@ -1434,7 +1524,7 @@ class MasonrySession(LazyLoadSession):
         from compas_rhino.layers import clear_layer
         from compas_rhino.layers import create_layers_from_path
 
-        model = model or self.get("blockmodel")
+        model = model or self.model
         if model is None or results is None:
             return 0
 
@@ -1621,7 +1711,7 @@ class MasonrySession(LazyLoadSession):
         """Largest block bounding-box diagonal, the yardstick for force scaling."""
         from compas.geometry import bounding_box
 
-        model = model or self.get("blockmodel")
+        model = model or self.model
         largest = 0.0
         for block in model.elements():
             box = bounding_box(block.modelgeometry.vertices_attributes("xyz"))

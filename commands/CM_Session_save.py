@@ -10,14 +10,19 @@ ONE thing to open, the session. The per-artefact commands this replaced
 that could not be opened back into a working session on their own, and gave
 three answers to "how do I save my work".
 
-What is written: the model, every problem with its boundary conditions, the
-active problem, and the display settings. Everything stored is a compas Data
-(BlockModel, Problem), so compas.json_dump serializes it directly.
+What is written: the `Analysis` — the model together with every problem and its
+boundary conditions — plus the active problem name and the display settings.
+
+The Analysis is what makes one key enough. A Problem serializes as a guid
+REFERENCE to its model, so a file holding them separately has to hand the model
+back to every problem on the way in; `Analysis.__from_data__` does that itself.
 
 Solver results are NOT saved: they are solver specific and are re-derived by
 Problem_solve. Per-block numbers come out of Results_block.
 
-Re-open with Session_import.
+Re-open with Session_import. Files written before 2026-08-07 carried separate
+`blockmodel` and `problems` keys and are NOT readable — Session_import says so
+rather than importing half of one.
 """
 
 import pathlib
@@ -32,8 +37,7 @@ from compas_rui.forms import FileForm
 def session_data(session) -> dict:
     """Collect the exportable session state."""
     data = {
-        "blockmodel": session.get("blockmodel"),
-        "problems": dict(session.problems),
+        "analysis": session.analysis,
         "active_problem": session.active_problem_name,
     }
 
@@ -49,7 +53,7 @@ def session_data(session) -> dict:
 def RunCommand():
     session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
-    if session.get("blockmodel") is None and not session.problems:
+    if session.model is None and not session.problems:
         return warn("Nothing to export: the session has no BlockModel and no problem.")
 
     path = rs.DocumentPath()  # to make sure the document has a path
@@ -66,9 +70,11 @@ def RunCommand():
     except Exception as e:
         return warn(f"Export failed: {e}")
 
+    analysis = data["analysis"]
+    names = [problem.name for problem in analysis.problems]
     print(f"Exported session to {filepath}")
-    print(f"  blockmodel: {'yes' if data['blockmodel'] is not None else 'no'}")
-    print(f"  problems  : {len(data['problems'])} ({', '.join(data['problems']) or '-'})")
+    print(f"  blockmodel: {'yes' if analysis.model is not None else 'no'}")
+    print(f"  problems  : {len(names)} ({', '.join(names) or '-'})")
 
 
 # =============================================================================

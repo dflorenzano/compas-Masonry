@@ -55,7 +55,7 @@ def get_name(session, default=None):
 def RunCommand():
     session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
-    model: BlockModel = session.get("blockmodel")
+    model: BlockModel = session.model
     if model is None:
         return warn("No existing BlockModel in session. Please create one first.")
 

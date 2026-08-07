@@ -27,7 +27,7 @@ def material_label(material) -> str:
 def RunCommand():
     session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
-    model: BlockModel = session.get("blockmodel")
+    model: BlockModel = session.model
     if model is None:
         return warn("No existing BlockModel in session. Please create one first.")
 
@@ -69,7 +69,7 @@ def RunCommand():
     session.ensure_baseline()
 
     model.assign_material(material, elements=elements)
-    session["blockmodel"] = model
+    session.save_model()
     session.redraw()
     session.record(f"Assign material: {material_label(material)}")
 

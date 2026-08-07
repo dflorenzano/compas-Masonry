@@ -201,7 +201,7 @@ def create_material(model):
 def RunCommand():
     session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
-    model: BlockModel = session.get("blockmodel")
+    model: BlockModel = session.model
     if model is None:
         return warn("No existing BlockModel in session. Please create one first.")
 
@@ -305,7 +305,7 @@ def RunCommand():
         print(f"Duplicated material: {material_label(duplicate)}")
 
     # Persist the mutated model so the change survives to the next command.
-    session["blockmodel"] = model
+    session.save_model()
     session.record(f"Material: {option}")
 
 

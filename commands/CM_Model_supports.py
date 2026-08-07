@@ -27,7 +27,7 @@ from compas_rui.feedback import warn
 def RunCommand():
     session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
-    model: BlockModel = session.get("blockmodel")
+    model: BlockModel = session.model
     if model is None:
         return warn("No existing BlockModel in session. Please create one first.")
 
@@ -65,7 +65,7 @@ def RunCommand():
                 model.remove_support(node)
         print("Cleared all supports.")
 
-    session["blockmodel"] = model
+    session.save_model()
     session.sync_support_layers()
     session.redraw()
     session.record(f"Supports: {option}")

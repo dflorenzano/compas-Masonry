@@ -33,7 +33,7 @@ CONTACT_TYPES = (FrictionContact, EdgeContact, VertexContact)
 def RunCommand():
     session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
-    model: BlockModel = session.get("blockmodel")
+    model: BlockModel = session.model
     if model is None:
         warn("No block model in the session.")
         return
@@ -55,10 +55,7 @@ def RunCommand():
     # any later would leave the model with no contacts when the user says no.
     count = session.count_results()
     plural = "s" if count != 1 else ""
-    if count and not confirm(
-        f"Recomputing contacts invalidates the {count} stored result set{plural}, "
-        f"which will be deleted along with anything drawn from them. Continue?"
-    ):
+    if count and not confirm(f"Recomputing contacts invalidates the {count} stored result set{plural}, which will be deleted along with anything drawn from them. Continue?"):
         return
 
     # The last bail-out is above; from here the command always changes something,

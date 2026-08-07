@@ -8,9 +8,13 @@ Saving and loading work the way RhinoVAULT's do: one command opens a session,
 one saves it. The per-artefact import commands this replaced (Model_import,
 Model_export, Problem_export) are gone.
 
-Replaces the current session state: the model and every problem (with its
-boundary conditions) are read back, the active problem is restored, the model is
-drawn and the boundary condition layers are regenerated.
+Replaces the current session state: the `Analysis` — model plus every problem
+with its boundary conditions — is read back as one object, the active problem is
+restored, the model is drawn and the boundary condition layers are regenerated.
+
+Files written before 2026-08-07 held `blockmodel` and `problems` as separate
+keys, against a compas_dem boundary-condition API that has since been reverted.
+They are refused with a message rather than half-imported.
 
 Destructive by nature — it clears the current model and its problems — so it
 asks for confirmation first.
@@ -56,30 +60,39 @@ def RunCommand():
     except Exception as e:
         return warn(f"Could not read {filepath}: {e}")
 
-    if not isinstance(data, dict) or "blockmodel" not in data:
-        return warn("This is not a COMPAS Masonry session file — it holds no blockmodel and no problems.")
+    if not isinstance(data, dict):
+        return warn(f"This is not a COMPAS Masonry session file: {filepath}")
 
-    if session.get("blockmodel") is not None or session.problems:
+    if "analysis" not in data:
+        if "blockmodel" in data:
+            # Deliberately refused rather than translated. A pre-2026-08-07 file
+            # carries `blockmodel` + `problems` written against the compas_dem API
+            # that was reverted — its boundary conditions are the flat, typed kind
+            # with different attribute names, so the objects inside would not
+            # deserialize into anything this plugin can draw or solve.
+            return warn("This session file predates 2026-08-07 and cannot be opened. Rebuild the model and problems, then save again.")
+        return warn("This is not a COMPAS Masonry session file — it holds no analysis.")
+
+    analysis = data["analysis"]
+    model = analysis.model
+    problems = {problem.name: problem for problem in analysis.problems}
+
+    if session.model is not None or session.problems:
         if not confirm("Importing replaces the current model and all its problems. Continue?"):
             return
-
-    model = data.get("blockmodel")
-    problems = data.get("problems") or {}
 
     # after the last bail-out, before the first change — an import replaces
     # everything, so the state it replaced is exactly what undo is for
     session.ensure_baseline()
 
-    # set_model clears the model, its problems and its results, and redraws
+    # clear_model drops the whole analysis (model, problems) and the results with
+    # it; the imported analysis then replaces it wholesale. No rebinding: the
+    # problems came out of `Analysis.__from_data__` with their model already
+    # loaded, which is the reason the file holds one object rather than two.
     session.clear_model()
+    session["analysis"] = analysis
     if model is not None:
-        session.set_model(model)
-
-    for name, problem in problems.items():
-        if model is not None:
-            problem._bind_model(model)
-        session.problems[name] = problem
-    session.save_problems()
+        session.draw_model()
 
     active = data.get("active_problem")
     if active in problems:
