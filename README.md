@@ -25,27 +25,63 @@ COMPAS-Masonry uses the following COMPAS packages:
 * [compas_cgal](https://github.com/compas-dev/compas_cgal)
 * [compas_dem](https://github.com/blockresearchgroup/compas_dem)
 * [compas_libigl](https://github.com/compas-dev/compas_libigl)
+* [compas_model](https://github.com/blockresearchgroup/compas_model)
 * [compas_rui](https://github.com/blockresearchgroup/compas_rui)
 * [compas_session](https://github.com/blockresearchgroup/compas_session)
 * [compas_tna](https://github.com/blockresearchgroup/compas_tna)
 * [compas_tno](https://github.com/blockresearchgroup/compas_tno)
 
-After installing RhinoVAULT with Yak, these requirements will be installed automatically if necessary.
+After installing COMPAS-Masonry with Yak, these requirements will be installed automatically if necessary.
 The tool might be unresponsive during this process, which might take up to 1 or 2 mins.
 The packages are installed in a separate virtual environment named `COMPAS-Masonry`.
 
-> [!NOTE]
-> Note that COMPAS-Masonry currently doesn't include any solvers
-> (such as [compas_cra](https://github.com/blockresearchgroup/compas_cra)) yet.
-> This is because they have dependencies that are still difficult to install in Rhino.
+## Solvers
+
+Equilibrium analysis runs through [compas_cra](https://github.com/blockresearchgroup/compas_cra):
+
+* **RBE** — rigid block equilibrium
+* **CRA** — coupled rigid block analysis, with an optional penalty formulation
+
+Both return **contact forces** rather than displacements, and both solve through
+the `ipopt` executable, which must be on the `PATH` Rhino sees.
+
+> [!IMPORTANT]
+> These currently need **compas_cra 0.5.0**, which is not on PyPI yet, together
+> with **pyomo >= 6.7.3**. The published compas_cra 0.4.0 cannot be used with a
+> NumPy 2 environment, and only 0.5.0 accepts the external loads compas_dem
+> passes it. Until it is released, this is a manual install step.
+
+**LMGC90** (contact dynamics, and the only solver here that returns
+displacements) runs in Rhino as of `compas_lmgc90` **0.1.9**, which publishes
+cp39 wheels. It is the only way to apply a prescribed displacement: CRA and RBE
+exclude support blocks from the equilibrium system, so they have no displacement
+degrees of freedom and refuse a problem carrying one.
 
 ## User Interface
 
-Currently, COMPAS-Masonry defines the following Rhino commands:
+COMPAS-Masonry defines 28 Rhino commands, all prefixed `CM_` and grouped by the
+stage they belong to:
 
-* `Masonry`
-* `Masonry_settings`
-* ...
+| Group | Commands |
+|---|---|
+| **Session** | `CM_Masonry_start`, `CM_Session_undo`, `CM_Session_redo`, `CM_Session_import`, `CM_Session_save`, `CM_Session_redraw`, `CM_Session_clear`, `CM_Session_settings` |
+| **Model** | `CM_Model_blocks`, `CM_Model_contacts`, `CM_Model_supports`, `CM_Model_material`, `CM_Model_materialassign` |
+| **Problem** | `CM_Problem_create`, `CM_Problem_contactlaw`, `CM_Problem_setsolver`, `CM_Problem_loads`, `CM_Problem_displacements`, `CM_Problem_solve` |
+| **Results** | `CM_Results_show`, `CM_Results_print`, `CM_Results_block` |
+| **TNA** | `CM_TNA_envelope`, `CM_TNA_formdiagram`, `CM_TNA_supports`, `CM_TNA_loads`, `CM_TNA_analysis`, `CM_TNA_blockexport` |
+
+A typical run goes left to right through those groups: build the model, compute
+its contacts, mark supports, assign a material, create a problem with a contact
+law and a solver, add loads, solve, and draw the results.
+
+**A problem is the load case.** Loads and prescribed movements are added straight
+to a problem; solving applies all of them. To compare two load cases, duplicate
+the problem in `CM_Problem_create`.
+
+Saving works the way RhinoVAULT's does: `CM_Session_save` writes the whole
+session to one JSON file and `CM_Session_import` opens it. There are no
+per-artefact import/export commands. Results are left out deliberately — they are
+re-derived by `CM_Problem_solve`.
 
 These commands can be executed using the Rhino command line (simply start typing the command name),
 or with the corresponding buttons of the COMPAS-Masonry toolbar.

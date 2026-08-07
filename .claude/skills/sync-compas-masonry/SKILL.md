@@ -10,8 +10,9 @@ description: >
   local repo). This is the plugin-package twin of sync-compas-dem. Trigger
   phrases: "sync compas_masonry", "sync the plugin", "update compas_masonry in
   rhino", "push my plugin changes to rhino", "reinstall compas_masonry".
-  NOTE: files under commands/ are read live by Rhino and do NOT need syncing —
-  only edits to the installed src/compas_masonry package do.
+  NOTE: files under commands/ are never synced — the Script Editor reads them
+  live from the repo, and the installed plugin carries its own embedded snapshot
+  that only a rebuild replaces. This skill covers src/compas_masonry only.
 ---
 
 # Sync compas-Masonry plugin into Rhino
@@ -25,10 +26,19 @@ an editable install. Editing `~/Code/Libs/compas-Masonry/src/compas_masonry/...`
 never touches it — the `# r: compas_masonry>=...` header on each command imports
 the old installed copy until it's manually reinstalled.
 
-**Key distinction from command files:** the `commands/*.py` files are executed
-by Rhino directly from the repo path and are always live — they never need
-syncing. Only changes to the **package** under `src/compas_masonry/` (session,
-scene objects, forms, settings, splash) require this reinstall to be visible.
+**Key distinction from command files:** the `commands/*.py` files never need
+syncing — but "always live" is only true of the Script Editor, which runs them
+straight from the repo path. The **installed plugin** embeds its own compressed
+copy of them (unpack the `.yak`: there is no `.py` in it), so a `commands/` edit
+does not reach a toolbar button or a typed command name until the plugin is
+rebuilt and reinstalled — see `temp/wiki_plugin_guide.md` §1.5. Only changes to
+the **package** under `src/compas_masonry/` (session, scene objects, forms,
+settings, splash) require the reinstall this skill performs.
+
+**A rebuild ships `commands/`; this skill ships `src/`. Neither covers the
+other** — the built `.rhp` contains no Python package at all, because every
+command header declares `# r: compas_masonry>=0.2.7` and resolves it from the
+site-env at run time.
 
 RhinoCode's script editor also caches imported modules in a live interpreter,
 so even after reinstalling, a bare command rerun can execute stale bytecode

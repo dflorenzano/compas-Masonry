@@ -7,7 +7,15 @@ for contact detection). Run with plain pytest from the repo root:
     pytest tests/
 """
 
+import pathlib
+import sys
+
 import pytest
+
+# conftest is imported before any test module, so this is what makes the
+# sibling helper modules (rhinostub) importable by name regardless of pytest's
+# import mode.
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
 # NOTE: dependency skips live at the top of each test module (importorskip in
 # conftest would turn missing deps into collection errors instead of skips).
