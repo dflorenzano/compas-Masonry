@@ -28,8 +28,27 @@ __all__ = [
     "block_displacements",
     "support_reactions",
     "summary",
+    "CSV_HEADER",
+    "block_result_rows",
 ]
 
+# One row per (block, contact), with the block's displacement repeated on every
+# row of that block. Flat and redundant on purpose: it pivots in a spreadsheet
+# without anyone having to carry a value down a merged cell.
+CSV_HEADER = [
+    "block",
+    "with",
+    "F_magnitude",
+    "Fx",
+    "Fy",
+    "Fz",
+    "stress",
+    "opening",
+    "u_magnitude",
+    "ux",
+    "uy",
+    "uz",
+]
 
 
 def _magnitude(vector) -> float:
@@ -184,6 +203,55 @@ def tension_report(results):
     if results.metadata.get("penalty"):
         return True, f"{head} Expected: this is a CRA penalty solve, which permits tension instead of excluding it."
     return False, f"{head} A no-tension solve should not produce this — check the supports and the contact model."
+
+
+def block_result_rows(report) -> list:
+    """`CSV_HEADER`-shaped rows for one block report from `Results_block`.
+
+    Takes the dict that command's `block_report` already builds — node,
+    displacement, sorted contacts, force total — so the printed table and the
+    exported file cannot disagree about a number.
+
+    A block with no force-carrying contact still gets one row, with the contact
+    columns blank. Dropping it would make a block that was selected and reported
+    on vanish from the export, which reads as an export bug rather than as the
+    finding it is.
+
+    Missing values are written as empty cells rather than as 0: a stress of 0 and
+    a stress the solver never produced are different answers, and `None` printed
+    into a CSV becomes the literal string "None".
+    """
+    node = report["node"]
+    displacement = report["displacement"]
+    if displacement is None:
+        u = ["", "", "", ""]
+    else:
+        magnitude, translation, _ = displacement
+        u = [magnitude, translation[0], translation[1], translation[2]]
+
+    def cell(value):
+        return "" if value is None else value
+
+    if not report["contacts"]:
+        return [[node, "", "", "", "", "", "", ""] + u]
+
+    rows = []
+    for contact in report["contacts"]:
+        force = contact["force"]
+        rows.append(
+            [
+                node,
+                contact["with"],
+                contact["magnitude"],
+                force[0],
+                force[1],
+                force[2],
+                cell(contact["stress"]),
+                cell(contact["opening"]),
+            ]
+            + u
+        )
+    return rows
 
 
 def tension_contacts(results, tolerance=1e-9) -> list:
