@@ -48,11 +48,19 @@ Notes
 
 """
 
+from contextlib import contextmanager
+
 import Rhino  # type: ignore
 
 __all__ = [
     "Options",
+    "block_component_points",
     "choose",
+    "display_mode",
+    "pick_block_components",
+    "pick_direction",
+    "pick_mesh_components",
+    "set_display_mode",
     "keyword_from",
     "unique_keywords",
     "field_ge",
@@ -555,6 +563,234 @@ class Options:
                 return self.values
 
             return None
+
+
+# =============================================================================
+# Directions picked in the viewport
+# =============================================================================
+
+
+def direction_from_points(base, tip):
+    """The UNIT vector from `base` to `tip`, or None if the two coincide.
+
+    Split out of `pick_direction` so the arithmetic can be tested without a
+    Rhino document: picking is the only part that needs one.
+    """
+    from compas.geometry import Vector
+
+    vector = Vector(*(t - b for b, t in zip(base, tip)))
+    if not vector.length:
+        return None
+    return vector.unitized()
+
+
+def pick_direction(message="Direction: pick the base point, then the tip"):
+    """Define a direction by drawing it in the viewport.
+
+    Returns a UNIT vector — the picked LENGTH is deliberately discarded. A force
+    is in newtons and the document is in metres, so a drawn length cannot mean a
+    force: a 1 kN load would need a line a thousand units long. The magnitude is
+    typed alongside instead, and the caller multiplies the two.
+
+    That also keeps one rule for every quantity that gets drawn. A prescribed
+    displacement IS in document units and could in principle take its magnitude
+    from the line, but settlements are millimetres on a model metres across, so
+    drawing one to scale is no more usable than drawing a force.
+
+    Returns
+    -------
+    :class:`compas.geometry.Vector` or None
+        A unit vector, or None if cancelled or if the two points coincide.
+
+    """
+    import rhinoscriptsyntax as rs  # type: ignore
+
+    from compas.geometry import Vector
+    from compas_rui.feedback import warn
+
+    line = rs.GetLine(mode=0, message1=message, message2="Tip of the direction vector")
+    if not line:
+        return None
+
+    direction = Vector.from_start_end(line[0], line[1])
+    if not direction.length:
+        warn("Those two points coincide, so they define no direction.")
+        return None
+    return direction.unitized()
+
+
+# =============================================================================
+# Sub-object selection on a block mesh
+# =============================================================================
+
+
+def block_component_points(kind, guid, mesh):
+    """What to match a picked component against, for one block.
+
+    Returns `(keys, cloud, positions)`: the COMPAS keys, their points in the same
+    order (the cloud to search), and the Rhino component positions indexed by the
+    component index a pick reports.
+    """
+    import rhinoscriptsyntax as rs  # type: ignore
+
+    from compas_rhino.conversions import point_to_compas
+
+    if kind == "face":
+        keys = list(mesh.faces())
+        cloud = [mesh.face_centroid(key) for key in keys]
+        positions = rs.MeshFaceCenters(guid)
+    else:
+        keys = list(mesh.vertices())
+        cloud = [mesh.vertex_point(key) for key in keys]
+        positions = rs.MeshVertices(guid)
+
+    # both come back as Rhino Point3d, which compas.geometry cannot subtract
+    return keys, cloud, [point_to_compas(point) for point in positions]
+
+
+def set_display_mode(mode):
+    """Set the active viewport's display mode. Returns the one it replaced.
+
+    This is how the plugin changes what the model LOOKS like — Rhino's viewport
+    display mode (`Rhino.Display.DisplayModeDescription` behind
+    `rs.ViewDisplayMode`). Blocks are always drawn as meshes; nothing swaps the
+    geometry to change its appearance, because that empties the document of the
+    faces and vertices everything else picks and tags.
+
+    An unknown name is a silent no-op inside Rhino (`FindByName` returns None),
+    so it is checked here rather than leaving the viewport mysteriously unchanged.
+
+    Returns None when there was nothing to do, so a caller can tell "no previous
+    mode to restore" from a real one.
+    """
+    if not mode:
+        return None
+
+    import rhinoscriptsyntax as rs  # type: ignore
+
+    from compas_rui.feedback import warn
+
+    if mode not in rs.ViewDisplayModes():
+        warn(f"No display mode called '{mode}'; leaving the viewport as it is.")
+        return None
+
+    return rs.ViewDisplayMode(mode=mode)
+
+
+@contextmanager
+def display_mode(mode):
+    """`set_display_mode`, put back afterwards — for a mode that spans one pick.
+
+    Restores the mode on the view that was active when the block STARTED, so
+    changing viewport midway leaves the new one as it was. That is the
+    conservative direction to be wrong in.
+
+    Results_show deliberately does NOT use this: leaving you looking at the
+    result is the point, so it calls `set_display_mode` and lets it stand.
+    """
+    previous = set_display_mode(mode)
+    try:
+        yield
+    finally:
+        if previous:
+            import rhinoscriptsyntax as rs  # type: ignore
+
+            rs.ViewDisplayMode(mode=previous)
+
+
+def pick_mesh_components(kind, message):
+    """Pick mesh faces or vertices across ANY number of objects, in one selection.
+
+    `rs.GetMeshFaces` / `rs.GetMeshVertices` do exactly this but pin themselves to
+    a single object (`SetCustomGeometryFilter(FilterById)`), which is the only
+    reason this reaches for `Rhino.Input.Custom.GetObject` instead.
+
+    Any mesh in the document can be picked. Restricting the pick up front would
+    need the block objects' RHINO guids, and the session identifies a block by
+    the `element_guid` User Text written on it — which is a lookup per object,
+    not a set that can be handed to a geometry filter. The caller drops whatever
+    is not a block afterwards instead.
+
+    Parameters
+    ----------
+    kind : {"face", "vertex"}
+
+    Returns
+    -------
+    list[tuple] or None
+        (guid, component index) pairs, or None if cancelled.
+
+    """
+    import scriptcontext as sc  # type: ignore
+
+    types = {
+        "face": Rhino.DocObjects.ObjectType.MeshFace,
+        "vertex": Rhino.DocObjects.ObjectType.MeshVertex,
+    }
+
+    sc.doc.Objects.UnselectAll()
+    sc.doc.Views.Redraw()
+
+    go = Rhino.Input.Custom.GetObject()
+    go.SetCommandPrompt(message)
+    go.GeometryFilter = types[kind]
+    go.AcceptNothing(True)
+
+    # (1, 0): at least one, and Enter ends the selection
+    if go.GetMultiple(1, 0) != Rhino.Input.GetResult.Object:
+        return None
+
+    picked = [(reference.ObjectId, reference.GeometryComponentIndex.Index) for reference in go.Objects()]
+    go.Dispose()
+    return picked
+
+
+def pick_block_components(kind, mesh_of, message, mode=None):
+    """Pick faces or vertices across several blocks and map them to COMPAS keys.
+
+    Mapped by POSITION, never by index. Blocks are drawn with
+    `mesh_to_rhino(..., disjoint=True)` — the default — which gives every face its
+    own copy of its vertices and fans any ngon into triangles. So a Rhino
+    component index only happens to equal the COMPAS key while every face is a
+    triangle or a quad, and silently stops being one as soon as a block has an
+    ngon face; for vertices it is never right at all, since a box drawn disjoint
+    has 24 Rhino vertices for its 8 COMPAS ones. Matching on position is immune
+    to both.
+
+    Parameters
+    ----------
+    mesh_of : callable
+        `guid -> COMPAS mesh`, or None for an object that is not a block.
+    mode : str, optional
+        Viewport display mode to pick in — see `display_mode`. Restored after,
+        including when the pick is cancelled.
+
+    Returns
+    -------
+    dict or None
+        {guid: sorted COMPAS keys}, or None if cancelled.
+
+    """
+    from compas.geometry import closest_point_in_cloud
+
+    with display_mode(mode):
+        picked = pick_mesh_components(kind, message)
+    if not picked:
+        return None
+
+    found = {}
+    cache = {}
+    for guid, index in picked:
+        mesh = mesh_of(guid)
+        if mesh is None:
+            continue
+        if guid not in cache:
+            cache[guid] = block_component_points(kind, guid, mesh)
+        keys, cloud, positions = cache[guid]
+        _, _, nearest = closest_point_in_cloud(positions[index], cloud)
+        found.setdefault(guid, set()).add(keys[nearest])
+
+    return {guid: sorted(keys) for guid, keys in found.items()}
 
 
 # =============================================================================

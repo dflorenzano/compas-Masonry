@@ -33,7 +33,6 @@ from compas_masonry.inputs import BACK
 from compas_masonry.inputs import _DoubleField
 from compas_masonry.inputs import _IntegerField
 from compas_masonry.inputs import _ListField
-from compas_masonry.inputs import _TextField
 from compas_masonry.inputs import _ToggleField
 
 

@@ -22,6 +22,8 @@ Two outputs, chosen at the end:
 
 import pathlib
 
+import rhinoscriptsyntax as rs  # type: ignore
+
 import compas_rhino.objects
 from compas_dem.models import BlockModel
 from compas_masonry.inputs import choose
@@ -31,8 +33,6 @@ from compas_masonry.results import contact_resultants
 from compas_masonry.results import face_stresses
 from compas_masonry.session import MasonrySession as Session
 from compas_rui.feedback import warn
-
-import rhinoscriptsyntax as rs  # type: ignore
 
 # User Text keys this command owns, so a re-run can clear its own tags without
 # touching element_guid / material_name / is_support.
@@ -71,7 +71,7 @@ def selected_blocks(session, model):
     return sorted(set(out))
 
 
-def block_report(node, results, model, displacements, stresses, openings, resultants):
+def block_report(node, displacements, stresses, openings, resultants):
     """Everything known about one block in this result set."""
     contacts = []
     for _, vector, magnitude, edge in resultants:
@@ -185,7 +185,7 @@ def RunCommand():
 
     print(f"\n=== {key}: {len(blocks)} block(s) ===")
     for node, guid in blocks:
-        report = block_report(node, results, model, displacements, stresses, openings, resultants)
+        report = block_report(node, displacements, stresses, openings, resultants)
         if output in ("Print", "Both"):
             print_report(report)
         if output in ("Tag", "Both"):

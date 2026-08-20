@@ -27,6 +27,7 @@ Two limits worth knowing:
 import pathlib
 
 import rhinoscriptsyntax as rs  # type: ignore
+
 from compas_masonry.session import MasonrySession as Session
 
 

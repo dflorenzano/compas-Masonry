@@ -467,3 +467,92 @@ def test_scene_property_never_loads_the_file(session):
 
     assert bool(Scene(context="Rhino")) is True
     assert session._scene is not None
+
+
+# =============================================================================
+# Which end of a boundary-condition arrow sits on the point of application
+# =============================================================================
+
+
+def test_load_arrow_head_lands_on_the_point_of_application():
+    """A force PUSHES into the geometry: the head is at the anchor, not away
+    from it. `rs.CurveArrows(guid, 2)` heads the END, so "tip" must put the
+    anchor there and walk the start back along the vector."""
+    start, end = MasonrySession._arrow_endpoints([0.0, 0.0, 10.0], [0.0, 0.0, -2.0], "tip")
+    assert end == [0.0, 0.0, 10.0]  # the anchor
+    assert start == [0.0, 0.0, 12.0]  # upstream, so a downward force points down
+
+
+def test_tail_arrows_still_start_at_the_point():
+    """Body force and prescribed movement keep the old convention."""
+    start, end = MasonrySession._arrow_endpoints([0.0, 0.0, 10.0], [0.0, 0.0, -2.0], "tail")
+    assert start == [0.0, 0.0, 10.0]
+    assert end == [0.0, 0.0, 8.0]
+
+
+def test_a_zero_vector_gives_a_degenerate_arrow_either_way():
+    """`_draw_bc_vector` bails on start == end; both modes must agree on that."""
+    for at in ("tip", "tail"):
+        start, end = MasonrySession._arrow_endpoints([1.0, 2.0, 3.0], [0.0, 0.0, 0.0], at)
+        assert start == end
+
+
+# =============================================================================
+# session.summary()
+# =============================================================================
+
+
+def test_summary_on_an_empty_session(session):
+    """Must report empty rather than raise: `summary` is the first thing anyone
+    runs when they are lost, which is exactly when the session may be blank."""
+    text = session.summary()
+    assert "no block model" in text
+    assert "problems : none" in text
+    assert "results  : none" in text
+
+
+def test_summary_reports_problems_and_history(session, arch_model):
+    """`set_model` needs Rhino, so the analysis is populated directly — the
+    summary must read through the accessors, not through a draw."""
+    session["analysis"] = Analysis(model=arch_model, name="test")
+    problem = Problem(model=arch_model, name="Problem_1")
+    session.add_problem(problem)
+    session.record("added a problem")
+
+    text = session.summary()
+    assert "Problem_1" in text
+    assert "no boundary conditions" in text
+    assert "1 record(s)" in text
+    assert "added a problem" in text
+
+
+# =============================================================================
+# BlockModel settings actually reach the drawing code
+# =============================================================================
+
+
+def test_every_show_setting_is_read_somewhere():
+    """Item 7's regression guard.
+
+    12 of 21 BlockModelSettings fields were read by NOTHING — the dialog offered
+    them and the drawing ignored them. A field that does nothing is worse than no
+    field, so this fails if one is added back without a consumer.
+    """
+    import pathlib
+
+    from compas_masonry.settings import BlockModelSettings
+
+    src = pathlib.Path(__file__).resolve().parents[1] / "src" / "compas_masonry"
+    code = "\n".join(p.read_text() for p in src.rglob("*.py") if p.name != "settings.py")
+    commands = pathlib.Path(__file__).resolve().parents[1] / "commands"
+    code += "\n".join(p.read_text() for p in commands.glob("*.py"))
+
+    unread = []
+    for name in BlockModelSettings.model_fields:
+        # pickmode_* are reached with getattr(settings, f"pickmode_{what}")
+        if name.startswith("pickmode_") and "pickmode_" in code:
+            continue
+        if name not in code:
+            unread.append(name)
+
+    assert unread == [], f"BlockModel settings read by nothing: {unread}"

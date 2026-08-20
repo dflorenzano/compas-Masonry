@@ -477,10 +477,6 @@ class MasonrySession(LazyLoadSession):
         with it, and the key naming it survives only because it is a record of
         intent, not of data.
 
-        The fade is not recorded. `fade_model()` defaults its amount to
-        `settings.blockmodel.results_model_transparency`, which is where the
-        setting belongs and where it is heading.
-
         Returns
         -------
         int
@@ -506,11 +502,6 @@ class MasonrySession(LazyLoadSession):
                     drawn += self.draw_result_forces(problem_name, results, model, key=key)
                 if mode in ("Displaced", "Both"):
                     drawn += self.draw_results(problem_name, results, model, key=key)
-
-        if drawn:
-            # the blocks were just redrawn by draw_model, so they carry their layer
-            # colour again and the fade has to be re-applied on top
-            self.fade_model()
 
         return drawn
 
@@ -546,13 +537,27 @@ class MasonrySession(LazyLoadSession):
         self.save_analysis()
 
     def draw_model(self) -> None:
-        """Draw the session BlockModel: blocks, and (if contacts have been
-        computed) the interaction graph and contact interfaces."""
+        """Draw the session BlockModel, honouring the BlockModel show settings.
+
+        Blocks, supports, the interaction graph and the contact interfaces are
+        each gated on their own `settings.blockmodel.show_*` flag. Those four
+        flags existed since the settings dialog was written and were read by
+        nothing until 2026-08-20 — the dialog offered them and the drawing
+        ignored them.
+
+        Gating at the ADD, not by hiding afterwards: an object that was never
+        added has no guid to go stale, which is what `prune_stale_guids` spends
+        its time on.
+        """
         model = self.model
         if model is None:
             return
 
+        settings = self.settings.blockmodel
+
         for block in model.elements():
+            if not (settings.show_supports if block.is_support else settings.show_blocks):
+                continue
             node = block.graphnode
             layer = "Masonry::Model::Supports" if block.is_support else "Masonry::Model::Blocks"
             self.scene.add(
@@ -563,9 +568,11 @@ class MasonrySession(LazyLoadSession):
             )
 
         if model.graph.number_of_edges() > 0:
-            self.scene.add(model.graph, layer="Masonry::Model::Interactions")  # type: ignore
-            for contact in model.contacts():
-                self.scene.add(contact, layer="Masonry::Model::Contacts")  # type: ignore
+            if settings.show_interactions:
+                self.scene.add(model.graph, layer="Masonry::Model::Interactions")  # type: ignore
+            if settings.show_contacts:
+                for contact in model.contacts():
+                    self.scene.add(contact, layer="Masonry::Model::Contacts")  # type: ignore
 
         self.redraw()
 
@@ -1021,7 +1028,10 @@ class MasonrySession(LazyLoadSession):
     COLOR_REACTION = (214, 40, 40)  # resultants on a support contact
     COLOR_DISPLACEMENT = (0, 0, 0)  # prescribed translations and rotations
     COLOR_CONTACT = (0, 146, 210)  # contact surfaces, edge lines and points (0092d2)
-    COLOR_FADED_BLOCK = (200, 200, 200)  # blocks while results are drawn on top
+    COLOR_SELFWEIGHT = (100, 116, 139)  # per-block weight, the yardstick for the rest
+    COLOR_NORMAL = (124, 58, 237)  # normal component of a contact resultant
+    COLOR_FRICTION = (202, 138, 4)  # tangential (friction) component
+    COLOR_DISPLACED = (255, 140, 0)  # displaced blocks, to read against the undisplaced model
 
     # The BC-KIND MAP lived here — `BC_KINDS`, `bc_kind`, `set_bc_kind`,
     # `reindex_bc_kinds`, `bc_allows` and the `bc_kinds` session key. It existed for
@@ -1136,13 +1146,6 @@ class MasonrySession(LazyLoadSession):
         if rs.IsLayer(parent):
             clear_layer(parent)  # include_children=True by default
 
-    def delete_bc_group_layer(self, problem_name, group) -> None:
-        """Delete one group's layer, after its last condition is removed."""
-        from compas_rhino.layers import delete_layers
-
-        self._release_current_layer()
-        delete_layers([self.bc_layer(problem_name, group)])
-
     def prune_bc_group_layers(self, problem_name) -> int:
         """Delete group layers that no longer correspond to a group on the problem.
 
@@ -1158,9 +1161,8 @@ class MasonrySession(LazyLoadSession):
         """
         import rhinoscriptsyntax as rs  # type: ignore
 
-        from compas_rhino.layers import delete_layers
-
         from compas_masonry.boundaryconditions import group_names
+        from compas_rhino.layers import delete_layers
 
         problem = self.problems.get(problem_name)
         if problem is None:
@@ -1177,17 +1179,11 @@ class MasonrySession(LazyLoadSession):
             delete_layers(stale)
         return len(stale)
 
-    def delete_bc_layers(self, problem_name) -> None:
-        """Delete a problem's whole BoundaryConditions subtree.
-
-        Results are a sibling of that subtree, not a child, so this never takes a
-        result set with it.
-        """
-        from compas_rhino.layers import delete_layers
-
-        parent = self.bc_parent_layer(problem_name)
-        self._release_current_layer()
-        delete_layers([parent])
+    # `delete_bc_group_layer` and `delete_bc_layers` lived here and were deleted
+    # on 2026-08-20 with zero callers between them. `prune_bc_group_layers`
+    # covers the first (it removes every layer with no matching group, not just
+    # one), and `delete_problem` covers the second by deleting the problem layer
+    # that the BoundaryConditions subtree hangs off.
 
     def draw_problem_conditions(self, problem_name, model=None) -> None:
         """Clear and redraw every boundary condition of a problem.
@@ -1199,6 +1195,13 @@ class MasonrySession(LazyLoadSession):
         Loads become arrows; a moment and a prescribed rotation become circles
         about their axis. No displaced copy of the geometry is drawn — that is
         what Results_show does.
+
+        A load arrow is drawn so its HEAD lands on the point of application: the
+        force pushes into the geometry instead of hanging off it. The two
+        exceptions are the body force, which has no point of application to aim
+        at, and a prescribed movement, which is the block travelling rather than
+        something acting on it — both keep their tail on the point. See
+        `_arrow_endpoints`.
 
         Dispatch is on the CLASS of each condition, with one exception: a moment
         is a `PointLoad` carrying a `moment` and a zero force (that is what
@@ -1242,12 +1245,16 @@ class MasonrySession(LazyLoadSession):
 
                 # --- BodyForce: global, so drawn once at the world origin -----
                 if kind == "BodyForce":
+                    # the ONE load still drawn tail-first. It does not act at the
+                    # spot it is drawn at — it acts on every block by its mass —
+                    # so there is no point of application for a head to land on.
                     self._draw_bc_vector(
                         layer,
                         "body_force",
                         [0.0, 0.0, 0.0],
                         [a * gravity_scale for a in bc.acceleration],
                         {"acceleration": bc.acceleration, "loading_type": bc.loading_type},
+                        at="tail",
                     )
                     continue
 
@@ -1307,15 +1314,78 @@ class MasonrySession(LazyLoadSession):
                 if type(bc).__name__ == "Rotation":
                     self._draw_rotation_circle(layer, origin, vector, disp_scale)
                 else:
+                    # tail-first, unlike a load: this is the block TRAVELLING that
+                    # way, not something pushing it, so the arrow leads away from
+                    # where the block is now.
                     self._draw_bc_vector(
                         layer,
                         "displacement",
                         origin,
                         [v * disp_scale for v in vector],
                         {"translation": list(bc.translation)},
+                        at="tail",
                     )
 
         rs.Redraw()
+
+    def summary(self) -> str:
+        """Everything the session holds, as text.
+
+        Nothing in the plugin reported state: the model is on screen, but how
+        many problems exist, what each carries, whether a solve is stored and
+        where undo stands were only ever visible by running a command that
+        happened to print them. Built as one string so the caller can print it,
+        show it in an InfoForm, or both.
+
+        Reads through the accessors rather than the raw keys, so a session that
+        has never been written reports empty instead of raising.
+        """
+        from compas_masonry.boundaryconditions import conditions_of
+        from compas_masonry.boundaryconditions import group_kind
+
+        lines = []
+
+        model = self.model
+        if model is None:
+            lines.append("analysis : no block model")
+        else:
+            lines.append(
+                "analysis : elements {} | contacts {} | materials {}".format(
+                    len(list(model.elements())),
+                    len(list(model.contacts())) if model.graph else 0,
+                    len(list(model.materials())),
+                )
+            )
+
+        problems = self.problems
+        active = self.active_problem_name
+        if not problems:
+            lines.append("problems : none")
+        for name, problem in problems.items():
+            solver = getattr(self.solver_of(problem), "name", None) or "no solver"
+            lines.append(f"problem  : {name}{' (active)' if name == active else ''} - {solver}")
+            groups = problem.boundary_conditions
+            if not groups:
+                lines.append("             no boundary conditions")
+            for group in groups:
+                lines.append(f"             [{group.name}] {group_kind(group) or 'empty'}: {len(conditions_of(group))}")
+
+        stored = self.get("results") or {}
+        if not stored:
+            lines.append("results  : none")
+        for name, sets in stored.items():
+            lines.append(f"results  : {name} -> {', '.join(sorted(sets))}")
+
+        for name, view in (self.get("shown_results") or {}).items():
+            lines.append(f"on screen: {name} -> {view.get('mode')} {', '.join(view.get('keys', []))}")
+
+        # plain attributes on the base session, not session data keys
+        lines.append(f"history  : {len(self.history)} record(s), current {self.current}")
+        if self.history and 0 <= self.current < len(self.history):
+            # a record is (snapshot filepath, name) — [0] is a tempfile path
+            lines.append(f"             at: {self.history[self.current][1]}")
+
+        return "\n".join(lines)
 
     def count_results(self) -> int:
         """How many result sets are stored, across every problem.
@@ -1412,6 +1482,10 @@ class MasonrySession(LazyLoadSession):
             if guid is None:
                 continue
             rs.ObjectLayer(guid, layer)
+            # its own colour, so the displaced copy reads against the model it
+            # sits on top of — at a small displacement scale the two overlap
+            # almost exactly, and in one colour the result looks like a no-op
+            self.set_object_color(guid, self.COLOR_DISPLACED)
             self.set_user_params(
                 guid,
                 {
@@ -1524,16 +1598,34 @@ class MasonrySession(LazyLoadSession):
         # differently and there is no other cue distinguishing them.
         supports = {block.graphnode for block in model.elements() if block.is_support}
 
+        # Reaction values go on their OWN sublayer, so the numbers can be switched
+        # off without losing the arrows. Only reactions are labelled: a dot per
+        # contact resultant is one per contact and buries the model.
+        tags_layer = self.results_layer(problem_name, key, "Forces::Values")
+        create_layers_from_path(tags_layer, separator="::")
+        clear_layer(tags_layer)
+
+        settings = self.settings.blockmodel
+
         drawn = 0
         for point, vector, magnitude, edge in resultants:
             if magnitude <= 0:
                 continue
-            self._draw_contact_geometry(layer, results, edge)
             is_reaction = any(node in supports for node in edge)
+            if not (settings.show_reactions if is_reaction else settings.show_resultants):
+                # the decompositions below are still drawn: normal and friction
+                # are separate views, not extra detail on the resultant
+                self._draw_decomposition(layer, results, edge, point, scale, settings)
+                continue
+
+            self._draw_contact_geometry(layer, results, edge)
             color = self.COLOR_REACTION if is_reaction else self.COLOR_FORCE
             guid = self._draw_centred_line(layer, point, [c * scale for c in vector], color=color)
             if guid is None:
                 continue
+            self._draw_decomposition(layer, results, edge, point, scale, settings)
+            if is_reaction:
+                self._draw_value_tag(tags_layer, point, magnitude, edge, problem_name, key)
             self.set_user_params(
                 guid,
                 {
@@ -1548,66 +1640,17 @@ class MasonrySession(LazyLoadSession):
             )
             drawn += 1
 
+        drawn += self._draw_selfweight(problem_name, model, scale, settings, key)
+
         rs.Redraw()
         return drawn
 
-    def fade_model(self, amount=None) -> int:
-        """Fade the model's blocks, so result geometry reads on top of them.
-
-        This used to set a layer RENDER MATERIAL with a transparency. Render
-        materials are only consulted by the display modes that render — stock
-        Shaded paints its own neutral material — so the fade was invisible in
-        the mode most people work in, which is exactly why it moved.
-
-        A custom OBJECT colour is honoured by every display mode. Each block is
-        given its own colour, blended from the colour it would have had toward
-        white; `amount=0` puts the objects back on "colour by layer" rather than
-        painting them a colour of their own.
-
-        Rhino has no per-layer opacity, so "faded" is pale rather than
-        see-through. Blocks are opaque either way — the old setting only ever
-        looked transparent in Rendered mode.
-
-        Parameters
-        ----------
-        amount : float, optional
-            0.0 = restore, 1.0 = white. Defaults to
-            `settings.blockmodel.results_model_transparency`.
-
-        Returns
-        -------
-        int
-            The number of block objects recoloured.
-
-        """
-        import rhinoscriptsyntax as rs  # type: ignore
-
-        from compas_dem.elements import Block
-
-        if amount is None:
-            amount = self.settings.blockmodel.results_model_transparency
-        amount = min(max(float(amount), 0.0), 1.0)
-
-        touched = 0
-        for sceneobj in self.scene.find_all_by_itemtype(Block):
-            base = self.COLOR_REACTION if sceneobj.item.is_support else self.COLOR_FADED_BLOCK
-            for guid in sceneobj.guids:
-                try:
-                    if amount <= 0.0:
-                        rs.ObjectColorSource(guid, 0)  # 0 = colour by layer
-                    else:
-                        rs.ObjectColor(guid, self._blend(base, (255, 255, 255), amount))
-                    touched += 1
-                except Exception:
-                    continue  # a stale guid must not take the whole fade down
-
-        rs.Redraw()
-        return touched
-
-    @staticmethod
-    def _blend(color, target, amount) -> tuple:
-        """Mix `color` toward `target` by `amount` (0 = color, 1 = target)."""
-        return tuple(int(round(c + (t - c) * amount)) for c, t in zip(color, target))
+    # `fade_model` and its `_blend` helper lived here and were deleted on
+    # 2026-08-20 with the Fade/Keep prompt in Results_show. Fading the blocks
+    # toward white was how result geometry was kept readable on top of them;
+    # drawing the blocks as wireframe does that without repainting every block
+    # object, so the fade, its `results_model_transparency` setting and
+    # COLOR_FADED_BLOCK all went with it.
 
     def _result_resultants(self, results) -> list:
         """[(point, vector, magnitude, edge), …] for every contact with a force.
@@ -1667,6 +1710,117 @@ class MasonrySession(LazyLoadSession):
         self.set_user_params(guid, {"result_kind": "contact", "edge": list(edge)})
         return guid
 
+    def _draw_selfweight(self, problem_name, model, scale, settings, key=None):
+        """Draw each block's self-weight as a downward force at its centroid.
+
+        Self-weight is not a result — the solvers apply it unconditionally from
+        block density and never report it back — but it is the force everything
+        else is compared against, so it is drawn alongside the results and gated
+        on `show_selfweight`.
+
+        `scale` is the same relative factor the contact forces use, so a weight
+        arrow and a resultant arrow of equal length mean equal newtons;
+        `scale_selfweight` multiplies on top for when they differ by too much to
+        read together.
+
+        Mass comes from compas_dem's own `_element_mass`, which prefers a Block's
+        `mass` and falls back to density x volume. Re-deriving it here would let
+        the picture disagree with what the solver actually applied.
+        """
+        if not settings.show_selfweight:
+            return 0
+
+
+        from compas_dem.analysis.resolve import _element_mass
+        from compas_rhino.layers import clear_layer
+        from compas_rhino.layers import create_layers_from_path
+
+        layer = self.results_layer(problem_name, key, "Selfweight")
+        create_layers_from_path(layer, separator="::")
+        clear_layer(layer)
+
+        drawn = 0
+        for block in model.elements():
+            try:
+                mass = _element_mass(block)
+            except ValueError:
+                # no material or no density: the solver would refuse this model
+                # too, so say nothing here and let Problem_solve report it
+                continue
+            weight = mass * 9.81 * scale * settings.scale_selfweight
+            guid = self._draw_centred_line(layer, list(block.modelgeometry.centroid()), [0.0, 0.0, -weight], color=self.COLOR_SELFWEIGHT)
+            if guid is None:
+                continue
+            self.set_user_params(
+                guid,
+                {
+                    "problem": problem_name,
+                    "result_key": key,
+                    "result_kind": "selfweight",
+                    "element_guid": str(block.guid),
+                    "mass": mass,
+                    "force_magnitude": mass * 9.81,
+                },
+            )
+            drawn += 1
+        return drawn
+
+    def _draw_decomposition(self, layer, results, edge, point, scale, settings):
+        """Draw the normal and/or friction part of one contact resultant.
+
+        `resultant_local` is the same force as `resultant_global`, expressed in
+        the contact frame: z is the contact normal, x and y are the tangential
+        directions. So the normal part is `local[2] * frame.zaxis` and the
+        friction part is `local[0] * frame.xaxis + local[1] * frame.yaxis`, and
+        the two sum back to the resultant. Nothing new is computed here — this
+        is the stored answer, split.
+
+        Both are off by default: drawing a resultant together with both of its
+        parts puts three lines through one contact point.
+        """
+        if not (settings.show_normalforces or settings.show_frictionforces):
+            return
+
+        local = results.resultant_local(edge)
+        frame = results.contact_frame(edge)
+        if local is None or frame is None:
+            return
+
+        if settings.show_normalforces:
+            normal = [c * local[2] * scale for c in frame.zaxis]
+            self._draw_centred_line(layer, point, normal, color=self.COLOR_NORMAL)
+
+        if settings.show_frictionforces:
+            friction = [(x * local[0] + y * local[1]) * scale for x, y in zip(frame.xaxis, frame.yaxis)]
+            self._draw_centred_line(layer, point, friction, color=self.COLOR_FRICTION)
+
+    def _draw_value_tag(self, layer, point, magnitude, edge, problem_name=None, key=None):
+        """Label a resultant with its magnitude, as a TextDot at its contact point.
+
+        A TextDot rather than text geometry: it keeps one screen size whatever
+        the zoom and stays readable from any view direction, which text in the
+        model plane does not. `%.4g` matches Results_print, so the number on
+        screen is the number in the report.
+        """
+        import rhinoscriptsyntax as rs  # type: ignore
+
+        guid = rs.AddTextDot(f"{magnitude:.4g}", list(point))
+        if guid is None:
+            return None
+        rs.ObjectLayer(guid, layer)
+        self.set_object_color(guid, self.COLOR_REACTION)
+        self.set_user_params(
+            guid,
+            {
+                "problem": problem_name,
+                "result_key": key,
+                "result_kind": "reaction_value",
+                "edge": list(edge),
+                "force_magnitude": magnitude,
+            },
+        )
+        return guid
+
     def _draw_centred_line(self, layer, point, vector, color=None):
         """Draw a force resultant as a line centred on `point`, spanning ±v/2."""
         import rhinoscriptsyntax as rs  # type: ignore
@@ -1704,14 +1858,33 @@ class MasonrySession(LazyLoadSession):
             return self.COLOR_DISPLACEMENT
         return self.COLOR_FORCE
 
-    def _draw_bc_vector(self, layer, kind, origin, vector, params=None):
+    @staticmethod
+    def _arrow_endpoints(origin, vector, at):
+        """Start and end of a BC arrow. `rs.CurveArrows(guid, 2)` heads the END.
+
+        `at` says where the point of application sits on the arrow:
+
+        - "tip"  — the head lands ON the point, so the vector PUSHES into the
+          geometry. This is what a force does, and drawing it the other way
+          reads as the load hanging off the block rather than acting on it.
+        - "tail" — the arrow starts at the point and leads away from it. Right
+          for a body force, which acts on the whole model rather than at the
+          spot it is drawn at, and for a prescribed movement, which is the
+          block travelling in that direction rather than something pushing it.
+
+        """
+        if at == "tip":
+            return [o - v for o, v in zip(origin, vector)], list(origin)
+        return list(origin), [o + v for o, v in zip(origin, vector)]
+
+    def _draw_bc_vector(self, layer, kind, origin, vector, params=None, at="tip"):
         """Draw an arrow on a boundary condition layer and tag it."""
         import rhinoscriptsyntax as rs  # type: ignore
 
-        end = [o + v for o, v in zip(origin, vector)]
-        if end == list(origin):
+        start, end = self._arrow_endpoints(origin, vector, at)
+        if start == end:
             return None
-        guid = rs.AddLine(origin, end)
+        guid = rs.AddLine(start, end)
         rs.CurveArrows(guid, 2)
         rs.ObjectLayer(guid, layer)
         self.set_object_color(guid, self._bc_color(kind))
@@ -1767,8 +1940,15 @@ class MasonrySession(LazyLoadSession):
         return guid
 
     # =============================================================================
-    # Generic Rhino User Text <-> params (User Text is a str->str dict per object)
+    # Rhino User Text (a str -> str dict per object): params out
     # =============================================================================
+    #
+    # Write only. `get_user_params`, the symmetric reader, was deleted on
+    # 2026-08-20 with no callers: the two places that read User Text
+    # (`find_node`, `find_material`) want ONE known key and call
+    # `rs.GetUserText(guid, key)` directly, which needs no JSON decoding and no
+    # helper. The tags written here are for the user to read in Rhino's
+    # properties panel, not for the plugin to read back.
 
     def set_user_params(self, guid, params: dict) -> None:
         """Write a dict of parameters onto a Rhino object's User Text.
@@ -1789,26 +1969,3 @@ class MasonrySession(LazyLoadSession):
                 rs.SetUserText(guid, key, value)
             else:
                 rs.SetUserText(guid, key, json.dumps(value))
-
-    def get_user_params(self, guid, keys=None) -> dict:
-        """Read a Rhino object's User Text back into a dict.
-
-        Values are JSON-decoded when possible, else returned as the raw string.
-        Pass ``keys`` to read a subset; otherwise every User Text key is read.
-        """
-        import json
-
-        import rhinoscriptsyntax as rs  # type: ignore
-
-        if keys is None:
-            keys = rs.GetUserText(guid) or []
-        out = {}
-        for key in keys:
-            raw = rs.GetUserText(guid, key)
-            if raw is None:
-                continue
-            try:
-                out[key] = json.loads(raw)
-            except (ValueError, TypeError):
-                out[key] = raw
-        return out
