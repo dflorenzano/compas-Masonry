@@ -2040,7 +2040,6 @@ class MasonrySession(LazyLoadSession):
         if not settings.show_selfweight:
             return 0
 
-
         from compas_dem.analysis.resolve import _element_mass
         from compas_rhino.layers import clear_layer
         from compas_rhino.layers import create_layers_from_path
