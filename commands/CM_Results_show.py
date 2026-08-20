@@ -36,6 +36,7 @@ import rhinoscriptsyntax as rs  # type: ignore
 from compas_dem.models import BlockModel
 from compas_masonry.inputs import choose
 from compas_masonry.inputs import set_display_mode
+from compas_masonry.results import tension_report
 from compas_masonry.session import MasonrySession as Session
 from compas_rui.feedback import warn
 
@@ -98,6 +99,18 @@ def report_forces(results) -> None:
     if not magnitudes:
         return
     print(f"  {len(magnitudes)} contact resultant(s): max {max(magnitudes):.4g}, total {sum(magnitudes):.4g}")
+
+    # Said here as well as in Problem_solve: a result can be drawn any number of
+    # times, and days after it was solved.
+    reported = tension_report(results)
+    if reported is None:
+        return
+    expected, message = reported
+    if expected:
+        print(f"  {message}")
+    else:
+        warn(message)
+    print("  Session_settings > BlockModel > Show Corner Forces draws where it is.")
 
 
 def show(session, model, problem_name, key, results, mode) -> None:

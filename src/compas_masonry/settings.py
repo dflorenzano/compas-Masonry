@@ -52,6 +52,16 @@ class BlockModelSettings(BaseModel):
     show_frictionforces: bool = Field(default=False, title="Show Friction Forces")
     show_selfweight: bool = Field(default=False, title="Show Selfweight")
 
+    # The per-corner forces the solver actually solved for, before they are summed
+    # into the resultant: one along the contact normal at every vertex of the
+    # contact polygon, compression and tension drawn in different colours. Off by
+    # default because a quad contact draws four extra lines.
+    #
+    # This is also how a CRA penalty solve is read: the plain formulation forbids
+    # tension, the penalty one permits it, and the only way to see WHERE it went is
+    # per corner — a resultant that is net compressive hides tensile corners.
+    show_cornerforces: bool = Field(default=False, title="Show Corner Forces")
+
     # Rhino VIEWPORT display mode to switch to while picking sub-objects, and
     # back out of afterwards.
     #

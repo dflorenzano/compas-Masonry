@@ -40,6 +40,7 @@ import time
 from compas_dem.models import BlockModel
 from compas_masonry.boundaryconditions import conditions_of
 from compas_masonry.boundaryconditions import loads_of
+from compas_masonry.results import tension_report
 from compas_masonry.session import MasonrySession as Session
 from compas_rui.feedback import warn
 
@@ -195,6 +196,19 @@ def RunCommand():
         return warn(f"Solved, but the result could not be stored on the session: {e}")
 
     print(f"Solved in {elapsed:.1f}s, stored on {name} as {key}.")
+
+    # A solve that succeeds is not the same as a solve that is admissible: masonry
+    # takes no tension, so a converged answer holding tensile contact corners is
+    # still not one the structure can deliver. Said at the moment it is produced,
+    # because nothing else here would report it and Results_show may never be run.
+    reported = tension_report(results)
+    if reported is not None:
+        expected, message = reported
+        if expected:
+            print(message)
+        else:
+            warn(message)
+
     print("Next: Results_show to draw it (nothing is drawn by solving).")
     session.record(f"Solve {name}: {key}")
 

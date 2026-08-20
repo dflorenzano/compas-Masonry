@@ -1032,6 +1032,10 @@ class MasonrySession(LazyLoadSession):
     COLOR_NORMAL = (124, 58, 237)  # normal component of a contact resultant
     COLOR_FRICTION = (202, 138, 4)  # tangential (friction) component
     COLOR_DISPLACED = (255, 140, 0)  # displaced blocks, to read against the undisplaced model
+    # Tensile corner forces. NOT COLOR_REACTION red, though red is the obvious
+    # choice for "wrong": reactions are already red, and the two get drawn in the
+    # same view. Magenta is the only warm colour left that is not one of them.
+    COLOR_TENSION = (190, 24, 93)
 
     # The BC-KIND MAP lived here — `BC_KINDS`, `bc_kind`, `set_bc_kind`,
     # `reindex_bc_kinds`, `bc_allows` and the `bc_kinds` session key. It existed for
@@ -1565,7 +1569,9 @@ class MasonrySession(LazyLoadSession):
         Returns
         -------
         int
-            The number of resultants drawn.
+            The number of force objects drawn — resultants plus whatever the
+            optional views added: per-block self-weight, and one line per contact
+            corner when `show_cornerforces` is on.
 
         """
         import rhinoscriptsyntax as rs  # type: ignore
@@ -1613,9 +1619,11 @@ class MasonrySession(LazyLoadSession):
                 continue
             is_reaction = any(node in supports for node in edge)
             if not (settings.show_reactions if is_reaction else settings.show_resultants):
-                # the decompositions below are still drawn: normal and friction
-                # are separate views, not extra detail on the resultant
+                # the decompositions and the corner forces below are still drawn:
+                # normal, friction and per-corner are separate views, not extra
+                # detail on the resultant
                 self._draw_decomposition(layer, results, edge, point, scale, settings)
+                drawn += self._draw_cornerforces(layer, results, edge, scale, settings, problem_name, key)
                 continue
 
             self._draw_contact_geometry(layer, results, edge)
@@ -1624,6 +1632,7 @@ class MasonrySession(LazyLoadSession):
             if guid is None:
                 continue
             self._draw_decomposition(layer, results, edge, point, scale, settings)
+            drawn += self._draw_cornerforces(layer, results, edge, scale, settings, problem_name, key)
             if is_reaction:
                 self._draw_value_tag(tags_layer, point, magnitude, edge, problem_name, key)
             self.set_user_params(
@@ -1793,6 +1802,69 @@ class MasonrySession(LazyLoadSession):
         if settings.show_frictionforces:
             friction = [(x * local[0] + y * local[1]) * scale for x, y in zip(frame.xaxis, frame.yaxis)]
             self._draw_centred_line(layer, point, friction, color=self.COLOR_FRICTION)
+
+    def _draw_cornerforces(self, layer, results, edge, scale, settings, problem_name=None, key=None):
+        """Draw the per-corner normal forces of one contact.
+
+        A solver does not solve for the resultant — it solves for a force at every
+        vertex of the contact polygon, and the resultant is their sum. This draws
+        what was solved: one line per corner, along the contact normal, centred on
+        the corner so the direction reads without an arrowhead.
+
+        Why it matters beyond detail: a contact whose RESULTANT is compressive can
+        still have tensile corners, which is exactly what a CRA penalty solve
+        permits and the plain formulation forbids. The resultant hides that; this
+        is the only view that shows where the tension actually is. Compression is
+        drawn in the normal-force colour and tension in `COLOR_TENSION`.
+
+        `FrictionContact.compressiondata` / `.tensiondata` already return
+        `[x, y, z, nx, ny, nz, 0.5 * force]` per corner — point, normal axis, half
+        magnitude — so nothing is recomputed here. Note the halving: the data is
+        built for a line spanning ±half, and `_draw_centred_line` halves again, so
+        the magnitude is doubled back before it is passed on.
+
+        Not every contact is a `FrictionContact`. LMGC90 stores an `EdgeContact` or
+        a `VertexContact` for degenerate contacts, and those carry no per-corner
+        forces at all — hence `getattr` rather than an attribute access.
+
+        Returns
+        -------
+        int
+            The number of corner forces drawn.
+
+        """
+        if not settings.show_cornerforces:
+            return 0
+
+        contact = results.contact_data(edge)
+        if contact is None:
+            return 0
+
+        drawn = 0
+        for attr, color, kind in (
+            ("compressiondata", self.COLOR_NORMAL, "corner_compression"),
+            ("tensiondata", self.COLOR_TENSION, "corner_tension"),
+        ):
+            for entry in getattr(contact, attr, None) or []:
+                point = entry[:3]
+                axis = entry[3:6]
+                magnitude = entry[6] * 2.0
+                guid = self._draw_centred_line(layer, point, [c * magnitude * scale for c in axis], color=color)
+                if guid is None:
+                    continue
+                self.set_user_params(
+                    guid,
+                    {
+                        "problem": problem_name,
+                        "result_key": key,
+                        "result_kind": kind,
+                        "edge": list(edge),
+                        "force_magnitude": abs(magnitude),
+                    },
+                )
+                drawn += 1
+
+        return drawn
 
     def _draw_value_tag(self, layer, point, magnitude, edge, problem_name=None, key=None):
         """Label a resultant with its magnitude, as a TextDot at its contact point.

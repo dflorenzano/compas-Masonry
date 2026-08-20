@@ -18,6 +18,8 @@ from compas_masonry.results import contact_resultants  # noqa: E402
 from compas_masonry.results import face_stresses  # noqa: E402
 from compas_masonry.results import summary  # noqa: E402
 from compas_masonry.results import support_reactions  # noqa: E402
+from compas_masonry.results import tension_contacts  # noqa: E402
+from compas_masonry.results import tension_report  # noqa: E402
 
 
 class FakeResults:
@@ -27,11 +29,15 @@ class FakeResults:
     10 N compressive force. No frame and no gaps, exactly like a CRA result.
     """
 
-    def __init__(self, with_frame=False, force=(0.0, 0.0, -10.0)):
+    def __init__(self, with_frame=False, force=(0.0, 0.0, -10.0), contact=None):
         self._force = list(force)
         self._with_frame = with_frame
+        self._contact = contact
         self.metadata = {}
         self.polygon = Polygon([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]])
+
+    def contact_data(self, edge):
+        return self._contact
 
     def edges(self):
         return iter([(0, 1)])
@@ -160,3 +166,63 @@ def test_summary_reports_absent_quantities_as_none(model):
     # no gaps and no transformations -> reported as absent, not as a zero maximum
     assert values["opening_at"] is None
     assert values["displacement_at"] is None
+
+
+# =============================================================================
+# Tension
+# =============================================================================
+
+
+class FakeContact:
+    """A FrictionContact-shaped stand-in: only the corner-force data is read.
+
+    `tensiondata` rows are `[x, y, z, nx, ny, nz, 0.5 * force]` with a NEGATIVE
+    force, which is how compas_dem builds them.
+    """
+
+    def __init__(self, tensions=()):
+        self.tensiondata = [[0.0, 0.0, 0.0, 0.0, 0.0, 1.0, -0.5 * t] for t in tensions]
+
+
+class DegenerateContact:
+    """LMGC90's EdgeContact/VertexContact: no per-corner forces at all."""
+
+
+def test_no_contact_data_is_not_read_as_no_tension():
+    """A contact the solver stored nothing for is skipped, not passed as sound."""
+    assert tension_contacts(FakeResults(contact=None)) == []
+    assert tension_contacts(FakeResults(contact=DegenerateContact())) == []
+
+
+def test_tension_is_reported_per_contact_with_the_halving_undone():
+    """tensiondata stores half the force; the report must give back the force."""
+    results = FakeResults(contact=FakeContact(tensions=[2.0, 6.0]))
+    contacts = tension_contacts(results)
+
+    assert len(contacts) == 1
+    label, corners, largest = contacts[0]
+    assert label == "0-1"
+    assert corners == 2
+    assert largest == pytest.approx(6.0)
+
+
+def test_compression_only_reports_nothing():
+    assert tension_contacts(FakeResults(contact=FakeContact(tensions=[]))) == []
+
+
+def test_penalty_tension_is_expected_and_plain_tension_is_not():
+    """Same numbers, opposite meaning — metadata['penalty'] is the discriminator."""
+    plain = FakeResults(contact=FakeContact(tensions=[3.0]))
+    expected, message = tension_report(plain)
+    assert expected is False
+    assert "should not produce this" in message
+
+    penalty = FakeResults(contact=FakeContact(tensions=[3.0]))
+    penalty.metadata["penalty"] = True
+    expected, message = tension_report(penalty)
+    assert expected is True
+    assert "permits tension" in message
+
+
+def test_no_tension_reports_nothing_at_all():
+    assert tension_report(FakeResults(contact=FakeContact())) is None

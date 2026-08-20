@@ -23,10 +23,13 @@ __all__ = [
     "contact_resultants",
     "face_stresses",
     "contact_openings",
+    "tension_contacts",
+    "tension_report",
     "block_displacements",
     "support_reactions",
     "summary",
 ]
+
 
 
 def _magnitude(vector) -> float:
@@ -152,6 +155,68 @@ def contact_openings(results, tolerance=1e-9) -> list:
         opening = max(gaps)
         if opening > tolerance:
             out.append((float(opening), point, _edge_label(edge)))
+    return out
+
+
+def tension_report(results):
+    """`(expected, message)` describing the tension in a result, or None if there is none.
+
+    Formatting lives here rather than in the commands because two of them say it —
+    Problem_solve at the moment the result is produced, Results_show when it is
+    drawn — and a warning that is worded differently in the two places reads as two
+    different findings.
+
+    `expected` is True for a CRA penalty solve, which permits tension by design.
+    The caller uses it to choose `print` over `warn`: the same numbers are a
+    result there and a fault everywhere else.
+    """
+    contacts = tension_contacts(results)
+    if not contacts:
+        return None
+
+    corners = sum(n for _, n, _ in contacts)
+    largest = max(t for _, _, t in contacts)
+    where = ", ".join(label for label, _, _ in contacts[:5])
+    if len(contacts) > 5:
+        where += f", … (+{len(contacts) - 5})"
+
+    head = f"{len(contacts)} contact(s) carry tension at {corners} corner(s), max {largest:.4g} [{where}]."
+    if results.metadata.get("penalty"):
+        return True, f"{head} Expected: this is a CRA penalty solve, which permits tension instead of excluding it."
+    return False, f"{head} A no-tension solve should not produce this — check the supports and the contact model."
+
+
+def tension_contacts(results, tolerance=1e-9) -> list:
+    """[(label, n_corners, max_tension), …] — one per contact carrying tension.
+
+    Masonry does not take tension, so a plain CRA or RBE solve is formulated to
+    forbid it and any result here means the answer is not one the model can
+    physically deliver. A CRA *penalty* solve deliberately permits it, penalising
+    it instead of excluding it, so there the list is the answer rather than a
+    fault — `results.metadata["penalty"]` is what tells the two apart, and the
+    caller reports accordingly.
+
+    Read per CORNER, not per resultant: a contact whose resultant is net
+    compressive can still be in tension at some of its polygon vertices, and the
+    resultant hides exactly that. `FrictionContact.tensiondata` is the stored
+    per-corner answer, `[x, y, z, nx, ny, nz, 0.5 * force]` with a negative force,
+    so nothing is recomputed here.
+
+    Contacts with no per-corner forces are skipped rather than assumed sound.
+    LMGC90 stores an `EdgeContact` or a `VertexContact` for degenerate contacts,
+    and neither carries corner forces at all.
+    """
+    out = []
+    for edge in results.edges():
+        contact = results.contact_data(edge)
+        if contact is None:
+            continue
+        entries = getattr(contact, "tensiondata", None) or []
+        # the halving in tensiondata is undone so the number matches a force
+        tensions = [abs(entry[6]) * 2.0 for entry in entries]
+        tensions = [t for t in tensions if t > tolerance]
+        if tensions:
+            out.append((_edge_label(edge), len(tensions), max(tensions)))
     return out
 
 
