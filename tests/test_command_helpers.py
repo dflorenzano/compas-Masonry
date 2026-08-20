@@ -167,6 +167,21 @@ def test_lmgc90_solver_never_gets_verbose_zero():
     assert setsolver.Solver.LMGC90(duration=1.0, n_steps=100).parameters["verbose"] != 0
 
 
+def test_no_command_offers_a_verbose_toggle():
+    """The CRA/RBE `Output: Quiet|Verbose` toggle was removed on 2026-08-20.
+
+    It only ever fed solver-iteration printing into the Rhino command line, and
+    both Solver.CRA and Solver.RBE default `verbose` to False. This fails if a
+    command starts asking for it again.
+    """
+    import pathlib
+
+    commands = pathlib.Path(__file__).resolve().parents[1] / "commands"
+    offenders = [p.name for p in commands.glob("*.py") if 'add_toggle("verbose"' in p.read_text()]
+
+    assert offenders == [], f"commands offering a verbose toggle: {offenders}"
+
+
 # =============================================================================
 # Layer paths
 # =============================================================================

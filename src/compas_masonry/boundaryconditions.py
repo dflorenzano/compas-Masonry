@@ -29,6 +29,19 @@ Two things a caller has to keep straight:
 - **A moment is a `PointLoad`**, not a class of its own: `add_moment` builds one
   with a zero force vector and a `moment`. `is_moment()` is what tells them apart,
   and it is why `describe` cannot dispatch on the class name alone.
+
+**On the compas_dem names.** `compas_dem.problem` exports `Load`, `Translation` and
+`Rotation`, and the last two collide with `compas.geometry.Translation` and
+`compas.geometry.Rotation` — a script doing a star-import of both packages gets
+whichever came last. Nothing in this plugin binds those bare names: they are
+imported here under `Applied…`/`Prescribed…` aliases, and everywhere else the type
+is matched as a STRING through `_classname(bc)`.
+
+Those strings are compas_dem class names, not labels this plugin is free to choose.
+Renaming what the user sees means adding a display-name map, because the same
+strings are the stored discriminator — and renaming the classes themselves means
+changing compas_dem, which also changes the `dtype` in every serialized session.
+Neither is done here.
 """
 
 __all__ = [
@@ -67,17 +80,17 @@ def _classname(bc) -> str:
 
 
 def is_load(bc) -> bool:
-    """True if the boundary condition is a Load (as opposed to a Displacement)."""
-    from compas_dem.problem import Load
+    """True if the boundary condition is a load (as opposed to a displacement)."""
+    from compas_dem.problem import Load as AppliedLoad
 
-    return isinstance(bc, Load)
+    return isinstance(bc, AppliedLoad)
 
 
 def is_displacement(bc) -> bool:
     """True if the boundary condition is a prescribed movement."""
-    from compas_dem.problem import Displacement
+    from compas_dem.problem import Displacement as PrescribedDisplacement
 
-    return isinstance(bc, Displacement)
+    return isinstance(bc, PrescribedDisplacement)
 
 
 def is_moment(bc) -> bool:
