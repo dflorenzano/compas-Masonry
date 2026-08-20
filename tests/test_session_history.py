@@ -99,8 +99,10 @@ def test_setdefault_still_clobbers_a_cold_cache(populated):
     clobbered = populated.setdefault("results", dict)
 
     assert clobbered == {}
-    # read the FILE, not the cache — the point is that the data on disk is gone
-    assert compas.json_load(populated.datadir / "results.json") == {}
+    # read the STORAGE, not the cache — the point is that the data on disk is gone.
+    # `results` is a folder now, so "empty" is a manifest naming nothing.
+    assert compas.json_load(populated.resultsdir / "_results.json") == []
+    assert populated._load_results() == {}
 
 
 def test_the_analysis_property_reads_through_to_disk(populated):
@@ -356,11 +358,16 @@ def test_record_snapshots_the_autosynced_working_copy(populated):
     snapshot = populated.recordsdir / record_id / populated.datadirname
 
     assert compas.json_load(snapshot / "active_problem.json") == "Problem_1"
-    # ONE file, model and problems together — there is no blockmodel.json or
-    # problems.json any more
-    analysis = compas.json_load(snapshot / "analysis.json")
-    assert analysis.model is not None
-    assert [problem.name for problem in analysis.problems] == ["Problem_1"]
+
+    # ONE key, stored as a FOLDER: the model and the problems are separate files
+    # under `analysis/`, and there is no monolithic analysis.json (nor the
+    # blockmodel.json / problems.json that predated it).
+    assert not (snapshot / "analysis.json").exists()
+
+    manifest = compas.json_load(snapshot / "analysis" / "_analysis.json")
+    assert manifest["problems"] == ["Problem_1.json"]
+    assert compas.json_load(snapshot / "analysis" / "model.json") is not None
+    assert compas.json_load(snapshot / "analysis" / "problems" / "Problem_1.json").name == "Problem_1"
 
 
 def test_record_still_dumps_scene_and_settings(session):
@@ -556,3 +563,252 @@ def test_every_show_setting_is_read_somewhere():
             unread.append(name)
 
     assert unread == [], f"BlockModel settings read by nothing: {unread}"
+
+
+# =============================================================================
+# User Text tagging
+# =============================================================================
+
+
+def _tagged(params):
+    """Run `set_user_params` against a recording stub, returning what it wrote.
+
+    `set_user_params` never touches `self`, so it is called unbound rather than
+    standing a whole session up around a Rhino document it would not have.
+    """
+    import sys
+
+    import rhinostub
+
+    rhinostub.install()
+    written = {}
+    sys.modules["rhinoscriptsyntax"].SetUserText = lambda guid, key, value: written.__setitem__(key, value)
+
+    MasonrySession.set_user_params(object(), "guid", params)
+    return written
+
+
+def test_compas_geometry_is_tagged_as_a_plain_list():
+    """A face-anchored point load used to abort the whole redraw.
+
+    compas_dem resolves the two point-load anchors differently:
+    `add_point_load_at_vertex` uses `vertex_coordinates()` -> list, while
+    `add_point_load_at_face` uses `face_center()` -> Point. Tagging the Point
+    raised `TypeError: Object of type Point is not JSON serializable` inside
+    `draw_problem_conditions`, which tags as it draws — so the loads before it got
+    arrows, the ones after got none, and the load looked like it had only applied
+    to one block. It had always been added and saved; only the drawing died.
+    """
+    from compas.geometry import Point
+    from compas.geometry import Vector
+
+    written = _tagged({"point": Point(1.0, 2.0, 3.0), "force": Vector(0.0, 0.0, -1000.0)})
+
+    assert json.loads(written["point"]) == [1.0, 2.0, 3.0]
+    assert json.loads(written["force"]) == [0.0, 0.0, -1000.0]
+
+
+def test_plain_values_are_tagged_unchanged():
+    """The list-returning anchor must still produce exactly what it always did."""
+    written = _tagged({"point": [1.0, 2.0, 3.0], "loading_type": "ramp", "face_index": 4, "moment": None})
+
+    assert json.loads(written["point"]) == [1.0, 2.0, 3.0]
+    assert written["loading_type"] == "ramp"  # strings stay raw, not quoted JSON
+    assert json.loads(written["face_index"]) == 4
+    assert written["moment"] is None  # None deletes the key
+
+
+def test_an_unencodable_value_still_raises():
+    """`default=list` must not become a silent catch-all for anything at all."""
+    with pytest.raises(TypeError):
+        _tagged({"nonsense": object()})
+
+
+# =============================================================================
+# Folder-backed storage for `analysis` and `results`
+# =============================================================================
+
+
+def _problem(model, name):
+    problem = Problem(model, name=name)
+    group = problem.add_boundary_condition("Load_1")
+    problem.add_point_load_at_centroid(block_index=0, force=[0, 0, -1000], boundary_condition=group)
+    return problem
+
+
+def test_the_analysis_round_trips_through_separate_files(session, arch_model):
+    """The whole point: the model and each problem are their own JSON, and the
+    Analysis that comes back is bound exactly as `__from_data__` leaves it."""
+    analysis = Analysis(model=arch_model, name="test")
+    analysis.add_problem(_problem(arch_model, "Problem_1"))
+    analysis.add_problem(_problem(arch_model, "Problem_2"))
+    session["analysis"] = analysis
+
+    session._data.clear()
+    back = session.get("analysis")
+
+    assert back.name == "test"
+    assert [problem.name for problem in back.problems] == ["Problem_1", "Problem_2"]
+    assert [group.name for group in back.problems[0].boundary_conditions] == ["Load_1"]
+    # the reason this stayed ONE key: nothing had to rebind by hand
+    assert all(problem.model is back.model for problem in back.problems)
+
+
+def test_the_analysis_is_stored_as_a_folder_not_a_file(populated):
+    assert not (populated.datadir / "analysis.json").exists()
+    assert (populated.analysisdir / "model.json").exists()
+    assert (populated.problemsdir / "Problem_1.json").exists()
+    assert compas.json_load(populated.analysisdir / "_analysis.json")["problems"] == ["Problem_1.json"]
+
+
+def test_removed_problems_do_not_come_back(session, arch_model):
+    """A state with fewer problems than the last one must not leave files behind
+    for the next load to find — that would resurrect a deleted problem."""
+    analysis = Analysis(model=arch_model, name="test")
+    for name in ("Problem_1", "Problem_2", "Problem_3"):
+        analysis.add_problem(_problem(arch_model, name))
+    session["analysis"] = analysis
+
+    analysis.problems = analysis.problems[:1]
+    session["analysis"] = analysis
+
+    session._data.clear()
+    assert [problem.name for problem in session.get("analysis").problems] == ["Problem_1"]
+    assert sorted(p.name for p in session.problemsdir.iterdir()) == ["Problem_1.json"]
+
+
+def test_a_legacy_monolith_is_still_read(session, arch_model):
+    """Pre-folder sessions, and every undo record taken before the folder existed,
+    hold one `analysis.json`. It must load, and the next write must replace it."""
+    analysis = Analysis(model=arch_model, name="legacy")
+    analysis.add_problem(_problem(arch_model, "Problem_1"))
+
+    import shutil
+
+    compas.json_dump(analysis, session.datadir / "analysis.json")
+    shutil.rmtree(session.analysisdir, ignore_errors=True)
+    session._data.clear()
+
+    back = session.get("analysis")
+    assert back.name == "legacy"
+    assert [problem.name for problem in back.problems] == ["Problem_1"]
+    assert back.problems[0].model is back.model
+
+    session["analysis"] = back
+    assert not (session.datadir / "analysis.json").exists()
+    assert (session.analysisdir / "_analysis.json").exists()
+
+
+def test_the_two_keys_share_a_directory_without_sharing_a_lifetime(populated):
+    """`CM_TNA_envelope` deletes the analysis and keeps the results, so deleting
+    one key must not take the other's files with it."""
+    populated["results"] = {"Problem_1": {"CRA_1": "placeholder"}}
+
+    populated.delete("analysis")
+    populated._data.clear()
+    assert populated.get("analysis") is None
+    assert populated.get("results") == {"Problem_1": {"CRA_1": "placeholder"}}
+
+    populated["analysis"] = Analysis(model=None, name="test")
+    populated.delete("results")
+    populated._data.clear()
+    assert populated.get("results") is None
+    assert populated.get("analysis") is not None
+
+
+def test_the_narrow_writes_touch_only_their_own_half(populated):
+    """The whole reason for the split.
+
+    `save_model` must not re-serialize the problems, and — the one that pays —
+    `save_problems` must not re-serialize the MODEL. On a 200-block arch the model
+    is 0.50 MB against 878 bytes for a problem, 0.031s against 0.0001s to write.
+    `save_analysis` is the both-changed case and writes everything.
+    """
+    modelfile = populated.analysisdir / "model.json"
+    problemfile = populated.problemsdir / "Problem_1.json"
+
+    model_before, problem_before = modelfile.stat().st_mtime_ns, problemfile.stat().st_mtime_ns
+    populated.save_model()
+    assert modelfile.stat().st_mtime_ns != model_before
+    assert problemfile.stat().st_mtime_ns == problem_before
+
+    model_before, problem_before = modelfile.stat().st_mtime_ns, problemfile.stat().st_mtime_ns
+    populated.save_problems()
+    assert modelfile.stat().st_mtime_ns == model_before
+    assert problemfile.stat().st_mtime_ns != problem_before
+
+    model_before = modelfile.stat().st_mtime_ns
+    populated.save_analysis()
+    assert modelfile.stat().st_mtime_ns != model_before
+
+
+def test_every_problem_editing_command_uses_the_narrow_write(populated):
+    """A problem edit that calls `save_analysis` silently pays the model write.
+
+    Pinned as source inspection because the alternative is standing up each command
+    against a Rhino document. Model_* commands are the mirror image and must NOT
+    appear here.
+    """
+    import pathlib
+
+    commands = pathlib.Path(__file__).resolve().parents[1] / "commands"
+    offenders = sorted(p.name for p in commands.glob("CM_Problem_*.py") if "save_analysis()" in p.read_text())
+
+    assert offenders == [], f"problem commands rewriting the model for nothing: {offenders}"
+
+
+def test_a_narrow_write_cannot_be_the_first_write(session, arch_model):
+    """`save_model` on a session that still holds a legacy monolith must write the
+    WHOLE folder. A bare model.json would leave the manifest missing, the load path
+    would fall back to the legacy file, and the saved model would be read back
+    stale — silently."""
+    analysis = Analysis(model=arch_model, name="legacy")
+    analysis.add_problem(_problem(arch_model, "Problem_1"))
+
+    import shutil
+
+    compas.json_dump(analysis, session.datadir / "analysis.json")
+    shutil.rmtree(session.analysisdir, ignore_errors=True)
+    session._data.clear()
+
+    session.get("analysis")  # warms the cache from the legacy file
+    session.save_model()
+
+    assert (session.analysisdir / "_analysis.json").exists()
+    assert not (session.datadir / "analysis.json").exists()
+
+    session._data.clear()
+    assert [problem.name for problem in session.get("analysis").problems] == ["Problem_1"]
+
+
+def test_undo_across_the_format_change(populated, arch_model):
+    """A record taken BEFORE the folder existed is restored as a legacy monolith.
+    This is the case that would silently lose a model.
+
+    `LazyLoadSession.undo` rather than the override, as everywhere else here: the
+    override also runs `_redraw_state`, which needs a live Rhino document.
+    """
+    import shutil
+
+    from compas_session.lazyload import LazyLoadSession
+
+    populated.record("folder state")
+
+    # forge a pre-folder record: the snapshot holds analysis.json and no folder
+    record_id, _ = populated.history[-1]
+    snapshot = populated.recordsdir / record_id / populated.datadirname
+    legacy = Analysis(model=arch_model, name="from-a-legacy-record")
+    legacy.add_problem(_problem(arch_model, "Problem_9"))
+    shutil.rmtree(snapshot / "analysis", ignore_errors=True)
+    compas.json_dump(legacy, snapshot / "analysis.json")
+
+    populated["active_problem"] = "moved on"
+    populated.record("after")
+
+    assert LazyLoadSession.undo(populated) is True
+    populated._restore_data()
+
+    back = populated.get("analysis")
+    assert back.name == "from-a-legacy-record"
+    assert [problem.name for problem in back.problems] == ["Problem_9"]
+    assert back.problems[0].model is back.model

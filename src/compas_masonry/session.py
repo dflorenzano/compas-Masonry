@@ -112,12 +112,15 @@ class MasonrySession(LazyLoadSession):
     # raised on `problem.model` only at solve time. `Analysis.__from_data__` calls
     # `problem.load_model()` for us, so that whole class of bug is gone.
     #
-    # The cost, and it is real: one key means `set()` re-serializes the MODEL too
-    # on every problem edit — measured at 0.45s for a 6.5 MB BlockModel — where
-    # the old `problems` key wrote kilobytes. Accepted deliberately; if it bites,
-    # the fix is a dirty-flag on the analysis, not a second key.
+    # That cost the MODEL being re-serialized on every problem edit — 0.45s for a
+    # 6.5 MB BlockModel where the old `problems` key wrote kilobytes. The note here
+    # used to say "if it bites, the fix is a dirty-flag on the analysis, not a
+    # second key". That is what FOLDER_KEYS below is: the key stayed one, the
+    # STORAGE became a directory, and `save_model` / `save_problems` each write only
+    # their own half. It is still one key, so the binding guarantee is intact.
     #
-    # `results` is still its own key. It moves into the Analysis in a later pass.
+    # `results` is still its own key. It shares the `analysis/` directory but not its
+    # lifetime — see the note on FOLDER_KEYS.
     SESSION_KEYS = [
         "analysis",
         "active_problem",
@@ -152,6 +155,280 @@ class MasonrySession(LazyLoadSession):
                 path.unlink()
                 removed.append(key)
         return removed
+
+    # =============================================================================
+    # Folder-backed storage
+    # =============================================================================
+
+    # Keys stored as a DIRECTORY of separate JSONs instead of one file.
+    #
+    # `LazyLoadSession` writes one `data/<key>.json` per key, so the whole model and
+    # every problem were rewritten on any edit to anything inside them. On the test
+    # arch the model is 29.4 KB of a 30.7 KB analysis and a problem is 682 bytes:
+    # adding one load rewrote 30 KB to change under a kilobyte, and the note on
+    # SESSION_KEYS records 0.45s per `set()` on a real 6.5 MB model.
+    #
+    # `analysis` deliberately stays ONE key. Splitting it back into `blockmodel` +
+    # `problems` is what commit 791d87f undid: a Problem serializes as a guid
+    # REFERENCE to its model, and `Analysis.__from_data__` is what rebinds them, so
+    # two keys put that rebinding back in the hands of every load path. Only the
+    # STORAGE is split.
+    #
+    # `analysis` and `results` are still two INDEPENDENT keys that merely share a
+    # parent directory — `CM_TNA_envelope` deletes the analysis without deleting the
+    # results, so each `delete` touches only the files its own key owns.
+    FOLDER_KEYS = ("analysis", "results")
+
+    @property
+    def analysisdir(self):
+        return self.datadir / "analysis"
+
+    @property
+    def problemsdir(self):
+        return self.analysisdir / "problems"
+
+    @property
+    def resultsdir(self):
+        return self.analysisdir / "results"
+
+    @staticmethod
+    def _safe_filename(name, taken) -> str:
+        """A readable, filesystem-safe `<name>.json`, unique within `taken`.
+
+        The filename is a HANDLE, never an identifier: nothing parses it back. The
+        real name is in the manifest and inside the object, so mangling a character
+        here costs nothing, and two problems called "a/b" and "a:b" collapsing to
+        the same stem is resolved with a counter rather than by preserving them.
+        """
+        stem = "".join(c if (c.isalnum() or c in "-_") else "_" for c in str(name)) or "unnamed"
+        candidate = f"{stem}.json"
+        index = 1
+        while candidate in taken:
+            candidate = f"{stem}_{index}.json"
+            index += 1
+        taken.add(candidate)
+        return candidate
+
+    def _drop_legacy_file(self, key) -> None:
+        """Remove the pre-folder `data/<key>.json` once the folder supersedes it.
+
+        It cannot be left behind: `record()` copies the whole data directory into
+        every snapshot, and a later `undo()` would restore the stale monolith next
+        to the folder.
+        """
+        (self.datadir / f"{key}.json").unlink(missing_ok=True)
+
+    def _load_legacy(self, key):
+        """Read the pre-folder `data/<key>.json`, or None.
+
+        **This fallback is permanent, not a one-shot migration.** Every
+        `__records/<id>/data/` snapshot taken before the folder existed holds a
+        monolithic `analysis.json`, and `undo()` copies that directory back
+        verbatim — so a legacy file can reappear in the working copy long after the
+        session was first upgraded. The next `set()` converts it again.
+        """
+        import compas
+
+        path = self.datadir / f"{key}.json"
+        if not path.exists():
+            return None
+        return compas.json_load(path)
+
+    def _dump_analysis(self, analysis, parts=None) -> None:
+        """Write the analysis as `model.json` + one JSON per problem + a manifest.
+
+        `parts=("model",)` writes ONLY the model, which is what `save_model` wants:
+        its callers changed supports, materials or contacts and no problem. Passing
+        None writes everything.
+
+        The manifest is authoritative for the analysis name and for the problem
+        ORDER. Problems are rewritten as a set rather than file by file, because a
+        state with fewer problems than the last one would otherwise leave the extra
+        files behind for a glob to find, resurrecting a problem that was deleted.
+
+        Nothing here re-implements compas_dem: the parts come straight out of
+        `analysis.__data__`, which is the same dict `compas.json_dump` would encode.
+        """
+        import shutil
+
+        import compas
+
+        data = analysis.__data__
+        self.analysisdir.mkdir(parents=True, exist_ok=True)
+        manifestfile = self.analysisdir / "_analysis.json"
+
+        # A narrow write cannot be the first write: without the manifest, the load
+        # path falls through to the legacy file and would read a stale model back
+        # over the one just saved.
+        if parts is not None and not manifestfile.exists():
+            parts = None
+
+        if parts is None or "model" in parts:
+            modelfile = self.analysisdir / "model.json"
+            if data["model"] is None:
+                modelfile.unlink(missing_ok=True)
+            else:
+                compas.json_dump(data["model"], modelfile)
+
+        if parts is None or "problems" in parts:
+            shutil.rmtree(self.problemsdir, ignore_errors=True)
+            self.problemsdir.mkdir(parents=True, exist_ok=True)
+
+            taken = set()
+            filenames = []
+            for problem in data["problems"]:
+                filename = self._safe_filename(problem.name, taken)
+                compas.json_dump(problem, self.problemsdir / filename)
+                filenames.append(filename)
+
+            compas.json_dump({"name": data["name"], "problems": filenames}, manifestfile)
+
+        self._drop_legacy_file("analysis")
+
+    def _load_analysis(self):
+        """Rebuild the Analysis from the folder, or fall back to the legacy file.
+
+        The parts are handed to `Analysis.__from_data__`, so the model is rebound
+        into every problem by compas_dem's own code — the property that keeping this
+        as one key exists to preserve.
+        """
+        import compas
+        from compas_dem.models import Analysis
+
+        manifestfile = self.analysisdir / "_analysis.json"
+        if not manifestfile.exists():
+            return self._load_legacy("analysis")
+
+        manifest = compas.json_load(manifestfile)
+        modelfile = self.analysisdir / "model.json"
+
+        return Analysis.__from_data__(
+            {
+                "name": manifest.get("name"),
+                "model": compas.json_load(modelfile) if modelfile.exists() else None,
+                "problems": [compas.json_load(self.problemsdir / f) for f in manifest.get("problems") or []],
+            }
+        )
+
+    def _dump_results(self, stored) -> None:
+        """Write `{problem: {key: Results}}` as one JSON per result set, plus a manifest.
+
+        The manifest carries the true problem name and result key for each file, so
+        the filename never has to be parsed back — which is what makes it safe to
+        sanitize. It is written even when there is nothing stored, so that an empty
+        `{}` reads back as `{}` rather than falling through to the legacy file.
+        """
+        import shutil
+
+        import compas
+
+        shutil.rmtree(self.resultsdir, ignore_errors=True)
+        self.resultsdir.mkdir(parents=True, exist_ok=True)
+
+        taken = set()
+        manifest = []
+        for problem_name, sets in (stored or {}).items():
+            for result_key, results in (sets or {}).items():
+                filename = self._safe_filename(f"{problem_name}__{result_key}", taken)
+                compas.json_dump(results, self.resultsdir / filename)
+                manifest.append([problem_name, result_key, filename])
+
+        compas.json_dump(manifest, self.resultsdir / "_results.json")
+        self._drop_legacy_file("results")
+
+    def _load_results(self):
+        """Rebuild `{problem: {key: Results}}` from the folder, or the legacy file."""
+        import compas
+
+        manifestfile = self.resultsdir / "_results.json"
+        if not manifestfile.exists():
+            return self._load_legacy("results")
+
+        stored = {}
+        for problem_name, result_key, filename in compas.json_load(manifestfile) or []:
+            path = self.resultsdir / filename
+            if path.exists():
+                stored.setdefault(problem_name, {})[result_key] = compas.json_load(path)
+        return stored
+
+    def _dump_folder_key(self, key, value) -> None:
+        if key == "analysis":
+            self._dump_analysis(value)
+        else:
+            self._dump_results(value)
+
+    # -- the four LazyLoadSession overrides ---------------------------------------
+    #
+    # Each one handles FOLDER_KEYS and delegates everything else to the parent. That
+    # is why no command changed: every call site already goes through get / set /
+    # delete / setdefault on these keys.
+
+    def get(self, key, default=None, filepath=None):
+        """As the parent, but reads FOLDER_KEYS from their directory."""
+        if key in self.FOLDER_KEYS and filepath is None and key not in self.data:
+            value = self._load_analysis() if key == "analysis" else self._load_results()
+            # NOT cached when absent: `__contains__` distinguishes "stored as None"
+            # from "not stored" by whether the key is in `data`, and an empty
+            # results dict is a real value while a missing one is not.
+            if value is None:
+                return default
+            self.data[key] = value
+        return super().get(key, default, filepath)
+
+    def set(self, key, value) -> None:
+        """As the parent, but writes FOLDER_KEYS to their directory."""
+        if key not in self.FOLDER_KEYS:
+            return super().set(key, value)
+
+        self.data[key] = value
+        if value is None:
+            # nothing to lay out; leaving the old folder would make the next read
+            # resurrect what was just cleared
+            return self.delete(key)
+        if self.settings.autosync:
+            self._dump_folder_key(key, value)
+
+    def delete(self, key) -> None:
+        """As the parent, but removes ONLY the files the given key owns.
+
+        The two keys share the `analysis/` directory, so this cannot be an rmtree of
+        the parent: `CM_TNA_envelope` deletes the analysis and keeps the results.
+        """
+        if key not in self.FOLDER_KEYS:
+            return super().delete(key)
+
+        import shutil
+
+        self.data.pop(key, None)
+
+        if key == "analysis":
+            (self.analysisdir / "_analysis.json").unlink(missing_ok=True)
+            (self.analysisdir / "model.json").unlink(missing_ok=True)
+            shutil.rmtree(self.problemsdir, ignore_errors=True)
+        else:
+            shutil.rmtree(self.resultsdir, ignore_errors=True)
+
+        self._drop_legacy_file(key)
+
+    def dump(self, sessiondir=None) -> None:
+        """As the parent, but never writes a FOLDER_KEY back as one file.
+
+        `LazyLoadSession.dump` loops `self.data` and writes `datadir/<key>.json` for
+        each, which would put the monolith back beside the folder. Only reachable
+        with `autosync` OFF — `record()` empties `_data` around `super().record()`
+        when it is on (see the note there), so the loop writes nothing then.
+        """
+        data = self._data
+        held = {key: data[key] for key in self.FOLDER_KEYS if key in data}
+
+        self._data = {key: value for key, value in data.items() if key not in self.FOLDER_KEYS}
+        try:
+            super().dump(sessiondir)
+        finally:
+            self._data = data
+
+        for key, value in held.items():
+            self._dump_folder_key(key, value)
 
     def clear_all(self) -> None:
         """Empty the session: scene objects, every session key, every layer.
@@ -531,10 +808,17 @@ class MasonrySession(LazyLoadSession):
     def save_model(self) -> None:
         """Persist in-place edits to the model (supports, materials, contacts).
 
-        The model lives inside the analysis, so this is `save_analysis` under a
-        name that says what the caller changed.
+        Writes ONLY `analysis/model.json`. Every caller — Model_contacts,
+        Model_material, Model_materialassign, Model_supports — changes the model and
+        no problem, and the model is the expensive part: 29.4 KB of a 30.7 KB
+        analysis on the test arch, 6.5 MB on a real one.
+
+        The name always said this; it used to call `save_analysis` anyway and rewrite
+        every problem with it. Anything that changes a PROBLEM must still call
+        `save_analysis`, which writes the whole folder.
         """
-        self.save_analysis()
+        if self.settings.autosync:
+            self._dump_analysis(self.analysis, parts=("model",))
 
     def draw_model(self) -> None:
         """Draw the session BlockModel, honouring the BlockModel show settings.
@@ -816,7 +1100,7 @@ class MasonrySession(LazyLoadSession):
         deserialization.
         """
         self.analysis.add_problem(problem)
-        self.save_analysis()
+        self.save_problems()
 
     def remove_problem(self, name) -> bool:
         """Drop a problem from the analysis by name. True if one was removed."""
@@ -825,7 +1109,7 @@ class MasonrySession(LazyLoadSession):
                 # `Analysis.problems` is a plain list attribute with no remove
                 # method of its own.
                 self.analysis.problems.remove(problem)
-                self.save_analysis()
+                self.save_problems()
                 return True
         return False
 
@@ -841,14 +1125,31 @@ class MasonrySession(LazyLoadSession):
         return getattr(problem, "_solver", None)
 
     def save_analysis(self) -> None:
-        """Re-set the analysis key so autosync dumps the mutated objects to disk.
+        """Write the WHOLE analysis folder — model and every problem.
 
-        Replaced `save_problems`. Mutating a Problem in place changes nothing on
-        disk — the session is a cache in front of files and only `set()` writes —
-        and now that the model travels in the same key, this rewrites the model
-        too. See the note on SESSION_KEYS about what that costs.
+        Mutating a Problem or the model in place changes nothing on disk: the
+        session is a cache in front of files and only a write call reaches them.
+
+        Prefer the narrow pair when only one side changed — `save_model` for the
+        model, `save_problems` for the problems. This is for the cases where both
+        did, or where the caller cannot tell.
         """
         self["analysis"] = self.analysis
+
+    def save_problems(self) -> None:
+        """Persist in-place edits to the problems, WITHOUT rewriting the model.
+
+        The counterpart to `save_model`, and the one that pays. A problem is
+        kilobytes and the model is megabytes — 878 bytes against 0.50 MB on a
+        200-block arch, which is 0.0001s against 0.031s to write, a factor of 300.
+        Every problem edit used to pay the model write for nothing.
+
+        Use it whenever the change is to a boundary condition, a solver, a contact
+        law, or the set of problems itself. If the MODEL changed too, use
+        `save_analysis`.
+        """
+        if self.settings.autosync:
+            self._dump_analysis(self.analysis, parts=("problems",))
 
     @property
     def active_problem_name(self):
@@ -2029,6 +2330,25 @@ class MasonrySession(LazyLoadSession):
         strings are stored raw (keeps identifier tags like "element_guid"
         readable and back-compatible with find_node/find_material). A ``None``
         value deletes that key.
+
+        **COMPAS geometry is encoded as a plain list, not as a `dtype` dict.**
+        `default=list` catches anything `json` cannot take but that iterates like
+        a sequence — `Point`, `Vector`, and by recursion a `Polygon`'s points.
+        That matters because compas_dem hands back both shapes for the same
+        quantity: `Problem.add_point_load_at_vertex` resolves its anchor with
+        `vertex_coordinates()`, which returns a **list**, while
+        `add_point_load_at_face` uses `face_center()`, which returns a **Point**.
+        Tagging a face-anchored load used to die with
+        `TypeError: Object of type Point is not JSON serializable` — and because
+        `draw_problem_conditions` tags as it draws, one such load aborted the
+        whole redraw, leaving the arrows of the loads before it on screen and none
+        after. The load itself was always added and saved; only the picture was
+        missing, which read as "it only applied to one block".
+
+        `compas.json_dumps` would also encode these, but as `{"dtype": …}`
+        wrappers, and every reader here does a plain `json.loads` and expects
+        `[x, y, z]`. A type that is neither JSON-native nor iterable still raises,
+        which is what should happen.
         """
         import json
 
@@ -2040,4 +2360,4 @@ class MasonrySession(LazyLoadSession):
             elif isinstance(value, str):
                 rs.SetUserText(guid, key, value)
             else:
-                rs.SetUserText(guid, key, json.dumps(value))
+                rs.SetUserText(guid, key, json.dumps(value, default=list))

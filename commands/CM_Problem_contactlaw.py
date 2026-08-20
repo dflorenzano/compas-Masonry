@@ -108,7 +108,7 @@ def RunCommand():
     if not set_contact_properties(problem):
         return
 
-    session.save_analysis()
+    session.save_problems()
     session.record(f"{name}: contact properties")
 
 
