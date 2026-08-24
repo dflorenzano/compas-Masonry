@@ -158,12 +158,13 @@ def RunCommand():
     key = result_key(solver.name)
 
     # ipopt is an executable, looked up on PATH by compas_cra's pyomo model
-    ipopt = session.ensure_solver_path()
-    if ipopt:
-        print(f"ipopt: {ipopt}")
-    elif solver.name in ("CRA", "RBE"):
-        warn(f"ipopt was not found on PATH, nor in settings.solver_bin ({session.settings.solver_bin}).")
-        print("CRA and RBE solve through it, so this will fail. Set the directory in Session_settings > Solver Executables Directory.")
+    if solver.name in ("CRA", "RBE"):
+        ipopt = session.ensure_solver_path()
+        if ipopt:
+            print(f"ipopt: {ipopt}")
+        else:
+            warn(f"ipopt was not found on PATH, nor in settings.solver_bin ({session.settings.solver_bin}).")
+            print("CRA and RBE solve through it, so this will fail. Set the directory in Session_settings > Solver Executables Directory.")
 
     groups = problem.boundary_conditions
     if groups:

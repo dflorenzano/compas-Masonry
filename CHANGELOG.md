@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+* Added 3DEC to `CM_Problem_setsolver`, with automatic executable discovery, optional executable and workspace overrides, convergence and timeout settings, implicit gravity setup, and an optional `threedec` dependency group.
+
 ### Added — 2026-08-06
 
 * **`CM_Session_undo` and `CM_Session_redo` do something.** Both were `warn("Not available yet.")`, and nothing in the repo had ever called `session.record()`, so there was no history to walk either. Thirteen state-changing commands now record a named state, `Session_clear` clears the history along with everything else, and history keeps the last 10 states on disk (`~/.compas_session/COMPAS-Masonry.session/__records/`), surviving a Rhino restart.

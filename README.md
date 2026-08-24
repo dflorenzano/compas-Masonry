@@ -51,11 +51,18 @@ the `ipopt` executable, which must be on the `PATH` Rhino sees.
 > NumPy 2 environment, and only 0.5.0 accepts the external loads compas_dem
 > passes it. Until it is released, this is a manual install step.
 
-**LMGC90** (contact dynamics, and the only solver here that returns
-displacements) runs in Rhino as of `compas_lmgc90` **0.1.9**, which publishes
-cp39 wheels. It is the only way to apply a prescribed displacement: CRA and RBE
-exclude support blocks from the equilibrium system, so they have no displacement
-degrees of freedom and refuse a problem carrying one.
+**LMGC90** provides contact dynamics and displacements in-process through
+`compas_lmgc90`.
+
+**3DEC** provides staged gravity, load, and prescribed-displacement analyses
+through `compas_3dec` and a licensed external Itasca 3DEC installation. Install
+the optional Python adapter with `pip install -e ".[threedec]"`. The executable
+is discovered automatically, or its path and run workspace can be set in
+`CM_Problem_setsolver`.
+
+CRA and RBE exclude support blocks from the equilibrium system, so they have no
+displacement degrees of freedom and refuse a problem carrying a prescribed
+displacement. Use LMGC90 or 3DEC for those problems.
 
 ## User Interface
 

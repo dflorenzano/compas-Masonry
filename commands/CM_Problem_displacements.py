@@ -59,7 +59,7 @@ NEW = "New"
 
 # Solvers that can apply a prescribed movement. CRA/RBE cannot — see the module
 # docstring — and compas_dem raises rather than silently ignoring one.
-DISPLACEMENT_SOLVERS = ("LMGC90", "PRD", "BLA")
+DISPLACEMENT_SOLVERS = ("LMGC90", "PRD", "BLA", "3DEC")
 
 
 def selected_nodes(session, model, message):
@@ -70,7 +70,7 @@ def selected_nodes(session, model, message):
     return sorted({n for n in (session.find_node(g, guid_element_map) for g in guids) if n is not None})
 
 
-def warn_if_solver_cannot_apply(problem) -> None:
+def warn_if_solver_cannot_apply(problem, movement_kind=None) -> None:
     """Say up front if this problem's solver will refuse the movement.
 
     Better here than at solve time: the user is about to spend effort defining
@@ -80,6 +80,9 @@ def warn_if_solver_cannot_apply(problem) -> None:
     name = getattr(solver, "name", None)
     if name is None:
         print("No solver set yet. Note that CRA and RBE cannot apply prescribed movements — use LMGC90, PRD or BLA.")
+        return
+    if name == "3DEC" and movement_kind == "Rotation":
+        warn("3DEC supports prescribed translations, but prescribed rotations are not yet supported by the compas_3dec adapter.")
         return
     if name not in DISPLACEMENT_SOLVERS:
         warn(f"{name} applies no boundary conditions at all: it solves self-weight equilibrium and never reads them.")
@@ -192,7 +195,7 @@ def add_movement(session, model, problem, values):
             problem.add_rotation(block_index=node, rotation=rotation, boundary_condition=group)
         print(f"Added a prescribed rotation on {len(nodes)} block(s) to [{group.name}].")
 
-    warn_if_solver_cannot_apply(problem)
+    warn_if_solver_cannot_apply(problem, values["kind"])
     return True
 
 

@@ -130,6 +130,10 @@ def test_solve_refuses_cra_on_a_problem_with_boundary_conditions():
     problem.set_solver(Solver.LMGC90(duration=1.0, n_steps=100))
     assert "applies none of them" not in (solve.check_ready(model, problem, "P1") or "")
 
+    # 3DEC also consumes point/surface loads and prescribed translations.
+    problem.set_solver(Solver.ThreeDEC(version="7.0"))
+    assert "applies none of them" not in (solve.check_ready(model, problem, "P1") or "")
+
 
 def test_lmgc90_solver_never_gets_verbose_zero():
     """For LMGC90 `verbose` is a print INTERVAL, not a flag: `lmgc90_solve` does
@@ -142,6 +146,83 @@ def test_lmgc90_solver_never_gets_verbose_zero():
 
     assert "verbose=int(verbose)" not in source
     assert setsolver.Solver.LMGC90(duration=1.0, n_steps=100).parameters["verbose"] != 0
+
+
+def test_threedec_solver_configuration_and_implicit_gravity():
+    """3DEC keeps automatic executable discovery and Masonry self-weight."""
+    pytest.importorskip("compas_dem")
+
+    from compas_dem.models import BlockModel
+    from compas_dem.problem import Problem
+
+    setsolver = load_command(command_path("Problem_setsolver"), "setsolver")
+    values = {
+        "version": "7.0",
+        "executable": "",
+        "workspace": "",
+        "ratio": 1e-5,
+        "gravity_steps": 10,
+        "suppress_output": "Quiet",
+        "timeout": 0.0,
+    }
+
+    solver = setsolver.make_threedec_solver(values)
+    assert solver.name == "3DEC"
+    assert solver.parameters["executable"] is None
+    assert solver.parameters["workspace"] is None
+    assert solver.parameters["timeout"] is None
+    assert solver.parameters["suppress_output"] is True
+
+    problem = Problem(BlockModel(), name="P1")
+    gravity = setsolver.ensure_threedec_gravity(problem)
+    assert gravity is problem.boundary_conditions[0]
+    assert gravity.name == "Gravity"
+    assert gravity.g == pytest.approx(9.81)
+    assert setsolver.ensure_threedec_gravity(problem) is None
+
+    displacements = load_command(command_path("Problem_displacements"), "displacements")
+    assert "3DEC" in displacements.DISPLACEMENT_SOLVERS
+
+
+def test_threedec_problem_prepares_a_gravity_stage(arch_model_with_contacts):
+    """The Masonry problem reaches compas_3dec without running 3DEC itself."""
+    pytest.importorskip("compas_3dec")
+
+    from compas_3dec import ThreeDECAnalysisBuilder
+    from compas_3dec.solver.stages import ThreeDECStagePlan
+    from compas_dem.material.generic import GenericMaterial
+    from compas_dem.problem import Problem
+
+    setsolver = load_command(command_path("Problem_setsolver"), "setsolver")
+    nodes = list(arch_model_with_contacts.graph.nodes())
+    arch_model_with_contacts.add_supports([nodes[0], nodes[-1]])
+    material = GenericMaterial(density=2500.0, Ecm=25e9)
+    arch_model_with_contacts.add_material(material)
+    for block in arch_model_with_contacts.elements():
+        arch_model_with_contacts.assign_material(material, element=block)
+
+    problem = Problem(arch_model_with_contacts, name="3DEC gravity")
+    problem.set_contact_model("MohrCoulomb", phi=35.0)
+    problem.set_solver(
+        setsolver.make_threedec_solver(
+            {
+                "version": "7.0",
+                "executable": "",
+                "workspace": "",
+                "ratio": 1e-5,
+                "gravity_steps": 10,
+                "suppress_output": "Quiet",
+                "timeout": 0.0,
+            }
+        )
+    )
+    setsolver.ensure_threedec_gravity(problem)
+
+    analysis = ThreeDECAnalysisBuilder.from_dem_problem(problem).build()
+    plan = ThreeDECStagePlan.from_analysis(analysis)
+
+    assert plan.stage("gravity") is not None
+    assert plan.stage("gravity").gravity == pytest.approx(9.81)
 
 
 # =============================================================================
