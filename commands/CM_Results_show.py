@@ -35,6 +35,8 @@ import rhinoscriptsyntax as rs  # type: ignore
 
 from compas_dem.models import BlockModel
 from compas_masonry.inputs import choose
+from compas_masonry.inputs import set_display_mode
+from compas_masonry.results import tension_report
 from compas_masonry.session import MasonrySession as Session
 from compas_rui.feedback import warn
 
@@ -97,6 +99,18 @@ def report_forces(results) -> None:
     if not magnitudes:
         return
     print(f"  {len(magnitudes)} contact resultant(s): max {max(magnitudes):.4g}, total {sum(magnitudes):.4g}")
+
+    # Said here as well as in Problem_solve: a result can be drawn any number of
+    # times, and days after it was solved.
+    reported = tension_report(results)
+    if reported is None:
+        return
+    expected, message = reported
+    if expected:
+        print(f"  {message}")
+    else:
+        warn(message)
+    print("  Session_settings > BlockModel > Show Corner Forces draws where it is.")
 
 
 def show(session, model, problem_name, key, results, mode) -> None:
@@ -161,10 +175,6 @@ def RunCommand():
         mode = "Forces"
         print(f"{solver_of(selected[0])} reports contact forces, not displacements — drawing forces.")
 
-    fade = choose("Fade the blocks while the results are shown", ["Fade", "Keep"], default="Fade")
-    if fade is None:
-        return
-
     # after the last bail-out, before the first change — see Session_undo
     session.ensure_baseline()
 
@@ -180,15 +190,13 @@ def RunCommand():
     shown[name] = {"keys": list(selected), "mode": mode}
     session["shown_results"] = shown
 
-    amount = session.settings.blockmodel.results_model_transparency if fade == "Fade" else 0.0
-    try:
-        touched = session.fade_model(amount)
-        if fade == "Fade":
-            print(f"{touched} block object(s) faded {amount:.0%} toward white — a custom object colour, so it shows in every display mode.")
-        else:
-            print(f"{touched} block object(s) restored to their layer colour.")
-    except Exception as e:
-        warn(f"The results are drawn, but the blocks could not be faded: {e}")
+    # Set and LEFT set: the point is to leave the user looking at the result, so
+    # this is not the restoring `display_mode` context manager the pickers use.
+    # NOT named `mode` — that is the Forces/Displaced/Both choice, and `record`
+    # below reports it.
+    viewport = session.settings.blockmodel.results_display_mode
+    if set_display_mode(viewport):
+        print(f"Viewport switched to {viewport} so the results read against the blocks (Session_settings > BlockModel).")
 
     # Showing results IS a state change, because `shown_results` above is the only
     # record of what is on screen. Without recording here it never reaches a

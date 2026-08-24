@@ -112,12 +112,15 @@ class MasonrySession(LazyLoadSession):
     # raised on `problem.model` only at solve time. `Analysis.__from_data__` calls
     # `problem.load_model()` for us, so that whole class of bug is gone.
     #
-    # The cost, and it is real: one key means `set()` re-serializes the MODEL too
-    # on every problem edit — measured at 0.45s for a 6.5 MB BlockModel — where
-    # the old `problems` key wrote kilobytes. Accepted deliberately; if it bites,
-    # the fix is a dirty-flag on the analysis, not a second key.
+    # That cost the MODEL being re-serialized on every problem edit — 0.45s for a
+    # 6.5 MB BlockModel where the old `problems` key wrote kilobytes. The note here
+    # used to say "if it bites, the fix is a dirty-flag on the analysis, not a
+    # second key". That is what FOLDER_KEYS below is: the key stayed one, the
+    # STORAGE became a directory, and `save_model` / `save_problems` each write only
+    # their own half. It is still one key, so the binding guarantee is intact.
     #
-    # `results` is still its own key. It moves into the Analysis in a later pass.
+    # `results` is still its own key. It shares the `analysis/` directory but not its
+    # lifetime — see the note on FOLDER_KEYS.
     SESSION_KEYS = [
         "analysis",
         "active_problem",
@@ -152,6 +155,280 @@ class MasonrySession(LazyLoadSession):
                 path.unlink()
                 removed.append(key)
         return removed
+
+    # =============================================================================
+    # Folder-backed storage
+    # =============================================================================
+
+    # Keys stored as a DIRECTORY of separate JSONs instead of one file.
+    #
+    # `LazyLoadSession` writes one `data/<key>.json` per key, so the whole model and
+    # every problem were rewritten on any edit to anything inside them. On the test
+    # arch the model is 29.4 KB of a 30.7 KB analysis and a problem is 682 bytes:
+    # adding one load rewrote 30 KB to change under a kilobyte, and the note on
+    # SESSION_KEYS records 0.45s per `set()` on a real 6.5 MB model.
+    #
+    # `analysis` deliberately stays ONE key. Splitting it back into `blockmodel` +
+    # `problems` is what commit 791d87f undid: a Problem serializes as a guid
+    # REFERENCE to its model, and `Analysis.__from_data__` is what rebinds them, so
+    # two keys put that rebinding back in the hands of every load path. Only the
+    # STORAGE is split.
+    #
+    # `analysis` and `results` are still two INDEPENDENT keys that merely share a
+    # parent directory — `CM_TNA_envelope` deletes the analysis without deleting the
+    # results, so each `delete` touches only the files its own key owns.
+    FOLDER_KEYS = ("analysis", "results")
+
+    @property
+    def analysisdir(self):
+        return self.datadir / "analysis"
+
+    @property
+    def problemsdir(self):
+        return self.analysisdir / "problems"
+
+    @property
+    def resultsdir(self):
+        return self.analysisdir / "results"
+
+    @staticmethod
+    def _safe_filename(name, taken) -> str:
+        """A readable, filesystem-safe `<name>.json`, unique within `taken`.
+
+        The filename is a HANDLE, never an identifier: nothing parses it back. The
+        real name is in the manifest and inside the object, so mangling a character
+        here costs nothing, and two problems called "a/b" and "a:b" collapsing to
+        the same stem is resolved with a counter rather than by preserving them.
+        """
+        stem = "".join(c if (c.isalnum() or c in "-_") else "_" for c in str(name)) or "unnamed"
+        candidate = f"{stem}.json"
+        index = 1
+        while candidate in taken:
+            candidate = f"{stem}_{index}.json"
+            index += 1
+        taken.add(candidate)
+        return candidate
+
+    def _drop_legacy_file(self, key) -> None:
+        """Remove the pre-folder `data/<key>.json` once the folder supersedes it.
+
+        It cannot be left behind: `record()` copies the whole data directory into
+        every snapshot, and a later `undo()` would restore the stale monolith next
+        to the folder.
+        """
+        (self.datadir / f"{key}.json").unlink(missing_ok=True)
+
+    def _load_legacy(self, key):
+        """Read the pre-folder `data/<key>.json`, or None.
+
+        **This fallback is permanent, not a one-shot migration.** Every
+        `__records/<id>/data/` snapshot taken before the folder existed holds a
+        monolithic `analysis.json`, and `undo()` copies that directory back
+        verbatim — so a legacy file can reappear in the working copy long after the
+        session was first upgraded. The next `set()` converts it again.
+        """
+        import compas
+
+        path = self.datadir / f"{key}.json"
+        if not path.exists():
+            return None
+        return compas.json_load(path)
+
+    def _dump_analysis(self, analysis, parts=None) -> None:
+        """Write the analysis as `model.json` + one JSON per problem + a manifest.
+
+        `parts=("model",)` writes ONLY the model, which is what `save_model` wants:
+        its callers changed supports, materials or contacts and no problem. Passing
+        None writes everything.
+
+        The manifest is authoritative for the analysis name and for the problem
+        ORDER. Problems are rewritten as a set rather than file by file, because a
+        state with fewer problems than the last one would otherwise leave the extra
+        files behind for a glob to find, resurrecting a problem that was deleted.
+
+        Nothing here re-implements compas_dem: the parts come straight out of
+        `analysis.__data__`, which is the same dict `compas.json_dump` would encode.
+        """
+        import shutil
+
+        import compas
+
+        data = analysis.__data__
+        self.analysisdir.mkdir(parents=True, exist_ok=True)
+        manifestfile = self.analysisdir / "_analysis.json"
+
+        # A narrow write cannot be the first write: without the manifest, the load
+        # path falls through to the legacy file and would read a stale model back
+        # over the one just saved.
+        if parts is not None and not manifestfile.exists():
+            parts = None
+
+        if parts is None or "model" in parts:
+            modelfile = self.analysisdir / "model.json"
+            if data["model"] is None:
+                modelfile.unlink(missing_ok=True)
+            else:
+                compas.json_dump(data["model"], modelfile)
+
+        if parts is None or "problems" in parts:
+            shutil.rmtree(self.problemsdir, ignore_errors=True)
+            self.problemsdir.mkdir(parents=True, exist_ok=True)
+
+            taken = set()
+            filenames = []
+            for problem in data["problems"]:
+                filename = self._safe_filename(problem.name, taken)
+                compas.json_dump(problem, self.problemsdir / filename)
+                filenames.append(filename)
+
+            compas.json_dump({"name": data["name"], "problems": filenames}, manifestfile)
+
+        self._drop_legacy_file("analysis")
+
+    def _load_analysis(self):
+        """Rebuild the Analysis from the folder, or fall back to the legacy file.
+
+        The parts are handed to `Analysis.__from_data__`, so the model is rebound
+        into every problem by compas_dem's own code — the property that keeping this
+        as one key exists to preserve.
+        """
+        import compas
+        from compas_dem.models import Analysis
+
+        manifestfile = self.analysisdir / "_analysis.json"
+        if not manifestfile.exists():
+            return self._load_legacy("analysis")
+
+        manifest = compas.json_load(manifestfile)
+        modelfile = self.analysisdir / "model.json"
+
+        return Analysis.__from_data__(
+            {
+                "name": manifest.get("name"),
+                "model": compas.json_load(modelfile) if modelfile.exists() else None,
+                "problems": [compas.json_load(self.problemsdir / f) for f in manifest.get("problems") or []],
+            }
+        )
+
+    def _dump_results(self, stored) -> None:
+        """Write `{problem: {key: Results}}` as one JSON per result set, plus a manifest.
+
+        The manifest carries the true problem name and result key for each file, so
+        the filename never has to be parsed back — which is what makes it safe to
+        sanitize. It is written even when there is nothing stored, so that an empty
+        `{}` reads back as `{}` rather than falling through to the legacy file.
+        """
+        import shutil
+
+        import compas
+
+        shutil.rmtree(self.resultsdir, ignore_errors=True)
+        self.resultsdir.mkdir(parents=True, exist_ok=True)
+
+        taken = set()
+        manifest = []
+        for problem_name, sets in (stored or {}).items():
+            for result_key, results in (sets or {}).items():
+                filename = self._safe_filename(f"{problem_name}__{result_key}", taken)
+                compas.json_dump(results, self.resultsdir / filename)
+                manifest.append([problem_name, result_key, filename])
+
+        compas.json_dump(manifest, self.resultsdir / "_results.json")
+        self._drop_legacy_file("results")
+
+    def _load_results(self):
+        """Rebuild `{problem: {key: Results}}` from the folder, or the legacy file."""
+        import compas
+
+        manifestfile = self.resultsdir / "_results.json"
+        if not manifestfile.exists():
+            return self._load_legacy("results")
+
+        stored = {}
+        for problem_name, result_key, filename in compas.json_load(manifestfile) or []:
+            path = self.resultsdir / filename
+            if path.exists():
+                stored.setdefault(problem_name, {})[result_key] = compas.json_load(path)
+        return stored
+
+    def _dump_folder_key(self, key, value) -> None:
+        if key == "analysis":
+            self._dump_analysis(value)
+        else:
+            self._dump_results(value)
+
+    # -- the four LazyLoadSession overrides ---------------------------------------
+    #
+    # Each one handles FOLDER_KEYS and delegates everything else to the parent. That
+    # is why no command changed: every call site already goes through get / set /
+    # delete / setdefault on these keys.
+
+    def get(self, key, default=None, filepath=None):
+        """As the parent, but reads FOLDER_KEYS from their directory."""
+        if key in self.FOLDER_KEYS and filepath is None and key not in self.data:
+            value = self._load_analysis() if key == "analysis" else self._load_results()
+            # NOT cached when absent: `__contains__` distinguishes "stored as None"
+            # from "not stored" by whether the key is in `data`, and an empty
+            # results dict is a real value while a missing one is not.
+            if value is None:
+                return default
+            self.data[key] = value
+        return super().get(key, default, filepath)
+
+    def set(self, key, value) -> None:
+        """As the parent, but writes FOLDER_KEYS to their directory."""
+        if key not in self.FOLDER_KEYS:
+            return super().set(key, value)
+
+        self.data[key] = value
+        if value is None:
+            # nothing to lay out; leaving the old folder would make the next read
+            # resurrect what was just cleared
+            return self.delete(key)
+        if self.settings.autosync:
+            self._dump_folder_key(key, value)
+
+    def delete(self, key) -> None:
+        """As the parent, but removes ONLY the files the given key owns.
+
+        The two keys share the `analysis/` directory, so this cannot be an rmtree of
+        the parent: `CM_TNA_envelope` deletes the analysis and keeps the results.
+        """
+        if key not in self.FOLDER_KEYS:
+            return super().delete(key)
+
+        import shutil
+
+        self.data.pop(key, None)
+
+        if key == "analysis":
+            (self.analysisdir / "_analysis.json").unlink(missing_ok=True)
+            (self.analysisdir / "model.json").unlink(missing_ok=True)
+            shutil.rmtree(self.problemsdir, ignore_errors=True)
+        else:
+            shutil.rmtree(self.resultsdir, ignore_errors=True)
+
+        self._drop_legacy_file(key)
+
+    def dump(self, sessiondir=None) -> None:
+        """As the parent, but never writes a FOLDER_KEY back as one file.
+
+        `LazyLoadSession.dump` loops `self.data` and writes `datadir/<key>.json` for
+        each, which would put the monolith back beside the folder. Only reachable
+        with `autosync` OFF — `record()` empties `_data` around `super().record()`
+        when it is on (see the note there), so the loop writes nothing then.
+        """
+        data = self._data
+        held = {key: data[key] for key in self.FOLDER_KEYS if key in data}
+
+        self._data = {key: value for key, value in data.items() if key not in self.FOLDER_KEYS}
+        try:
+            super().dump(sessiondir)
+        finally:
+            self._data = data
+
+        for key, value in held.items():
+            self._dump_folder_key(key, value)
 
     def clear_all(self) -> None:
         """Empty the session: scene objects, every session key, every layer.
@@ -477,10 +754,6 @@ class MasonrySession(LazyLoadSession):
         with it, and the key naming it survives only because it is a record of
         intent, not of data.
 
-        The fade is not recorded. `fade_model()` defaults its amount to
-        `settings.blockmodel.results_model_transparency`, which is where the
-        setting belongs and where it is heading.
-
         Returns
         -------
         int
@@ -506,11 +779,6 @@ class MasonrySession(LazyLoadSession):
                     drawn += self.draw_result_forces(problem_name, results, model, key=key)
                 if mode in ("Displaced", "Both"):
                     drawn += self.draw_results(problem_name, results, model, key=key)
-
-        if drawn:
-            # the blocks were just redrawn by draw_model, so they carry their layer
-            # colour again and the fade has to be re-applied on top
-            self.fade_model()
 
         return drawn
 
@@ -540,19 +808,40 @@ class MasonrySession(LazyLoadSession):
     def save_model(self) -> None:
         """Persist in-place edits to the model (supports, materials, contacts).
 
-        The model lives inside the analysis, so this is `save_analysis` under a
-        name that says what the caller changed.
+        Writes ONLY `analysis/model.json`. Every caller — Model_contacts,
+        Model_material, Model_materialassign, Model_supports — changes the model and
+        no problem, and the model is the expensive part: 29.4 KB of a 30.7 KB
+        analysis on the test arch, 6.5 MB on a real one.
+
+        The name always said this; it used to call `save_analysis` anyway and rewrite
+        every problem with it. Anything that changes a PROBLEM must still call
+        `save_analysis`, which writes the whole folder.
         """
-        self.save_analysis()
+        if self.settings.autosync:
+            self._dump_analysis(self.analysis, parts=("model",))
 
     def draw_model(self) -> None:
-        """Draw the session BlockModel: blocks, and (if contacts have been
-        computed) the interaction graph and contact interfaces."""
+        """Draw the session BlockModel, honouring the BlockModel show settings.
+
+        Blocks, supports, the interaction graph and the contact interfaces are
+        each gated on their own `settings.blockmodel.show_*` flag. Those four
+        flags existed since the settings dialog was written and were read by
+        nothing until 2026-08-20 — the dialog offered them and the drawing
+        ignored them.
+
+        Gating at the ADD, not by hiding afterwards: an object that was never
+        added has no guid to go stale, which is what `prune_stale_guids` spends
+        its time on.
+        """
         model = self.model
         if model is None:
             return
 
+        settings = self.settings.blockmodel
+
         for block in model.elements():
+            if not (settings.show_supports if block.is_support else settings.show_blocks):
+                continue
             node = block.graphnode
             layer = "Masonry::Model::Supports" if block.is_support else "Masonry::Model::Blocks"
             self.scene.add(
@@ -563,9 +852,11 @@ class MasonrySession(LazyLoadSession):
             )
 
         if model.graph.number_of_edges() > 0:
-            self.scene.add(model.graph, layer="Masonry::Model::Interactions")  # type: ignore
-            for contact in model.contacts():
-                self.scene.add(contact, layer="Masonry::Model::Contacts")  # type: ignore
+            if settings.show_interactions:
+                self.scene.add(model.graph, layer="Masonry::Model::Interactions")  # type: ignore
+            if settings.show_contacts:
+                for contact in model.contacts():
+                    self.scene.add(contact, layer="Masonry::Model::Contacts")  # type: ignore
 
         self.redraw()
 
@@ -809,7 +1100,7 @@ class MasonrySession(LazyLoadSession):
         deserialization.
         """
         self.analysis.add_problem(problem)
-        self.save_analysis()
+        self.save_problems()
 
     def remove_problem(self, name) -> bool:
         """Drop a problem from the analysis by name. True if one was removed."""
@@ -818,7 +1109,7 @@ class MasonrySession(LazyLoadSession):
                 # `Analysis.problems` is a plain list attribute with no remove
                 # method of its own.
                 self.analysis.problems.remove(problem)
-                self.save_analysis()
+                self.save_problems()
                 return True
         return False
 
@@ -834,14 +1125,31 @@ class MasonrySession(LazyLoadSession):
         return getattr(problem, "_solver", None)
 
     def save_analysis(self) -> None:
-        """Re-set the analysis key so autosync dumps the mutated objects to disk.
+        """Write the WHOLE analysis folder — model and every problem.
 
-        Replaced `save_problems`. Mutating a Problem in place changes nothing on
-        disk — the session is a cache in front of files and only `set()` writes —
-        and now that the model travels in the same key, this rewrites the model
-        too. See the note on SESSION_KEYS about what that costs.
+        Mutating a Problem or the model in place changes nothing on disk: the
+        session is a cache in front of files and only a write call reaches them.
+
+        Prefer the narrow pair when only one side changed — `save_model` for the
+        model, `save_problems` for the problems. This is for the cases where both
+        did, or where the caller cannot tell.
         """
         self["analysis"] = self.analysis
+
+    def save_problems(self) -> None:
+        """Persist in-place edits to the problems, WITHOUT rewriting the model.
+
+        The counterpart to `save_model`, and the one that pays. A problem is
+        kilobytes and the model is megabytes — 878 bytes against 0.50 MB on a
+        200-block arch, which is 0.0001s against 0.031s to write, a factor of 300.
+        Every problem edit used to pay the model write for nothing.
+
+        Use it whenever the change is to a boundary condition, a solver, a contact
+        law, or the set of problems itself. If the MODEL changed too, use
+        `save_analysis`.
+        """
+        if self.settings.autosync:
+            self._dump_analysis(self.analysis, parts=("problems",))
 
     @property
     def active_problem_name(self):
@@ -1021,7 +1329,14 @@ class MasonrySession(LazyLoadSession):
     COLOR_REACTION = (214, 40, 40)  # resultants on a support contact
     COLOR_DISPLACEMENT = (0, 0, 0)  # prescribed translations and rotations
     COLOR_CONTACT = (0, 146, 210)  # contact surfaces, edge lines and points (0092d2)
-    COLOR_FADED_BLOCK = (200, 200, 200)  # blocks while results are drawn on top
+    COLOR_SELFWEIGHT = (100, 116, 139)  # per-block weight, the yardstick for the rest
+    COLOR_NORMAL = (124, 58, 237)  # normal component of a contact resultant
+    COLOR_FRICTION = (202, 138, 4)  # tangential (friction) component
+    COLOR_DISPLACED = (255, 140, 0)  # displaced blocks, to read against the undisplaced model
+    # Tensile corner forces. NOT COLOR_REACTION red, though red is the obvious
+    # choice for "wrong": reactions are already red, and the two get drawn in the
+    # same view. Magenta is the only warm colour left that is not one of them.
+    COLOR_TENSION = (190, 24, 93)
 
     # The BC-KIND MAP lived here — `BC_KINDS`, `bc_kind`, `set_bc_kind`,
     # `reindex_bc_kinds`, `bc_allows` and the `bc_kinds` session key. It existed for
@@ -1136,13 +1451,6 @@ class MasonrySession(LazyLoadSession):
         if rs.IsLayer(parent):
             clear_layer(parent)  # include_children=True by default
 
-    def delete_bc_group_layer(self, problem_name, group) -> None:
-        """Delete one group's layer, after its last condition is removed."""
-        from compas_rhino.layers import delete_layers
-
-        self._release_current_layer()
-        delete_layers([self.bc_layer(problem_name, group)])
-
     def prune_bc_group_layers(self, problem_name) -> int:
         """Delete group layers that no longer correspond to a group on the problem.
 
@@ -1158,9 +1466,8 @@ class MasonrySession(LazyLoadSession):
         """
         import rhinoscriptsyntax as rs  # type: ignore
 
-        from compas_rhino.layers import delete_layers
-
         from compas_masonry.boundaryconditions import group_names
+        from compas_rhino.layers import delete_layers
 
         problem = self.problems.get(problem_name)
         if problem is None:
@@ -1177,17 +1484,11 @@ class MasonrySession(LazyLoadSession):
             delete_layers(stale)
         return len(stale)
 
-    def delete_bc_layers(self, problem_name) -> None:
-        """Delete a problem's whole BoundaryConditions subtree.
-
-        Results are a sibling of that subtree, not a child, so this never takes a
-        result set with it.
-        """
-        from compas_rhino.layers import delete_layers
-
-        parent = self.bc_parent_layer(problem_name)
-        self._release_current_layer()
-        delete_layers([parent])
+    # `delete_bc_group_layer` and `delete_bc_layers` lived here and were deleted
+    # on 2026-08-20 with zero callers between them. `prune_bc_group_layers`
+    # covers the first (it removes every layer with no matching group, not just
+    # one), and `delete_problem` covers the second by deleting the problem layer
+    # that the BoundaryConditions subtree hangs off.
 
     def draw_problem_conditions(self, problem_name, model=None) -> None:
         """Clear and redraw every boundary condition of a problem.
@@ -1199,6 +1500,13 @@ class MasonrySession(LazyLoadSession):
         Loads become arrows; a moment and a prescribed rotation become circles
         about their axis. No displaced copy of the geometry is drawn — that is
         what Results_show does.
+
+        A load arrow is drawn so its HEAD lands on the point of application: the
+        force pushes into the geometry instead of hanging off it. The two
+        exceptions are the body force, which has no point of application to aim
+        at, and a prescribed movement, which is the block travelling rather than
+        something acting on it — both keep their tail on the point. See
+        `_arrow_endpoints`.
 
         Dispatch is on the CLASS of each condition, with one exception: a moment
         is a `PointLoad` carrying a `moment` and a zero force (that is what
@@ -1242,12 +1550,16 @@ class MasonrySession(LazyLoadSession):
 
                 # --- BodyForce: global, so drawn once at the world origin -----
                 if kind == "BodyForce":
+                    # the ONE load still drawn tail-first. It does not act at the
+                    # spot it is drawn at — it acts on every block by its mass —
+                    # so there is no point of application for a head to land on.
                     self._draw_bc_vector(
                         layer,
                         "body_force",
                         [0.0, 0.0, 0.0],
                         [a * gravity_scale for a in bc.acceleration],
                         {"acceleration": bc.acceleration, "loading_type": bc.loading_type},
+                        at="tail",
                     )
                     continue
 
@@ -1307,15 +1619,78 @@ class MasonrySession(LazyLoadSession):
                 if type(bc).__name__ == "Rotation":
                     self._draw_rotation_circle(layer, origin, vector, disp_scale)
                 else:
+                    # tail-first, unlike a load: this is the block TRAVELLING that
+                    # way, not something pushing it, so the arrow leads away from
+                    # where the block is now.
                     self._draw_bc_vector(
                         layer,
                         "displacement",
                         origin,
                         [v * disp_scale for v in vector],
                         {"translation": list(bc.translation)},
+                        at="tail",
                     )
 
         rs.Redraw()
+
+    def summary(self) -> str:
+        """Everything the session holds, as text.
+
+        Nothing in the plugin reported state: the model is on screen, but how
+        many problems exist, what each carries, whether a solve is stored and
+        where undo stands were only ever visible by running a command that
+        happened to print them. Built as one string so the caller can print it,
+        show it in an InfoForm, or both.
+
+        Reads through the accessors rather than the raw keys, so a session that
+        has never been written reports empty instead of raising.
+        """
+        from compas_masonry.boundaryconditions import conditions_of
+        from compas_masonry.boundaryconditions import group_kind
+
+        lines = []
+
+        model = self.model
+        if model is None:
+            lines.append("analysis : no block model")
+        else:
+            lines.append(
+                "analysis : elements {} | contacts {} | materials {}".format(
+                    len(list(model.elements())),
+                    len(list(model.contacts())) if model.graph else 0,
+                    len(list(model.materials())),
+                )
+            )
+
+        problems = self.problems
+        active = self.active_problem_name
+        if not problems:
+            lines.append("problems : none")
+        for name, problem in problems.items():
+            solver = getattr(self.solver_of(problem), "name", None) or "no solver"
+            lines.append(f"problem  : {name}{' (active)' if name == active else ''} - {solver}")
+            groups = problem.boundary_conditions
+            if not groups:
+                lines.append("             no boundary conditions")
+            for group in groups:
+                lines.append(f"             [{group.name}] {group_kind(group) or 'empty'}: {len(conditions_of(group))}")
+
+        stored = self.get("results") or {}
+        if not stored:
+            lines.append("results  : none")
+        for name, sets in stored.items():
+            lines.append(f"results  : {name} -> {', '.join(sorted(sets))}")
+
+        for name, view in (self.get("shown_results") or {}).items():
+            lines.append(f"on screen: {name} -> {view.get('mode')} {', '.join(view.get('keys', []))}")
+
+        # plain attributes on the base session, not session data keys
+        lines.append(f"history  : {len(self.history)} record(s), current {self.current}")
+        if self.history and 0 <= self.current < len(self.history):
+            # a record is (snapshot filepath, name) — [0] is a tempfile path
+            lines.append(f"             at: {self.history[self.current][1]}")
+
+        return "\n".join(lines)
 
     def count_results(self) -> int:
         """How many result sets are stored, across every problem.
@@ -1412,6 +1787,10 @@ class MasonrySession(LazyLoadSession):
             if guid is None:
                 continue
             rs.ObjectLayer(guid, layer)
+            # its own colour, so the displaced copy reads against the model it
+            # sits on top of — at a small displacement scale the two overlap
+            # almost exactly, and in one colour the result looks like a no-op
+            self.set_object_color(guid, self.COLOR_DISPLACED)
             self.set_user_params(
                 guid,
                 {
@@ -1491,7 +1870,9 @@ class MasonrySession(LazyLoadSession):
         Returns
         -------
         int
-            The number of resultants drawn.
+            The number of force objects drawn — resultants plus whatever the
+            optional views added: per-block self-weight, and one line per contact
+            corner when `show_cornerforces` is on.
 
         """
         import rhinoscriptsyntax as rs  # type: ignore
@@ -1524,16 +1905,37 @@ class MasonrySession(LazyLoadSession):
         # differently and there is no other cue distinguishing them.
         supports = {block.graphnode for block in model.elements() if block.is_support}
 
+        # Reaction values go on their OWN sublayer, so the numbers can be switched
+        # off without losing the arrows. Only reactions are labelled: a dot per
+        # contact resultant is one per contact and buries the model.
+        tags_layer = self.results_layer(problem_name, key, "Forces::Values")
+        create_layers_from_path(tags_layer, separator="::")
+        clear_layer(tags_layer)
+
+        settings = self.settings.blockmodel
+
         drawn = 0
         for point, vector, magnitude, edge in resultants:
             if magnitude <= 0:
                 continue
-            self._draw_contact_geometry(layer, results, edge)
             is_reaction = any(node in supports for node in edge)
+            if not (settings.show_reactions if is_reaction else settings.show_resultants):
+                # the decompositions and the corner forces below are still drawn:
+                # normal, friction and per-corner are separate views, not extra
+                # detail on the resultant
+                self._draw_decomposition(layer, results, edge, point, scale, settings)
+                drawn += self._draw_cornerforces(layer, results, edge, scale, settings, problem_name, key)
+                continue
+
+            self._draw_contact_geometry(layer, results, edge)
             color = self.COLOR_REACTION if is_reaction else self.COLOR_FORCE
             guid = self._draw_centred_line(layer, point, [c * scale for c in vector], color=color)
             if guid is None:
                 continue
+            self._draw_decomposition(layer, results, edge, point, scale, settings)
+            drawn += self._draw_cornerforces(layer, results, edge, scale, settings, problem_name, key)
+            if is_reaction:
+                self._draw_value_tag(tags_layer, point, magnitude, edge, problem_name, key)
             self.set_user_params(
                 guid,
                 {
@@ -1548,66 +1950,17 @@ class MasonrySession(LazyLoadSession):
             )
             drawn += 1
 
+        drawn += self._draw_selfweight(problem_name, model, scale, settings, key)
+
         rs.Redraw()
         return drawn
 
-    def fade_model(self, amount=None) -> int:
-        """Fade the model's blocks, so result geometry reads on top of them.
-
-        This used to set a layer RENDER MATERIAL with a transparency. Render
-        materials are only consulted by the display modes that render — stock
-        Shaded paints its own neutral material — so the fade was invisible in
-        the mode most people work in, which is exactly why it moved.
-
-        A custom OBJECT colour is honoured by every display mode. Each block is
-        given its own colour, blended from the colour it would have had toward
-        white; `amount=0` puts the objects back on "colour by layer" rather than
-        painting them a colour of their own.
-
-        Rhino has no per-layer opacity, so "faded" is pale rather than
-        see-through. Blocks are opaque either way — the old setting only ever
-        looked transparent in Rendered mode.
-
-        Parameters
-        ----------
-        amount : float, optional
-            0.0 = restore, 1.0 = white. Defaults to
-            `settings.blockmodel.results_model_transparency`.
-
-        Returns
-        -------
-        int
-            The number of block objects recoloured.
-
-        """
-        import rhinoscriptsyntax as rs  # type: ignore
-
-        from compas_dem.elements import Block
-
-        if amount is None:
-            amount = self.settings.blockmodel.results_model_transparency
-        amount = min(max(float(amount), 0.0), 1.0)
-
-        touched = 0
-        for sceneobj in self.scene.find_all_by_itemtype(Block):
-            base = self.COLOR_REACTION if sceneobj.item.is_support else self.COLOR_FADED_BLOCK
-            for guid in sceneobj.guids:
-                try:
-                    if amount <= 0.0:
-                        rs.ObjectColorSource(guid, 0)  # 0 = colour by layer
-                    else:
-                        rs.ObjectColor(guid, self._blend(base, (255, 255, 255), amount))
-                    touched += 1
-                except Exception:
-                    continue  # a stale guid must not take the whole fade down
-
-        rs.Redraw()
-        return touched
-
-    @staticmethod
-    def _blend(color, target, amount) -> tuple:
-        """Mix `color` toward `target` by `amount` (0 = color, 1 = target)."""
-        return tuple(int(round(c + (t - c) * amount)) for c, t in zip(color, target))
+    # `fade_model` and its `_blend` helper lived here and were deleted on
+    # 2026-08-20 with the Fade/Keep prompt in Results_show. Fading the blocks
+    # toward white was how result geometry was kept readable on top of them;
+    # drawing the blocks as wireframe does that without repainting every block
+    # object, so the fade, its `results_model_transparency` setting and
+    # COLOR_FADED_BLOCK all went with it.
 
     def _result_resultants(self, results) -> list:
         """[(point, vector, magnitude, edge), …] for every contact with a force.
@@ -1667,6 +2020,179 @@ class MasonrySession(LazyLoadSession):
         self.set_user_params(guid, {"result_kind": "contact", "edge": list(edge)})
         return guid
 
+    def _draw_selfweight(self, problem_name, model, scale, settings, key=None):
+        """Draw each block's self-weight as a downward force at its centroid.
+
+        Self-weight is not a result — the solvers apply it unconditionally from
+        block density and never report it back — but it is the force everything
+        else is compared against, so it is drawn alongside the results and gated
+        on `show_selfweight`.
+
+        `scale` is the same relative factor the contact forces use, so a weight
+        arrow and a resultant arrow of equal length mean equal newtons;
+        `scale_selfweight` multiplies on top for when they differ by too much to
+        read together.
+
+        Mass comes from compas_dem's own `_element_mass`, which prefers a Block's
+        `mass` and falls back to density x volume. Re-deriving it here would let
+        the picture disagree with what the solver actually applied.
+        """
+        if not settings.show_selfweight:
+            return 0
+
+        from compas_dem.analysis.resolve import _element_mass
+        from compas_rhino.layers import clear_layer
+        from compas_rhino.layers import create_layers_from_path
+
+        layer = self.results_layer(problem_name, key, "Selfweight")
+        create_layers_from_path(layer, separator="::")
+        clear_layer(layer)
+
+        drawn = 0
+        for block in model.elements():
+            try:
+                mass = _element_mass(block)
+            except ValueError:
+                # no material or no density: the solver would refuse this model
+                # too, so say nothing here and let Problem_solve report it
+                continue
+            weight = mass * 9.81 * scale * settings.scale_selfweight
+            guid = self._draw_centred_line(layer, list(block.modelgeometry.centroid()), [0.0, 0.0, -weight], color=self.COLOR_SELFWEIGHT)
+            if guid is None:
+                continue
+            self.set_user_params(
+                guid,
+                {
+                    "problem": problem_name,
+                    "result_key": key,
+                    "result_kind": "selfweight",
+                    "element_guid": str(block.guid),
+                    "mass": mass,
+                    "force_magnitude": mass * 9.81,
+                },
+            )
+            drawn += 1
+        return drawn
+
+    def _draw_decomposition(self, layer, results, edge, point, scale, settings):
+        """Draw the normal and/or friction part of one contact resultant.
+
+        `resultant_local` is the same force as `resultant_global`, expressed in
+        the contact frame: z is the contact normal, x and y are the tangential
+        directions. So the normal part is `local[2] * frame.zaxis` and the
+        friction part is `local[0] * frame.xaxis + local[1] * frame.yaxis`, and
+        the two sum back to the resultant. Nothing new is computed here — this
+        is the stored answer, split.
+
+        Both are off by default: drawing a resultant together with both of its
+        parts puts three lines through one contact point.
+        """
+        if not (settings.show_normalforces or settings.show_frictionforces):
+            return
+
+        local = results.resultant_local(edge)
+        frame = results.contact_frame(edge)
+        if local is None or frame is None:
+            return
+
+        if settings.show_normalforces:
+            normal = [c * local[2] * scale for c in frame.zaxis]
+            self._draw_centred_line(layer, point, normal, color=self.COLOR_NORMAL)
+
+        if settings.show_frictionforces:
+            friction = [(x * local[0] + y * local[1]) * scale for x, y in zip(frame.xaxis, frame.yaxis)]
+            self._draw_centred_line(layer, point, friction, color=self.COLOR_FRICTION)
+
+    def _draw_cornerforces(self, layer, results, edge, scale, settings, problem_name=None, key=None):
+        """Draw the per-corner normal forces of one contact.
+
+        A solver does not solve for the resultant — it solves for a force at every
+        vertex of the contact polygon, and the resultant is their sum. This draws
+        what was solved: one line per corner, along the contact normal, centred on
+        the corner so the direction reads without an arrowhead.
+
+        Why it matters beyond detail: a contact whose RESULTANT is compressive can
+        still have tensile corners, which is exactly what a CRA penalty solve
+        permits and the plain formulation forbids. The resultant hides that; this
+        is the only view that shows where the tension actually is. Compression is
+        drawn in the normal-force colour and tension in `COLOR_TENSION`.
+
+        `FrictionContact.compressiondata` / `.tensiondata` already return
+        `[x, y, z, nx, ny, nz, 0.5 * force]` per corner — point, normal axis, half
+        magnitude — so nothing is recomputed here. Note the halving: the data is
+        built for a line spanning ±half, and `_draw_centred_line` halves again, so
+        the magnitude is doubled back before it is passed on.
+
+        Not every contact is a `FrictionContact`. LMGC90 stores an `EdgeContact` or
+        a `VertexContact` for degenerate contacts, and those carry no per-corner
+        forces at all — hence `getattr` rather than an attribute access.
+
+        Returns
+        -------
+        int
+            The number of corner forces drawn.
+
+        """
+        if not settings.show_cornerforces:
+            return 0
+
+        contact = results.contact_data(edge)
+        if contact is None:
+            return 0
+
+        drawn = 0
+        for attr, color, kind in (
+            ("compressiondata", self.COLOR_NORMAL, "corner_compression"),
+            ("tensiondata", self.COLOR_TENSION, "corner_tension"),
+        ):
+            for entry in getattr(contact, attr, None) or []:
+                point = entry[:3]
+                axis = entry[3:6]
+                magnitude = entry[6] * 2.0
+                guid = self._draw_centred_line(layer, point, [c * magnitude * scale for c in axis], color=color)
+                if guid is None:
+                    continue
+                self.set_user_params(
+                    guid,
+                    {
+                        "problem": problem_name,
+                        "result_key": key,
+                        "result_kind": kind,
+                        "edge": list(edge),
+                        "force_magnitude": abs(magnitude),
+                    },
+                )
+                drawn += 1
+
+        return drawn
+
+    def _draw_value_tag(self, layer, point, magnitude, edge, problem_name=None, key=None):
+        """Label a resultant with its magnitude, as a TextDot at its contact point.
+
+        A TextDot rather than text geometry: it keeps one screen size whatever
+        the zoom and stays readable from any view direction, which text in the
+        model plane does not. `%.4g` matches Results_print, so the number on
+        screen is the number in the report.
+        """
+        import rhinoscriptsyntax as rs  # type: ignore
+
+        guid = rs.AddTextDot(f"{magnitude:.4g}", list(point))
+        if guid is None:
+            return None
+        rs.ObjectLayer(guid, layer)
+        self.set_object_color(guid, self.COLOR_REACTION)
+        self.set_user_params(
+            guid,
+            {
+                "problem": problem_name,
+                "result_key": key,
+                "result_kind": "reaction_value",
+                "edge": list(edge),
+                "force_magnitude": magnitude,
+            },
+        )
+        return guid
+
     def _draw_centred_line(self, layer, point, vector, color=None):
         """Draw a force resultant as a line centred on `point`, spanning ±v/2."""
         import rhinoscriptsyntax as rs  # type: ignore
@@ -1704,14 +2230,33 @@ class MasonrySession(LazyLoadSession):
             return self.COLOR_DISPLACEMENT
         return self.COLOR_FORCE
 
-    def _draw_bc_vector(self, layer, kind, origin, vector, params=None):
+    @staticmethod
+    def _arrow_endpoints(origin, vector, at):
+        """Start and end of a BC arrow. `rs.CurveArrows(guid, 2)` heads the END.
+
+        `at` says where the point of application sits on the arrow:
+
+        - "tip"  — the head lands ON the point, so the vector PUSHES into the
+          geometry. This is what a force does, and drawing it the other way
+          reads as the load hanging off the block rather than acting on it.
+        - "tail" — the arrow starts at the point and leads away from it. Right
+          for a body force, which acts on the whole model rather than at the
+          spot it is drawn at, and for a prescribed movement, which is the
+          block travelling in that direction rather than something pushing it.
+
+        """
+        if at == "tip":
+            return [o - v for o, v in zip(origin, vector)], list(origin)
+        return list(origin), [o + v for o, v in zip(origin, vector)]
+
+    def _draw_bc_vector(self, layer, kind, origin, vector, params=None, at="tip"):
         """Draw an arrow on a boundary condition layer and tag it."""
         import rhinoscriptsyntax as rs  # type: ignore
 
-        end = [o + v for o, v in zip(origin, vector)]
-        if end == list(origin):
+        start, end = self._arrow_endpoints(origin, vector, at)
+        if start == end:
             return None
-        guid = rs.AddLine(origin, end)
+        guid = rs.AddLine(start, end)
         rs.CurveArrows(guid, 2)
         rs.ObjectLayer(guid, layer)
         self.set_object_color(guid, self._bc_color(kind))
@@ -1767,8 +2312,15 @@ class MasonrySession(LazyLoadSession):
         return guid
 
     # =============================================================================
-    # Generic Rhino User Text <-> params (User Text is a str->str dict per object)
+    # Rhino User Text (a str -> str dict per object): params out
     # =============================================================================
+    #
+    # Write only. `get_user_params`, the symmetric reader, was deleted on
+    # 2026-08-20 with no callers: the two places that read User Text
+    # (`find_node`, `find_material`) want ONE known key and call
+    # `rs.GetUserText(guid, key)` directly, which needs no JSON decoding and no
+    # helper. The tags written here are for the user to read in Rhino's
+    # properties panel, not for the plugin to read back.
 
     def set_user_params(self, guid, params: dict) -> None:
         """Write a dict of parameters onto a Rhino object's User Text.
@@ -1777,6 +2329,25 @@ class MasonrySession(LazyLoadSession):
         strings are stored raw (keeps identifier tags like "element_guid"
         readable and back-compatible with find_node/find_material). A ``None``
         value deletes that key.
+
+        **COMPAS geometry is encoded as a plain list, not as a `dtype` dict.**
+        `default=list` catches anything `json` cannot take but that iterates like
+        a sequence — `Point`, `Vector`, and by recursion a `Polygon`'s points.
+        That matters because compas_dem hands back both shapes for the same
+        quantity: `Problem.add_point_load_at_vertex` resolves its anchor with
+        `vertex_coordinates()`, which returns a **list**, while
+        `add_point_load_at_face` uses `face_center()`, which returns a **Point**.
+        Tagging a face-anchored load used to die with
+        `TypeError: Object of type Point is not JSON serializable` — and because
+        `draw_problem_conditions` tags as it draws, one such load aborted the
+        whole redraw, leaving the arrows of the loads before it on screen and none
+        after. The load itself was always added and saved; only the picture was
+        missing, which read as "it only applied to one block".
+
+        `compas.json_dumps` would also encode these, but as `{"dtype": …}`
+        wrappers, and every reader here does a plain `json.loads` and expects
+        `[x, y, z]`. A type that is neither JSON-native nor iterable still raises,
+        which is what should happen.
         """
         import json
 
@@ -1788,27 +2359,4 @@ class MasonrySession(LazyLoadSession):
             elif isinstance(value, str):
                 rs.SetUserText(guid, key, value)
             else:
-                rs.SetUserText(guid, key, json.dumps(value))
-
-    def get_user_params(self, guid, keys=None) -> dict:
-        """Read a Rhino object's User Text back into a dict.
-
-        Values are JSON-decoded when possible, else returned as the raw string.
-        Pass ``keys`` to read a subset; otherwise every User Text key is read.
-        """
-        import json
-
-        import rhinoscriptsyntax as rs  # type: ignore
-
-        if keys is None:
-            keys = rs.GetUserText(guid) or []
-        out = {}
-        for key in keys:
-            raw = rs.GetUserText(guid, key)
-            if raw is None:
-                continue
-            try:
-                out[key] = json.loads(raw)
-            except (ValueError, TypeError):
-                out[key] = raw
-        return out
+                rs.SetUserText(guid, key, json.dumps(value, default=list))

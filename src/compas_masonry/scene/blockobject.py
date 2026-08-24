@@ -17,9 +17,8 @@ class RhinoBlockObject(RhinoSceneObject):
     defaultcolor = ColorAttribute(default=Color.grey().lightened(50))
     supportcolor = ColorAttribute(default=Color.red())
 
-    def __init__(self, show_wireframe=False, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.show_wireframe = show_wireframe
 
     @property
     def block(self) -> Block:
@@ -51,19 +50,18 @@ class RhinoBlockObject(RhinoSceneObject):
 
         color = self.supportcolor if self.block.is_support else self.defaultcolor
 
-        if self.session.settings.blockmodel.show_wireframe:
-            for edge in mesh.edges():
-                line = mesh.edge_line(edge)
-                geometry = compas_rhino.conversions.line_to_rhino(line)
-                attr = self.compile_attributes(name=self.name, color=color)
-                guid = sc.doc.Objects.AddLine(geometry, attr)
-                guids.append(guid)
-                self.add_to_group(self.group, guids)
-        else:
-            geometry = compas_rhino.conversions.mesh_to_rhino(mesh)
-            attr = self.compile_attributes(name=self.name, color=color)
-            guid = sc.doc.Objects.AddMesh(geometry, attr)
-            guids.append(guid)
+        # ALWAYS a mesh, one object per block. There used to be a `show_wireframe`
+        # branch here that drew one line per edge instead; it was deleted on
+        # 2026-08-20 because a wireframe LOOK is a Rhino viewport display mode,
+        # not a different set of objects. Drawing lines gave the same picture
+        # while emptying the document of the geometry everything else depends on:
+        # sub-object face/vertex picking had nothing to pick, and the guid
+        # tagging that `find_node` and `guid_element_map` walk assumes one object
+        # per block. See `settings.blockmodel.results_display_mode`.
+        geometry = compas_rhino.conversions.mesh_to_rhino(mesh)
+        attr = self.compile_attributes(name=self.name, color=color)
+        guid = sc.doc.Objects.AddMesh(geometry, attr)
+        guids.append(guid)
 
         self._guids = guids
         return guids

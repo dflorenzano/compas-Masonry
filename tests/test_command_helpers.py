@@ -18,42 +18,65 @@ def loads():
     return load_command(command_path("Problem_loads"), "loads")
 
 
+# `parse_faces` and its 14 tests were deleted on 2026-08-20 along with the typed
+# face/vertex INDEX input they validated. Selection is the geometry itself now
+# (`pick_anchors` -> `inputs.pick_block_components`), so there is no text to
+# parse and no out-of-range index to reject. The failure mode moved from "typed
+# the wrong number" to "matched the wrong component", and the matching is
+# `compas.geometry.closest_point_in_cloud`.
+
+
+# `direction_from_points`, `nearest_key` and `rhino_face_centroids` were deleted
+# on 2026-08-20, with the tests that pinned them. Each duplicated something that
+# already shipped: `Vector.from_start_end(a, b).unitized()`,
+# `compas.geometry.closest_point_in_cloud`, and `rs.MeshFaceCenters`. Testing
+# those is testing COMPAS and RhinoCommon, not this plugin.
+
+
 # =============================================================================
-# Surface loads over several faces
+# Typed vs drawn load vectors
 # =============================================================================
 
 
 @pytest.mark.parametrize(
-    "text, nfaces, expected",
+    "values, expected",
     [
-        ("0", 6, ([0], [])),
-        ("0,3,5", 6, ([0, 3, 5], [])),
-        ("0 3 5", 6, ([0, 3, 5], [])),
-        ("5,3,0", 6, ([0, 3, 5], [])),  # sorted
-        ("3,3,3", 6, ([3], [])),  # de-duplicated
-        ("all", 6, ([0, 1, 2, 3, 4, 5], [])),
-        ("ALL", 4, ([0, 1, 2, 3], [])),
-        ("*", 3, ([0, 1, 2], [])),
-        ("", 6, ([], [])),
-        ("   ", 6, ([], [])),
+        ({"kind": "Point", "direction": "Type", "fx": 0.0, "fy": 0.0, "fz": 0.0}, True),
+        ({"kind": "Point", "direction": "Type", "fx": 0.0, "fy": 0.0, "fz": -1.0}, False),
+        ({"kind": "Point", "direction": "Draw", "fmag": 0.0}, True),
+        ({"kind": "Point", "direction": "Draw", "fmag": 1000.0}, False),
+        ({"kind": "Surface", "direction": "Type", "tx": 0.0, "ty": 0.0, "tz": 0.0}, True),
+        ({"kind": "Surface", "direction": "Draw", "tmag": 0.0}, True),
+        # kinds with no translational vector validate themselves in add_load
+        ({"kind": "Moment", "direction": "Type"}, False),
+        ({"kind": "BodyForce", "direction": "Type"}, False),
     ],
 )
-def test_parse_faces_accepts(loads, text, nfaces, expected):
-    assert loads.parse_faces(text, nfaces) == expected
+def test_load_is_empty(loads, values, expected):
+    """Emptiness is decided before any selection, and reads the field the
+    Direction option actually put in play — not both sets."""
+    assert loads.load_is_empty(values) is expected
 
 
-@pytest.mark.parametrize(
-    "text, nfaces, expected",
-    [
-        ("0,9", 6, ([0], ["9"])),  # out of range dropped, the valid one kept
-        ("-1,2", 6, ([2], ["-1"])),
-        ("x,2", 6, ([2], ["x"])),
-        ("9", 6, ([], ["9"])),
-    ],
-)
-def test_parse_faces_rejects(loads, text, nfaces, expected):
-    """Bad entries are reported, never silently turned into the wrong face."""
-    assert loads.parse_faces(text, nfaces) == expected
+def test_load_vector_typed_returns_the_components(loads):
+    values = {"direction": "Type", "fx": 1.0, "fy": 2.0, "fz": -3.0}
+    assert loads.load_vector(values, "f", "unused") == [1.0, 2.0, -3.0]
+
+
+def test_load_vector_drawn_is_magnitude_times_unit_direction(loads, monkeypatch):
+    """The seam: `pick_direction` returns a UNIT vector, and the magnitude is
+    what carries the units. A drawn line 5 long must not give a 5x force."""
+    from compas.geometry import Vector
+
+    monkeypatch.setattr(loads, "pick_direction", lambda message: Vector(0.0, 0.0, -5.0).unitized())
+    values = {"direction": "Draw", "fmag": 1000.0}
+    assert loads.load_vector(values, "f", "unused") == [0.0, 0.0, -1000.0]
+
+
+def test_load_vector_drawn_and_cancelled_is_none(loads, monkeypatch):
+    """A cancelled pick must bail the whole command, never fall back to zero."""
+    monkeypatch.setattr(loads, "pick_direction", lambda message: None)
+    assert loads.load_vector({"direction": "Draw", "fmag": 1000.0}, "f", "unused") is None
 
 
 # =============================================================================
@@ -142,6 +165,21 @@ def test_lmgc90_solver_never_gets_verbose_zero():
 
     assert "verbose=int(verbose)" not in source
     assert setsolver.Solver.LMGC90(duration=1.0, n_steps=100).parameters["verbose"] != 0
+
+
+def test_no_command_offers_a_verbose_toggle():
+    """The CRA/RBE `Output: Quiet|Verbose` toggle was removed on 2026-08-20.
+
+    It only ever fed solver-iteration printing into the Rhino command line, and
+    both Solver.CRA and Solver.RBE default `verbose` to False. This fails if a
+    command starts asking for it again.
+    """
+    import pathlib
+
+    commands = pathlib.Path(__file__).resolve().parents[1] / "commands"
+    offenders = [p.name for p in commands.glob("*.py") if 'add_toggle("verbose"' in p.read_text()]
+
+    assert offenders == [], f"commands offering a verbose toggle: {offenders}"
 
 
 # =============================================================================
@@ -423,3 +461,37 @@ def test_removal_goes_through_the_live_lists(problem):
 
     assert remove_group(problem, group) is True
     assert problem.boundary_conditions == []
+
+
+# =============================================================================
+# Viewport display mode during a pick
+# =============================================================================
+
+
+@pytest.fixture(scope="module")
+def inputs():
+    import rhinostub
+
+    rhinostub.install()
+    from compas_masonry import inputs
+
+    return inputs
+
+
+def test_display_mode_is_a_noop_without_a_mode(inputs):
+    """Empty setting means leave the viewport alone — and must not import or
+    call rhinoscriptsyntax, which the stub cannot service."""
+    with inputs.display_mode(""):
+        pass
+    with inputs.display_mode(None):
+        pass
+
+
+def test_pickmode_settings_exist_for_both_kinds():
+    """`pick_anchors` reads these by name (`pickmode_{what}`), so a rename in
+    settings.py silently disables the display switch instead of failing."""
+    from compas_masonry.settings import BlockModelSettings
+
+    settings = BlockModelSettings()
+    assert settings.pickmode_face == "Shaded"
+    assert settings.pickmode_vertex == "Wireframe"

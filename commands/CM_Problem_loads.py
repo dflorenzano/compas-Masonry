@@ -20,16 +20,32 @@ script that does is drawn correctly and simply offered in one of the two.
 
 Load types:
 
-- **Point** — a force on one block, at a **vertex** or at the **centroid of a
-  face**. compas_dem also offers an arbitrary point and the block centroid; the
-  Rhino UI deliberately offers only these two (the summer-school decision), since
-  they are the two a user can actually see and click.
-- **Surface** — a traction on one or more faces of one block. compas_dem
-  multiplies by the face area, so this is a pressure, not a total force.
-- **Moment** — a couple on one block, with no net force.
+- **Point** — a force at a **vertex** or at the **centroid of a face**. compas_dem
+  also offers an arbitrary point and the block centroid; the Rhino UI
+  deliberately offers only these two (the summer-school decision), since they are
+  the two a user can actually see and click.
+- **Surface** — a traction on faces. compas_dem multiplies by the face area, so
+  this is a pressure, not a total force.
+- **Moment** — a couple with no net force.
 - **BodyForce** — an acceleration applied to every block by its mass: a rotated
   gravity for a tilted table, or a static seismic load. Gravity itself is applied
   by the solver from block density, so this carries only the ADDED component.
+
+**Selection is the geometry, and it is not limited to one block.** Point and
+Surface pick the vertices/faces themselves in the viewport, across as many blocks
+as you like in a single call; Moment picks whole blocks the same way. Every
+anchor picked gets the same load. This replaced typing a face or vertex INDEX
+read off a temporary TextDot, which could only reach one block per call — see
+`inputs.pick_block_components` for why the picked component is matched by
+POSITION rather than by index.
+
+The two translational loads take their vector one of two ways, chosen with the
+**Direction** option: `Type` asks for the three components, `Draw` asks for a
+magnitude and then has the direction picked in the viewport. The drawn LENGTH is
+discarded — see `inputs.pick_direction` for why a line length cannot be a force.
+The direction is picked AFTER the anchors, so the geometry it acts on is on
+screen while it is drawn. Moment and BodyForce are components-only: a moment's
+vector is a rotation axis, and drawing one reads as a movement.
 
 Two things that used to be here and are gone:
 
@@ -58,6 +74,8 @@ from compas_masonry.boundaryconditions import remove_condition
 from compas_masonry.boundaryconditions import remove_group
 from compas_masonry.inputs import Options
 from compas_masonry.inputs import choose
+from compas_masonry.inputs import pick_block_components
+from compas_masonry.inputs import pick_direction
 from compas_masonry.session import MasonrySession as Session
 from compas_rui.feedback import warn
 
@@ -73,94 +91,76 @@ def selected_nodes(session, model, message):
     return sorted({n for n in (session.find_node(g, guid_element_map) for g in guids) if n is not None})
 
 
-def label_faces(block):
-    """Temporarily label every face of a block with its index."""
-    mesh = block.modelgeometry
-    guids = []
-    for face in mesh.faces():
-        guid = rs.AddTextDot(str(face), mesh.face_centroid(face))
-        if guid:
-            guids.append(guid)
-    rs.Redraw()
-    return guids
+def pick_anchors(session, model, what, message):
+    """Pick faces or vertices in the viewport, across any number of blocks.
 
+    Replaces the old flow — select ONE block, then read its face/vertex INDEX off
+    a temporary TextDot and type it — which could only ever load one block per
+    command call and asked the user to transcribe a number they had no way to
+    verify. Selection is now the geometry itself, and one call covers as many
+    blocks as are picked.
 
-def label_vertices(block):
-    """Temporarily label every vertex of a block with its index."""
-    mesh = block.modelgeometry
-    guids = []
-    for vertex in mesh.vertices():
-        guid = rs.AddTextDot(str(vertex), mesh.vertex_point(vertex))
-        if guid:
-            guids.append(guid)
-    rs.Redraw()
-    return guids
+    Returns
+    -------
+    list[tuple] or None
+        Sorted (node, key) pairs, or None if cancelled.
 
-
-def parse_faces(text, nfaces):
-    """Parse "0, 3 5" / "all" into a sorted list of valid face indices.
-
-    Returns (faces, rejected). Anything out of range or unparseable comes back in
-    `rejected`, so the caller can say which entries were dropped rather than
-    silently loading the wrong faces.
     """
-    text = (text or "").strip()
-    if text.lower() in ("all", "*"):
-        return list(range(nfaces)), []
+    guid_element_map = session.guid_element_map(model)
+    blocks = {}
 
-    faces, rejected = [], []
-    for token in text.replace(",", " ").split():
-        try:
-            index = int(token)
-        except ValueError:
-            rejected.append(token)
-            continue
-        if 0 <= index < nfaces:
-            faces.append(index)
-        else:
-            rejected.append(token)
+    def mesh_of(guid):
+        node = session.find_node(guid, guid_element_map)
+        if node is None:
+            return None
+        blocks[str(guid)] = node
+        return model.graph.node_element(node).modelgeometry
 
-    return sorted(set(faces)), rejected
-
-
-def pick_indices(block, what):
-    """Ask for face or vertex indices while they are labelled in the viewport.
-
-    `what` is "face" or "vertex". Faces accept several ("0,3,5" or "all") because
-    a surface load often covers a whole side; a vertex anchor takes the first.
-
-    A temporary TextDot per item is the current mechanism. Picking the geometry
-    directly (sub-object selection) is the intended replacement — see
-    temp/status_pending_work.md §4.1 — and nothing upstream provides it yet.
-    """
-    mesh = block.modelgeometry
-    if what == "face":
-        count = mesh.number_of_faces()
-        labels = label_faces(block)
-    else:
-        count = mesh.number_of_vertices()
-        labels = label_vertices(block)
-
-    try:
-        options = Options(f"{what.capitalize()} index of the selected block (0..{count - 1})")
-        options.add_text("picked", "0", keyword=what.capitalize())
-        values = options.get()
-    finally:
-        # the labels are a temporary aid, never leave them in the document
-        if labels:
-            rs.DeleteObjects(labels)
-            rs.Redraw()
-
-    if values is None:
-        return None
-
-    picked, rejected = parse_faces(values["picked"], count)
-    if rejected:
-        warn(f"Ignored {', '.join(rejected)}: not a {what} index in 0..{count - 1}.")
+    # faces want a surface to click, vertices want the shading out of the way —
+    # both configurable in Session_settings > BlockModel
+    mode = getattr(session.settings.blockmodel, f"pickmode_{what}", None)
+    picked = pick_block_components(what, mesh_of, message, mode=mode)
     if not picked:
-        warn(f"No valid {what} index given.")
         return None
-    return picked
+
+    anchors = sorted((blocks[str(guid)], key) for guid, keys in picked.items() for key in keys)
+    if not anchors:
+        warn(f"Nothing selected belongs to the block model, so no {what} was loaded.")
+        return None
+    return anchors
+
+
+def load_is_empty(values):
+    """True if the load as specified would be zero, whichever way it was given.
+
+    Checked in `ask_load`, before any selection. Asking the user to pick a block,
+    an anchor and then a direction, and only then refusing the load because every
+    component was left at zero, is the kind of thing that makes a command feel
+    hostile. Kinds without a translational vector (Moment, BodyForce) validate
+    themselves in `add_load` and are not this function's business.
+    """
+    prefix = {"Point": "f", "Surface": "t"}.get(values["kind"])
+    if prefix is None:
+        return False
+    if values["direction"] == "Draw":
+        return not values[f"{prefix}mag"]
+    return not any(values[f"{prefix}{axis}"] for axis in ("x", "y", "z"))
+
+
+def load_vector(values, prefix, message):
+    """The load vector: typed components, or a drawn direction times a magnitude.
+
+    `prefix` is "f" for a force and "t" for a traction, naming the fields
+    `ask_load` declared for that kind. Returns None if the direction pick was
+    cancelled, so the caller bails out without writing anything.
+    """
+    if values["direction"] == "Draw":
+        direction = pick_direction(message)
+        if direction is None:
+            return None
+        return [component * values[f"{prefix}mag"] for component in direction]
+
+    return [values[f"{prefix}{axis}"] for axis in ("x", "y", "z")]
 
 
 def ask_load(problem):
@@ -173,6 +173,15 @@ def ask_load(problem):
 
     def is_(*kinds):
         return lambda v: v["kind"] in kinds
+
+    # A translational load is given EITHER as three components OR as a direction
+    # drawn in the viewport times a magnitude. `values` carries every field
+    # whether or not it is visible, so "direction" is always readable here.
+    def typed(*kinds):
+        return lambda v: v["kind"] in kinds and v["direction"] == "Type"
+
+    def drawn(*kinds):
+        return lambda v: v["kind"] in kinds and v["direction"] == "Draw"
 
     existing = group_names(problem, "load")
     choices = [NEW] + existing
@@ -187,14 +196,21 @@ def ask_load(problem):
     # the two a user can see and click are offered here.
     options.add_list("anchor", ["Vertex", "Face"], keyword="At", visible=is_("Point"))
 
-    options.add_number("fx", 0.0, keyword="Fx", units="N", prompt="Force fx", visible=is_("Point"))
-    options.add_number("fy", 0.0, keyword="Fy", units="N", prompt="Force fy", visible=is_("Point"))
-    options.add_number("fz", -1000.0, keyword="Fz", units="N", prompt="Force fz", visible=is_("Point"))
+    # Type the components, or draw the direction in the viewport and type only a
+    # magnitude. Only the two translational loads offer it: a moment's vector is
+    # a rotation AXIS, and drawing one reads as a movement.
+    options.add_list("direction", ["Type", "Draw"], keyword="Direction", visible=is_("Point", "Surface"))
+
+    options.add_number("fx", 0.0, keyword="Fx", units="N", prompt="Force fx", visible=typed("Point"))
+    options.add_number("fy", 0.0, keyword="Fy", units="N", prompt="Force fy", visible=typed("Point"))
+    options.add_number("fz", -1000.0, keyword="Fz", units="N", prompt="Force fz", visible=typed("Point"))
+    options.add_number("fmag", 1000.0, keyword="Magnitude", units="N", prompt="Force magnitude", visible=drawn("Point"))
 
     # a traction: compas_dem multiplies by the face area, so this is a pressure
-    options.add_number("tx", 0.0, keyword="Tx", units="N/m2", prompt="Traction tx", visible=is_("Surface"))
-    options.add_number("ty", 0.0, keyword="Ty", units="N/m2", prompt="Traction ty", visible=is_("Surface"))
-    options.add_number("tz", -1000.0, keyword="Tz", units="N/m2", prompt="Traction tz", visible=is_("Surface"))
+    options.add_number("tx", 0.0, keyword="Tx", units="N/m2", prompt="Traction tx", visible=typed("Surface"))
+    options.add_number("ty", 0.0, keyword="Ty", units="N/m2", prompt="Traction ty", visible=typed("Surface"))
+    options.add_number("tz", -1000.0, keyword="Tz", units="N/m2", prompt="Traction tz", visible=typed("Surface"))
+    options.add_number("tmag", 1000.0, keyword="Magnitude", units="N/m2", prompt="Traction magnitude", visible=drawn("Surface"))
 
     options.add_number("mx", 0.0, keyword="Mx", units="Nm", prompt="Moment mx", visible=is_("Moment"))
     options.add_number("my", 0.0, keyword="My", units="Nm", prompt="Moment my", visible=is_("Moment"))
@@ -222,6 +238,12 @@ def ask_load(problem):
             warn("A load group needs a name.")
             return None
         values["newgroup"] = name
+
+    if load_is_empty(values):
+        what = "magnitude" if values["direction"] == "Draw" else "value"
+        warn(f"A {values['kind'].lower()} load needs a non-zero {what}.")
+        return None
+
     return values
 
 
@@ -275,14 +297,10 @@ def add_load(session, model, problem, values):
         print("  Gravity is applied by the solver from block density, so this is the ADDED component only.")
         return True
 
-    nodes = selected_nodes(session, model, f"Select ONE block for the {kind.lower()} load")
-    if not nodes:
-        return False
-    node = nodes[0]
-    if len(nodes) > 1:
-        warn(f"{len(nodes)} blocks selected; using block {node}.")
-
     if kind == "Moment":
+        nodes = selected_nodes(session, model, "Select block(s) for the moment")
+        if not nodes:
+            return False
         moment = [values["mx"], values["my"], values["mz"]]
         if not any(moment):
             warn("A moment needs a non-zero value.")
@@ -290,47 +308,45 @@ def add_load(session, model, problem, values):
         group = resolve_group(problem, values)
         if group is None:
             return False
-        problem.add_moment(block_index=node, moment=moment, loading_type=loading_type, boundary_condition=group)
-        print(f"Added moment {moment} Nm on block {node} to [{group.name}].")
+        for node in nodes:
+            problem.add_moment(block_index=node, moment=moment, loading_type=loading_type, boundary_condition=group)
+        print(f"Added moment {moment} Nm on {len(nodes)} block(s) to [{group.name}].")
         return True
 
-    block = model.graph.node_element(node)
-
     if kind == "Point":
-        force = [values["fx"], values["fy"], values["fz"]]
-        if not any(force):
-            warn("A point load needs a non-zero force.")
+        what = "vertex" if values["anchor"] == "Vertex" else "face"
+        anchors = pick_anchors(session, model, what, f"Select the {what}(s) to load, on any number of blocks")
+        if not anchors:
             return False
 
-        what = "vertex" if values["anchor"] == "Vertex" else "face"
-        picked = pick_indices(block, what)
-        if not picked:
+        # AFTER the anchors, so a drawn direction is picked with the geometry it
+        # acts on already on screen. Emptiness was checked in `ask_load`.
+        force = load_vector(values, "f", f"Force direction for {len(anchors)} {what}(s): pick the base point, then the tip")
+        if force is None:
             return False
-        index = picked[0]
-        if len(picked) > 1:
-            warn(f"Several {what}s given; using {index}.")
 
         group = resolve_group(problem, values)
         if group is None:
             return False
 
-        # the anchor is resolved to a point HERE, against the geometry as it is
+        # every anchor is resolved to a point HERE, against the geometry as it is
         # now — compas_dem stores the coordinates, not the vertex/face index
-        if what == "vertex":
-            problem.add_point_load_at_vertex(block_index=node, vertex_index=index, force=force, loading_type=loading_type, boundary_condition=group)
-        else:
-            problem.add_point_load_at_face(block_index=node, face_index=index, force=force, loading_type=loading_type, boundary_condition=group)
-        print(f"Added point load {force} N on block {node} at {what} {index} to [{group.name}].")
+        add = problem.add_point_load_at_vertex if what == "vertex" else problem.add_point_load_at_face
+        keyword = "vertex_index" if what == "vertex" else "face_index"
+        for node, key in anchors:
+            add(block_index=node, force=force, loading_type=loading_type, boundary_condition=group, **{keyword: key})
+        print(f"Added point load {force} N on {len(anchors)} {what}(s) across {len({n for n, _ in anchors})} block(s) to [{group.name}].")
         return True
 
     if kind == "Surface":
-        load = [values["tx"], values["ty"], values["tz"]]
-        if not any(load):
-            warn("A surface load needs a non-zero traction.")
+        anchors = pick_anchors(session, model, "face", "Select the face(s) to load, on any number of blocks")
+        if not anchors:
             return False
 
-        faces = pick_indices(block, "face")
-        if not faces:
+        # one direction for the whole pick: every face selected here carries the
+        # same traction vector, and each keeps its own area when it is resolved
+        load = load_vector(values, "t", f"Traction direction for {len(anchors)} face(s): pick the base point, then the tip")
+        if load is None:
             return False
 
         group = resolve_group(problem, values)
@@ -339,10 +355,9 @@ def add_load(session, model, problem, values):
 
         # SurfaceLoad takes a single face, so a multi-face pick is one object per
         # face — each keeps its own area when the solver resolves it
-        for face in faces:
+        for node, face in anchors:
             problem.add_surface_load(block_index=node, face_index=face, load=load, loading_type=loading_type, boundary_condition=group)
-        listed = ", ".join(str(f) for f in faces)
-        print(f"Added surface load {load} N/m2 on block {node}, face(s) {listed}, to [{group.name}].")
+        print(f"Added surface load {load} N/m2 on {len(anchors)} face(s) across {len({n for n, _ in anchors})} block(s) to [{group.name}].")
         print("  A traction is multiplied by the face area, so this is a pressure, not a total force.")
         return True
 
@@ -428,7 +443,7 @@ def RunCommand():
     if not changed:
         return
 
-    session.save_analysis()
+    session.save_problems()
     session.draw_problem_conditions(name, model)
     session.record(f"{name}: {option.lower()} load")
 
