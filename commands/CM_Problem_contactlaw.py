@@ -55,8 +55,8 @@ def set_contact_law(problem):
 
 def set_joint_model(problem):
     options = Options("Joint model")
-    options.add_number("kn", 1e9, minimum=0.0, keyword="NormalStiffness", units="N/m", prompt="Normal stiffness kn")
-    options.add_number("kt", 1e9, minimum=0.0, keyword="TangentialStiffness", units="N/m", prompt="Tangential stiffness kt")
+    options.add_number("kn", 100e9, minimum=0.0, keyword="NormalStiffness", units="Pa", prompt="Normal joint stiffness kn")
+    options.add_number("kt", 70e9, minimum=0.0, keyword="TangentialStiffness", units="Pa", prompt="Shear joint stiffness kt")
 
     values = options.get()
     if values is None:

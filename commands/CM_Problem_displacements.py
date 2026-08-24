@@ -173,10 +173,13 @@ def add_movement(session, model, problem, values):
         if all(v is None for v in components.values()):
             warn("Every axis is free, so there is nothing to prescribe.")
             return False
+        displacement = [components["x"], components["y"], components["z"]]
+        if not any(value for value in displacement if value is not None):
+            warn("The prescribed translation is zero, so no displacement or arrow would be produced.")
+            return False
         group = resolve_group(problem, values)
         if group is None:
             return False
-        displacement = [components["x"], components["y"], components["z"]]
         for node in nodes:
             problem.add_displacement(block_index=node, displacement=displacement, boundary_condition=group)
         print(f"Added a prescribed translation on {len(nodes)} block(s) to [{group.name}].")
