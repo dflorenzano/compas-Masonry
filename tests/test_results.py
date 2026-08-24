@@ -12,12 +12,16 @@ import pytest
 compas = pytest.importorskip("compas")
 
 from compas.geometry import Polygon  # noqa: E402
+from compas_masonry.results import CSV_HEADER  # noqa: E402
+from compas_masonry.results import block_result_rows  # noqa: E402
 from compas_masonry.results import contact_normal  # noqa: E402
 from compas_masonry.results import contact_openings  # noqa: E402
 from compas_masonry.results import contact_resultants  # noqa: E402
 from compas_masonry.results import face_stresses  # noqa: E402
 from compas_masonry.results import summary  # noqa: E402
 from compas_masonry.results import support_reactions  # noqa: E402
+from compas_masonry.results import tension_contacts  # noqa: E402
+from compas_masonry.results import tension_report  # noqa: E402
 
 
 class FakeResults:
@@ -27,11 +31,15 @@ class FakeResults:
     10 N compressive force. No frame and no gaps, exactly like a CRA result.
     """
 
-    def __init__(self, with_frame=False, force=(0.0, 0.0, -10.0)):
+    def __init__(self, with_frame=False, force=(0.0, 0.0, -10.0), contact=None):
         self._force = list(force)
         self._with_frame = with_frame
+        self._contact = contact
         self.metadata = {}
         self.polygon = Polygon([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]])
+
+    def contact_data(self, edge):
+        return self._contact
 
     def edges(self):
         return iter([(0, 1)])
@@ -160,3 +168,116 @@ def test_summary_reports_absent_quantities_as_none(model):
     # no gaps and no transformations -> reported as absent, not as a zero maximum
     assert values["opening_at"] is None
     assert values["displacement_at"] is None
+
+
+# =============================================================================
+# Tension
+# =============================================================================
+
+
+class FakeContact:
+    """A FrictionContact-shaped stand-in: only the corner-force data is read.
+
+    `tensiondata` rows are `[x, y, z, nx, ny, nz, 0.5 * force]` with a NEGATIVE
+    force, which is how compas_dem builds them.
+    """
+
+    def __init__(self, tensions=()):
+        self.tensiondata = [[0.0, 0.0, 0.0, 0.0, 0.0, 1.0, -0.5 * t] for t in tensions]
+
+
+class DegenerateContact:
+    """LMGC90's EdgeContact/VertexContact: no per-corner forces at all."""
+
+
+def test_no_contact_data_is_not_read_as_no_tension():
+    """A contact the solver stored nothing for is skipped, not passed as sound."""
+    assert tension_contacts(FakeResults(contact=None)) == []
+    assert tension_contacts(FakeResults(contact=DegenerateContact())) == []
+
+
+def test_tension_is_reported_per_contact_with_the_halving_undone():
+    """tensiondata stores half the force; the report must give back the force."""
+    results = FakeResults(contact=FakeContact(tensions=[2.0, 6.0]))
+    contacts = tension_contacts(results)
+
+    assert len(contacts) == 1
+    label, corners, largest = contacts[0]
+    assert label == "0-1"
+    assert corners == 2
+    assert largest == pytest.approx(6.0)
+
+
+def test_compression_only_reports_nothing():
+    assert tension_contacts(FakeResults(contact=FakeContact(tensions=[]))) == []
+
+
+def test_penalty_tension_is_expected_and_plain_tension_is_not():
+    """Same numbers, opposite meaning — metadata['penalty'] is the discriminator."""
+    plain = FakeResults(contact=FakeContact(tensions=[3.0]))
+    expected, message = tension_report(plain)
+    assert expected is False
+    assert "should not produce this" in message
+
+    penalty = FakeResults(contact=FakeContact(tensions=[3.0]))
+    penalty.metadata["penalty"] = True
+    expected, message = tension_report(penalty)
+    assert expected is True
+    assert "permits tension" in message
+
+
+def test_no_tension_reports_nothing_at_all():
+    assert tension_report(FakeResults(contact=FakeContact())) is None
+
+
+# =============================================================================
+# CSV rows
+# =============================================================================
+
+
+def _report(contacts, displacement=None):
+    return {
+        "node": 4,
+        "displacement": displacement,
+        "contacts": contacts,
+        "force_total": sum(c["magnitude"] for c in contacts),
+    }
+
+
+def test_csv_row_per_contact_repeats_the_displacement():
+    report = _report(
+        [
+            {"with": 5, "label": "4-5", "force": [1.0, 2.0, 3.0], "magnitude": 3.7, "stress": 12.0, "opening": None},
+            {"with": 6, "label": "4-6", "force": [0.0, 0.0, -1.0], "magnitude": 1.0, "stress": None, "opening": 0.5},
+        ],
+        displacement=(0.25, [0.0, 0.0, -0.25], "block 4"),
+    )
+
+    rows = block_result_rows(report)
+
+    assert len(rows) == 2
+    assert all(len(row) == len(CSV_HEADER) for row in rows)
+    assert [row[0] for row in rows] == [4, 4]
+    assert [row[1] for row in rows] == [5, 6]
+    # the displacement is repeated on every row of the block, so the file pivots
+    assert rows[0][8:] == rows[1][8:] == [0.25, 0.0, 0.0, -0.25]
+
+
+def test_csv_writes_missing_values_as_blanks_not_zeros():
+    """A stress of 0 and a stress the solver never produced are different answers."""
+    report = _report([{"with": 5, "label": "4-5", "force": [0.0, 0.0, 0.0], "magnitude": 0.0, "stress": None, "opening": None}])
+
+    row = block_result_rows(report)[0]
+
+    assert row[6] == ""  # stress
+    assert row[7] == ""  # opening
+    assert row[8:] == ["", "", "", ""]  # no displacement either
+
+
+def test_a_block_with_no_contacts_still_gets_a_row():
+    """Dropping it would make a block that WAS reported on vanish from the export."""
+    rows = block_result_rows(_report([]))
+
+    assert len(rows) == 1
+    assert rows[0][0] == 4
+    assert len(rows[0]) == len(CSV_HEADER)

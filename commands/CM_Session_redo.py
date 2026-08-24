@@ -15,6 +15,7 @@ after an undo makes redo unavailable. That is standard undo semantics and it is
 import pathlib
 
 import rhinoscriptsyntax as rs  # type: ignore
+
 from compas_masonry.session import MasonrySession as Session
 
 

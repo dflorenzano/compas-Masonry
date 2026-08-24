@@ -27,8 +27,9 @@ rather than importing half of one.
 
 import pathlib
 
-import compas
 import rhinoscriptsyntax as rs  # type: ignore
+
+import compas
 from compas_masonry.session import MasonrySession as Session
 from compas_rui.feedback import warn
 from compas_rui.forms import FileForm

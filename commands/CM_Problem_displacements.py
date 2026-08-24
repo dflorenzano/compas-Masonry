@@ -278,7 +278,7 @@ def RunCommand():
     if not changed:
         return
 
-    session.save_analysis()
+    session.save_problems()
     session.draw_problem_conditions(name, model)
     session.record(f"{name}: {option.lower()} prescribed movement")
 

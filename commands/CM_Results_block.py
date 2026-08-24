@@ -12,27 +12,40 @@ Selection is by picking blocks in the viewport, resolved to graph nodes through
 the persistent `element_guid` User Text tag (never by object name, which a
 redraw does not preserve).
 
-Two outputs, chosen at the end:
+Four outputs, chosen together at the end rather than one at a time — any
+combination is legal, and asking four times for what is one decision is the
+prompt-chaining this plugin avoids everywhere else:
 
 - **Print** — a table per selected block in the command window.
 - **Tag** — the same numbers written onto the block's Rhino object as User Text,
   so they show in the properties panel and survive being saved with the file.
   Cleared and rewritten on each run, and removed if you pick a different result.
+- **CSV** — the same numbers again, one row per (block, contact), for a
+  spreadsheet. The rows are built by `results.block_result_rows` from the very
+  same report the table prints, so the file and the screen cannot disagree.
+- **Isolate** — hide every other block and every result force that does not touch
+  a selected one, so the view can be exported as a picture of this block alone.
+  Boundary-condition arrows are not filtered (see `isolate`).
+  `Session_redraw` brings the rest back; nothing else does.
 """
 
+import csv
+import json
 import pathlib
+
+import rhinoscriptsyntax as rs  # type: ignore
 
 import compas_rhino.objects
 from compas_dem.models import BlockModel
-from compas_masonry.inputs import choose
+from compas_masonry.inputs import Options
+from compas_masonry.results import CSV_HEADER
 from compas_masonry.results import block_displacements
+from compas_masonry.results import block_result_rows
 from compas_masonry.results import contact_openings
 from compas_masonry.results import contact_resultants
 from compas_masonry.results import face_stresses
 from compas_masonry.session import MasonrySession as Session
 from compas_rui.feedback import warn
-
-import rhinoscriptsyntax as rs  # type: ignore
 
 # User Text keys this command owns, so a re-run can clear its own tags without
 # touching element_guid / material_name / is_support.
@@ -71,7 +84,7 @@ def selected_blocks(session, model):
     return sorted(set(out))
 
 
-def block_report(node, results, model, displacements, stresses, openings, resultants):
+def block_report(node, displacements, stresses, openings, resultants):
     """Everything known about one block in this result set."""
     contacts = []
     for _, vector, magnitude, edge in resultants:
@@ -145,6 +158,97 @@ def tag_block(session, guid, key, report) -> None:
     )
 
 
+def export_csv(filepath, reports) -> int:
+    """Write the reports to `filepath` as CSV. Returns the number of rows written.
+
+    `newline=""` is not optional: without it the csv module's own "\\r\\n" line
+    ending is translated again on Windows and every other line comes out blank.
+    """
+    rows = []
+    for report in reports:
+        rows.extend(block_result_rows(report))
+
+    with open(filepath, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(CSV_HEADER)
+        writer.writerows(rows)
+
+    return len(rows)
+
+
+def isolate(session, model, nodes) -> int:
+    """Hide every block and force object that does not belong to `nodes`.
+
+    Two different lookups, because the two kinds of object are identified
+    differently. A block is found through the persistent `element_guid` User Text
+    that `guid_element_map` reads; a force line carries the `edge` this command
+    also reports on, written by `set_user_params` when it was drawn.
+
+    Force objects are matched on the edge rather than on the layer, so a contact
+    BETWEEN two selected blocks survives while the same block's contacts with its
+    hidden neighbours do not.
+
+    Objects with neither tag are left alone: this hides what it recognises rather
+    than everything it does not, so a construction line or a title block the user
+    put in the document is not swept up in a results view.
+
+    That leaves BOUNDARY-CONDITION arrows on screen, including those of blocks
+    being hidden. They carry a `load_kind` User Text but no block index — the
+    params `_draw_bc_vector` writes are the force, the point and the loading type
+    — so there is nothing here to filter them on.
+    # ponytail: BC arrows always survive isolate; tag them with block_index in
+    # session.draw_problem_conditions if they need to be filtered too.
+
+    Returns
+    -------
+    int
+        The number of objects hidden.
+
+    """
+    guid_element_map = session.guid_element_map(model)
+
+    hide = []
+    for guid in rs.AllObjects() or []:
+        node = session.find_node(guid, guid_element_map)
+        if node is not None:
+            if node not in nodes:
+                hide.append(guid)
+            continue
+
+        edge = rs.GetUserText(guid, "edge")
+        if edge:
+            try:
+                if not set(json.loads(edge)) & nodes:
+                    hide.append(guid)
+            except ValueError:
+                continue
+
+    if not hide:
+        return 0
+    rs.HideObjects(hide)
+    return len(hide)
+
+
+def ask_output():
+    """Which outputs to produce. Returns a dict of flags, or None if cancelled."""
+    options = Options("Output")
+    options.add_toggle("print", True, off="NoPrint", on="Print", text=True, keyword="Print")
+    options.add_toggle("tag", False, off="NoTag", on="Tag", text=True, keyword="Tag")
+    options.add_toggle("csv", False, off="NoCsv", on="Csv", text=True, keyword="Csv")
+    options.add_toggle("isolate", False, off="KeepAll", on="Isolate", text=True, keyword="View")
+
+    values = options.get()
+    if values is None:
+        return None
+
+    return {
+        "print": values["print"] == "Print",
+        "tag": values["tag"] == "Tag",
+        "csv": values["csv"] == "Csv",
+        "isolate": values["isolate"] == "Isolate",
+    }
+
+
 def RunCommand():
     session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
 
@@ -179,20 +283,42 @@ def RunCommand():
             if token.isdigit():
                 displacements[int(token)] = (magnitude, translation, label)
 
-    output = choose("Output", ["Print", "Tag", "Both"], default="Print")
+    output = ask_output()
     if output is None:
         return
 
+    # The file is asked for BEFORE anything is written, so a cancelled save dialog
+    # costs nothing. Tagging and isolating both change the document.
+    filepath = None
+    if output["csv"]:
+        filepath = rs.SaveFileName("Export block results", "CSV files (*.csv)|*.csv||", filename=f"{name}_{key}.csv")
+        if not filepath:
+            return
+
     print(f"\n=== {key}: {len(blocks)} block(s) ===")
+    reports = []
     for node, guid in blocks:
-        report = block_report(node, results, model, displacements, stresses, openings, resultants)
-        if output in ("Print", "Both"):
+        report = block_report(node, displacements, stresses, openings, resultants)
+        reports.append(report)
+        if output["print"]:
             print_report(report)
-        if output in ("Tag", "Both"):
+        if output["tag"]:
             tag_block(session, guid, key, report)
 
-    if output in ("Tag", "Both"):
+    if output["tag"]:
         print(f"\nTagged {len(blocks)} block(s) with their {key} data (visible in the properties panel).")
+
+    if filepath:
+        try:
+            rows = export_csv(filepath, reports)
+        except OSError as e:
+            warn(f"Could not write {filepath}: {e}")
+        else:
+            print(f"Exported {rows} row(s) to {filepath}.")
+
+    if output["isolate"]:
+        hidden = isolate(session, model, {node for node, _ in blocks})
+        print(f"Isolated {len(blocks)} block(s); hid {hidden} object(s). Session_redraw restores the view.")
 
 
 # =============================================================================

@@ -119,8 +119,11 @@ def get_solver():
     options.add_number("timeout", 0.0, minimum=0.0, keyword="Timeout", units="s", visible=is_("3DEC"))
     options.add_toggle("suppress_output", True, off="Terminal", on="Quiet", text=True, keyword="Output", visible=is_("3DEC"))
 
-    # CRA/RBE only — see the LMGC90 note where the solver is built
-    options.add_toggle("verbose", False, off="Quiet", on="Verbose", text=True, keyword="Output", visible=is_("CRA", "RBE"))
+    # An `Output: Quiet|Verbose` toggle lived here and was removed on 2026-08-20.
+    # It only ever fed the CRA/RBE `verbose` argument, whose backends print solver
+    # iterations into the Rhino command line — noise in a plugin, and both
+    # `Solver.CRA` and `Solver.RBE` already default it to False. Neither is passed
+    # `verbose` any more.
     options.add_toggle("timer", False, off="NoTiming", on="Timing", text=True, keyword="Timer", visible=is_("CRA", "RBE"))
 
     values = options.get()
@@ -128,14 +131,13 @@ def get_solver():
         return None
 
     kind = values["solver"]
-    verbose = values["verbose"] == "Verbose"
     timer = values["timer"] == "Timing"
 
     if kind == "CRA":
-        return Solver.CRA(penalty=values["penalty"] == "Penalty", verbose=verbose, timer=timer)
+        return Solver.CRA(penalty=values["penalty"] == "Penalty", timer=timer)
 
     if kind == "RBE":
-        return Solver.RBE(verbose=verbose, timer=timer)
+        return Solver.RBE(timer=timer)
 
     if kind == "3DEC":
         if not threedec_available():
@@ -148,11 +150,10 @@ def get_solver():
         print("The solver is still set, so the problem is ready for an environment that has it.")
 
     # `verbose` is NOT passed. For LMGC90 it is not a flag but a PRINT INTERVAL:
-    # `lmgc90_solve` does `step % verbose == 0` (lmgc90.py:275), so the Quiet
-    # toggle used to send 0 and every LMGC90 solve died with ZeroDivisionError.
-    # `Solver.LMGC90` defaults it to 1000, which prints roughly nothing on a
-    # normal run — so the right fix is to leave it alone rather than translate the
-    # toggle. Hence the Output toggle is CRA/RBE only above.
+    # `lmgc90_solve` does `step % verbose == 0` (lmgc90.py:275), so a Quiet toggle
+    # sent 0 and every LMGC90 solve died with ZeroDivisionError. `Solver.LMGC90`
+    # defaults it to 1000, which prints roughly nothing on a normal run — so it is
+    # left alone rather than translated from anything the command asks for.
     return Solver.LMGC90(duration=values["duration"], n_steps=values["n_steps"])
 
 
@@ -182,7 +183,7 @@ def RunCommand():
         gravity = ensure_threedec_gravity(problem)
         if gravity is not None:
             print("Added the Gravity boundary-condition group required by the 3DEC workflow.")
-    session.save_analysis()
+    session.save_problems()
     print(f"Solver set on {name}: {solver}")
     # `solver.name`, not `type(solver).__name__` — `Solver.CRA()` is a factory that
     # returns a plain Solver, so the class name is always "Solver". This label is
