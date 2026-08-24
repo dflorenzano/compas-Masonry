@@ -52,7 +52,7 @@ zip-safe = false
 [tool.setuptools.dynamic]
 version = { attr = "compas_masonry.__version__" }
 dependencies = { file = "requirements.txt" }
-optional-dependencies = { dev = { file = "requirements-dev.txt" }, viz = { file = "requirements-viz.txt" } }
+optional-dependencies = { dev = { file = "requirements-dev.txt" }, viz = { file = "requirements-viz.txt" }, threedec = { file = "requirements-threedec.txt" } }
 
 [tool.setuptools.packages.find]
 where = ["src"]

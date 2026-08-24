@@ -44,8 +44,8 @@ def current(problem):
         "mu": 0.7 if law is None or law.mu is None else law.mu,
         "c": 0.0 if law is None or law.c is None else law.c,
         "t_c": 0.0 if law is None or law.t_c is None else law.t_c,
-        "kn": 1e9 if joint is None or joint.kn is None else joint.kn,
-        "kt": 1e9 if joint is None or joint.kt is None else joint.kt,
+        "kn": 100e9 if joint is None or joint.kn is None else joint.kn,
+        "kt": 70e9 if joint is None or joint.kt is None else joint.kt,
     }
 
 
@@ -59,8 +59,8 @@ def set_contact_properties(problem):
     options.add_number("mu", seed["mu"], minimum=0.0, keyword="Mu", prompt="Friction coefficient mu", visible=lambda v: v["friction"] == "Mu")
     options.add_number("c", seed["c"], minimum=0.0, keyword="Cohesion", units="Pa", prompt="Cohesion c (0 = none)")
     options.add_number("t_c", seed["t_c"], minimum=0.0, keyword="TensileCutoff", units="Pa", prompt="Tensile cutoff t_c (0 = none)")
-    options.add_number("kn", seed["kn"], minimum=0.0, keyword="NormalStiffness", units="N/m", prompt="Normal stiffness kn")
-    options.add_number("kt", seed["kt"], minimum=0.0, keyword="TangentialStiffness", units="N/m", prompt="Tangential stiffness kt")
+    options.add_number("kn", seed["kn"], minimum=0.0, keyword="NormalStiffness", units="Pa", prompt="Normal joint stiffness kn")
+    options.add_number("kt", seed["kt"], minimum=0.0, keyword="TangentialStiffness", units="Pa", prompt="Shear joint stiffness kt")
 
     values = options.get()
     if values is None:

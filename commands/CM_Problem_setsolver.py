@@ -10,14 +10,17 @@ the visible parameter set, so the whole configuration is a single command line.
 A problem holds ONE solver; selecting a new one replaces it. Running it is a
 separate step (Problem_solve).
 
-Solvers offered: CRA and RBE (rigid block equilibrium, via compas_cra), plus
-LMGC90 (contact dynamics) when its backend is importable.
+Solvers offered: CRA and RBE (rigid block equilibrium, via compas_cra),
+LMGC90 (contact dynamics), and 3DEC through compas_3dec and an external,
+licensed Itasca 3DEC installation.
 
 - CRA / RBE are the ones installed in the Rhino environment. They return
   contact forces and NO displacements, so Results_show draws them as forces.
 - LMGC90 needs `compas_lmgc90`, which is not built for Rhino's python3.9 — the
   option stays visible but says so instead of raising an ImportError deep in
   the solve.
+- 3DEC discovers the executable automatically when no explicit path is set.
+  The Python adapter must be installed in the active environment.
 - PRD and BLA are dropped from the picker (still in compas_dem: build a
   `Solver.PRD(...)` from a script if you want them).
 
@@ -40,7 +43,7 @@ from compas_masonry.inputs import Options
 from compas_masonry.session import MasonrySession as Session
 from compas_rui.feedback import warn
 
-SOLVERS = ["CRA", "RBE", "LMGC90"]
+SOLVERS = ["CRA", "RBE", "LMGC90", "3DEC"]
 
 
 def lmgc90_available() -> bool:
@@ -58,6 +61,39 @@ def lmgc90_available() -> bool:
         return False
 
 
+def threedec_available() -> bool:
+    """True if the Python adapter for the external 3DEC solver is importable."""
+    try:
+        import compas_3dec  # type: ignore # noqa: F401
+
+        return True
+    except Exception:
+        return False
+
+
+def make_threedec_solver(values):
+    """Build a portable 3DEC solver configuration from command values."""
+    timeout = float(values["timeout"])
+    return Solver.ThreeDEC(
+        version=values["version"],
+        executable=values["executable"].strip() or None,
+        workspace=values["workspace"].strip() or None,
+        ratio=float(values["ratio"]),
+        gravity_steps=int(values["gravity_steps"]),
+        suppress_output=values["suppress_output"] == "Quiet",
+        timeout=timeout if timeout > 0.0 else None,
+    )
+
+
+def ensure_threedec_gravity(problem):
+    """Preserve Masonry's implicit self-weight convention for 3DEC."""
+    if problem.boundary_conditions:
+        return None
+    gravity = problem.add_boundary_condition("Gravity")
+    gravity.add_gravity()
+    return gravity
+
+
 def get_solver():
     """Ask for the solver and its parameters in a single prompt."""
 
@@ -73,6 +109,15 @@ def get_solver():
     # LMGC90: exactly two of duration / n_steps / dt — dt is left computed
     options.add_number("duration", 1.0, minimum=0.0, keyword="Duration", units="s", prompt="Duration", visible=is_("LMGC90"))
     options.add_integer("n_steps", 100, minimum=1, keyword="Steps", prompt="Number of steps", visible=is_("LMGC90"))
+
+    # 3DEC discovers the executable automatically when the path is empty.
+    options.add_list("version", ["7.0", "9.0"], keyword="Version", visible=is_("3DEC"))
+    options.add_text("executable", "", keyword="Executable", prompt="3DEC executable path", visible=is_("3DEC"))
+    options.add_text("workspace", "", keyword="Workspace", prompt="3DEC runs directory", visible=is_("3DEC"))
+    options.add_number("ratio", 1e-5, minimum=1e-12, keyword="Ratio", visible=is_("3DEC"))
+    options.add_integer("gravity_steps", 10, minimum=1, keyword="GravitySteps", visible=is_("3DEC"))
+    options.add_number("timeout", 0.0, minimum=0.0, keyword="Timeout", units="s", visible=is_("3DEC"))
+    options.add_toggle("suppress_output", True, off="Terminal", on="Quiet", text=True, keyword="Output", visible=is_("3DEC"))
 
     # An `Output: Quiet|Verbose` toggle lived here and was removed on 2026-08-20.
     # It only ever fed the CRA/RBE `verbose` argument, whose backends print solver
@@ -93,6 +138,12 @@ def get_solver():
 
     if kind == "RBE":
         return Solver.RBE(timer=timer)
+
+    if kind == "3DEC":
+        if not threedec_available():
+            warn("compas_3dec is not importable here, so a 3DEC solve would fail. Install compas_masonry[threedec] in this environment.")
+            print("The solver is still set, so the problem is ready for an environment that has it.")
+        return make_threedec_solver(values)
 
     if not lmgc90_available():
         warn("compas_lmgc90 is not importable here (it is not built for Rhino's python3.9), so an LMGC90 solve would fail.")
@@ -128,6 +179,10 @@ def RunCommand():
     session.ensure_baseline()
 
     problem.set_solver(solver)
+    if solver.name == "3DEC":
+        gravity = ensure_threedec_gravity(problem)
+        if gravity is not None:
+            print("Added the Gravity boundary-condition group required by the 3DEC workflow.")
     session.save_problems()
     print(f"Solver set on {name}: {solver}")
     # `solver.name`, not `type(solver).__name__` — `Solver.CRA()` is a factory that

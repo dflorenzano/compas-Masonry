@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+* Added 3DEC to `CM_Problem_setsolver`, with automatic executable discovery, optional executable and workspace overrides, convergence and timeout settings, implicit gravity setup, and an optional `threedec` dependency group.
+
 ### Added — 2026-08-20
 
 * **Loads are placed by picking the geometry, across any number of blocks.** The old flow selected ONE block, drew a temporary `TextDot` on every face or vertex, and asked the user to type the index back — a number they had no way to check, on a single block per command call. `inputs.pick_block_components` picks the faces or vertices themselves, on as many blocks as are selected in one go, and every anchor gets the same load.
