@@ -18,6 +18,50 @@ def loads():
     return load_command(command_path("Problem_loads"), "loads")
 
 
+@pytest.fixture(scope="module")
+def problem_solve():
+    return load_command(command_path("Problem_solve"), "problem_solve")
+
+
+def test_session_save_exports_only_selected_problem_runs():
+    from compas_masonry.sessionio import selected_results
+
+    stored = {
+        "Problem A": {"3DEC_first": "a1", "3DEC_second": "a2"},
+        "Problem B": {"CRA_first": "b1"},
+    }
+
+    selected = selected_results(
+        stored,
+        [("Problem A", "3DEC_second"), ("Problem B", "CRA_first")],
+    )
+
+    assert selected == {
+        "Problem A": {"3DEC_second": "a2"},
+        "Problem B": {"CRA_first": "b1"},
+    }
+
+
+def test_threedec_solve_order_keeps_gravity_first_and_uses_selected_sequence(problem_solve, monkeypatch):
+    from compas_dem.models import BlockModel
+    from compas_dem.problem import Problem
+
+    problem = Problem(BlockModel(), name="Ordered 3DEC")
+    problem.add_boundary_condition("Load A")
+    gravity = problem.add_boundary_condition("Gravity")
+    gravity.add_gravity(9.81)
+    problem.add_boundary_condition("Settlement")
+    problem.add_boundary_condition("Load B")
+
+    picks = iter(["Load B", "Settlement"])
+    monkeypatch.setattr(problem_solve, "choose", lambda *args, **kwargs: "Change order")
+    monkeypatch.setattr(problem_solve.rs, "ListBox", lambda *args, **kwargs: next(picks), raising=False)
+
+    order = problem_solve.choose_threedec_solve_order(problem)
+
+    assert order == ["Gravity", "Load B", "Settlement", "Load A"]
+
+
 # `parse_faces` and its 14 tests were deleted on 2026-08-20 along with the typed
 # face/vertex INDEX input they validated. Selection is the geometry itself now
 # (`pick_anchors` -> `inputs.pick_block_components`), so there is no text to

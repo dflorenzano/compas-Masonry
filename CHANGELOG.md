@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 * Added 3DEC to `CM_Problem_setsolver`, with automatic executable discovery, optional executable and workspace overrides, convergence and timeout settings, implicit gravity setup, and an optional `threedec` dependency group.
+* Added interactive ordering and grouping of 3DEC load and displacement stages, with concise solve progress in Rhino.
+* Added selective solver-result export when saving a portable session.
+* Improved result visualisation performance with batched Rhino drawing, compact result storage, hidden interface geometry, and geometry-relative load and displacement arrows.
+* Corrected 3DEC tension reporting to use native normal subcontact forces.
 
 ### Added — 2026-08-20
 

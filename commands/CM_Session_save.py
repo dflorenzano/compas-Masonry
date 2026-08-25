@@ -17,8 +17,8 @@ The Analysis is what makes one key enough. A Problem serializes as a guid
 REFERENCE to its model, so a file holding them separately has to hand the model
 back to every problem on the way in; `Analysis.__from_data__` does that itself.
 
-Solver results are NOT saved: they are solver specific and are re-derived by
-Problem_solve. Per-block numbers come out of Results_block.
+Solver results are excluded by default. They can be selected from a hierarchy
+of problems and solve runs and embedded in the portable session file.
 
 Re-open with Session_import. Files written before 2026-08-07 carried separate
 `blockmodel` and `problems` keys and are NOT readable — Session_import says so
@@ -31,16 +31,19 @@ import rhinoscriptsyntax as rs  # type: ignore
 
 import compas
 from compas_masonry.session import MasonrySession as Session
+from compas_masonry.sessionio import selected_results
 from compas_rui.feedback import warn
 from compas_rui.forms import FileForm
 
 
-def session_data(session) -> dict:
+def session_data(session, results=None) -> dict:
     """Collect the exportable session state."""
     data = {
         "analysis": session.analysis,
         "active_problem": session.active_problem_name,
     }
+    if results is not None:
+        data["results"] = results
 
     # settings are pydantic, not compas Data
     try:
@@ -60,11 +63,30 @@ def RunCommand():
     path = rs.DocumentPath()  # to make sure the document has a path
     basedir = pathlib.Path(path).parent if path else pathlib.Path().home()
 
+    stored = session.get("results") or {}
+    exported_results = None
+    if stored:
+        result_mode = rs.ListBox(
+            ["Do not include results", "Select results to include"],
+            message="Solver results in exported session",
+            title="Save Session",
+            default="Do not include results",
+        )
+        if result_mode is None:
+            return
+        if result_mode == "Select results to include":
+            from compas_masonry.forms.results import ResultSelectionForm
+
+            selection = ResultSelectionForm(stored).show()
+            if selection is None:
+                return
+            exported_results = selected_results(stored, selection)
+
     filepath = FileForm.save(str(basedir), "Masonry_session.json")
     if not filepath:
         return
 
-    data = session_data(session)
+    data = session_data(session, results=exported_results)
 
     try:
         compas.json_dump(data, filepath)
@@ -76,6 +98,8 @@ def RunCommand():
     print(f"Exported session to {filepath}")
     print(f"  blockmodel: {'yes' if analysis.model is not None else 'no'}")
     print(f"  problems  : {len(names)} ({', '.join(names) or '-'})")
+    count = sum(len(runs) for runs in (exported_results or {}).values())
+    print(f"  results   : {count if exported_results is not None else 'not included'}")
 
 
 # =============================================================================

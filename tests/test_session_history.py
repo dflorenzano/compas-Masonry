@@ -533,6 +533,22 @@ def test_summary_reports_problems_and_history(session, arch_model):
     assert "added a problem" in text
 
 
+def test_summary_reports_contact_properties(session, arch_model):
+    """Status includes the mechanical assumptions attached to each problem."""
+    session["analysis"] = Analysis(model=arch_model, name="test")
+    problem = Problem(model=arch_model, name="Problem_1")
+    problem.set_contact_model("MohrCoulomb", phi=35.0, c=1000.0, t_c=0.0)
+    problem.set_joint_model(100e9, 70e9)
+    session.add_problem(problem)
+
+    text = session.summary()
+
+    assert "contact law: MohrCoulomb" in text
+    assert "phi 35.0 deg" in text
+    assert "cohesion 1000.0 Pa" in text
+    assert "joint model: kn 100000000000.0 Pa | kt 70000000000.0 Pa" in text
+
+
 # =============================================================================
 # BlockModel settings actually reach the drawing code
 # =============================================================================

@@ -776,9 +776,9 @@ class MasonrySession(LazyLoadSession):
                 if results is None:
                     continue
                 if mode in ("Forces", "Both"):
-                    drawn += self.draw_result_forces(problem_name, results, model, key=key)
+                    drawn += self.draw_result_forces(problem_name, results, model, key=key, redraw=False)
                 if mode in ("Displaced", "Both"):
-                    drawn += self.draw_results(problem_name, results, model, key=key)
+                    drawn += self.draw_results(problem_name, results, model, key=key, redraw=False)
 
         return drawn
 
@@ -1070,13 +1070,10 @@ class MasonrySession(LazyLoadSession):
     # *derived*: draw_problem_conditions() clears and regenerates it, so
     # add/remove/modify only need to mutate the Problem and redraw.
 
-    # Display scales now live in settings.blockmodel (scale_loads /
-    # scale_gravity / scale_displacement) so they're tunable in Session_settings.
-
-    @property
-    def _scales(self):
-        bm = self.settings.blockmodel
-        return bm.scale_gravity, bm.scale_loads, bm.scale_displacement
+    # Display scales live in settings.blockmodel so they are tunable in
+    # Session_settings. Applied loads use the same geometry-relative scale as
+    # result forces; prescribed displacements are normalised independently
+    # because their unit is metres rather than newtons.
 
     @property
     def problems(self) -> dict:
@@ -1533,8 +1530,42 @@ class MasonrySession(LazyLoadSession):
         self.clear_bc_layers(problem_name)
         self.prune_bc_group_layers(problem_name)
 
-        gravity_scale, load_scale, disp_scale = self._scales
         blocks = {block.graphnode: block for block in model.elements()}
+
+        loads = [bc for group in problem.boundary_conditions for bc in loads_of(group)]
+        displacements = [bc for group in problem.boundary_conditions for bc in group.displacements]
+        force_factor = self.settings.blockmodel.scale_forces
+        displacement_factor = self.settings.blockmodel.scale_displacement_arrows
+        gravity_scale = self.settings.blockmodel.scale_gravity
+
+        # Forces, tractions, moments, translations and rotations have different
+        # physical dimensions. Normalise each family independently so its
+        # largest glyph spans half the largest block at a relative scale of 1.
+        point_load_scale = self._relative_vector_scale(
+            (bc.force for bc in loads if type(bc).__name__ == "PointLoad" and not is_moment(bc)),
+            model,
+            force_factor,
+        )
+        surface_load_scale = self._relative_vector_scale(
+            (bc.load for bc in loads if type(bc).__name__ == "SurfaceLoad"),
+            model,
+            force_factor,
+        )
+        moment_scale = self._relative_vector_scale(
+            (bc.moment for bc in loads if is_moment(bc)),
+            model,
+            force_factor,
+        )
+        translation_scale = self._relative_vector_scale(
+            (components(bc) for bc in displacements if type(bc).__name__ != "Rotation"),
+            model,
+            displacement_factor,
+        )
+        rotation_scale = self._relative_vector_scale(
+            (components(bc) for bc in displacements if type(bc).__name__ == "Rotation"),
+            model,
+            displacement_factor,
+        )
 
         for group in problem.boundary_conditions:
             # An empty group draws nothing and gets no layer — `prune_bc_group_layers`
@@ -1572,7 +1603,7 @@ class MasonrySession(LazyLoadSession):
                     self._draw_rotation_circle(
                         layer,
                         list(block.modelgeometry.centroid()),
-                        [m * load_scale for m in bc.moment],
+                        [m * moment_scale for m in bc.moment],
                         1.0,
                         kind="moment",
                         color=self.COLOR_FORCE,
@@ -1587,7 +1618,7 @@ class MasonrySession(LazyLoadSession):
                         layer,
                         "point_load",
                         origin,
-                        [f * load_scale for f in bc.force],
+                        [f * point_load_scale for f in bc.force],
                         {"force": bc.force, "point": bc.point, "loading_type": bc.loading_type},
                     )
 
@@ -1601,7 +1632,7 @@ class MasonrySession(LazyLoadSession):
                         layer,
                         "surface_load",
                         list(block.modelgeometry.face_centroid(bc.face_index)),
-                        [f * load_scale for f in bc.load],
+                        [f * surface_load_scale for f in bc.load],
                         params,
                     )
 
@@ -1617,7 +1648,7 @@ class MasonrySession(LazyLoadSession):
                     continue
 
                 if type(bc).__name__ == "Rotation":
-                    self._draw_rotation_circle(layer, origin, vector, disp_scale)
+                    self._draw_rotation_circle(layer, origin, vector, rotation_scale)
                 else:
                     # tail-first, unlike a load: this is the block TRAVELLING that
                     # way, not something pushing it, so the arrow leads away from
@@ -1626,7 +1657,7 @@ class MasonrySession(LazyLoadSession):
                         layer,
                         "displacement",
                         origin,
-                        [v * disp_scale for v in vector],
+                        [v * translation_scale for v in vector],
                         {"translation": list(bc.translation)},
                         at="tail",
                     )
@@ -1669,6 +1700,31 @@ class MasonrySession(LazyLoadSession):
         for name, problem in problems.items():
             solver = getattr(self.solver_of(problem), "name", None) or "no solver"
             lines.append(f"problem  : {name}{' (active)' if name == active else ''} - {solver}")
+            properties = getattr(problem, "contact_properties", None)
+            law = getattr(properties, "contact_model", None)
+            joint = getattr(properties, "joint_model", None)
+            if law is None:
+                lines.append("             contact law: none")
+            else:
+                law_name = type(law).__name__
+                lines.append(
+                    "             contact law: {} | phi {} deg | mu {} | cohesion {} Pa | tensile cutoff {} Pa".format(
+                        law_name,
+                        getattr(law, "phi", None),
+                        getattr(law, "mu", None),
+                        getattr(law, "c", None),
+                        getattr(law, "t_c", None),
+                    )
+                )
+            if joint is None:
+                lines.append("             joint model: none")
+            else:
+                lines.append(
+                    "             joint model: kn {} Pa | kt {} Pa".format(
+                        getattr(joint, "kn", None),
+                        getattr(joint, "kt", None),
+                    )
+                )
             groups = problem.boundary_conditions
             if not groups:
                 lines.append("             no boundary conditions")
@@ -1740,7 +1796,7 @@ class MasonrySession(LazyLoadSession):
         self.delete("shown_results")
         return count
 
-    def draw_results(self, problem_name, results, model=None, key=None) -> int:
+    def draw_results(self, problem_name, results, model=None, key=None, redraw=True) -> int:
         """Draw the displaced geometry of a Results object under its problem.
 
         The displaced blocks go under "…::<problem>::Results::<key>::Displaced"
@@ -1758,8 +1814,9 @@ class MasonrySession(LazyLoadSession):
             transformation for any block of the model.
 
         """
-        import rhinoscriptsyntax as rs  # type: ignore
+        import scriptcontext as sc  # type: ignore
 
+        from compas_rhino.conversions import mesh_to_rhino
         from compas_rhino.layers import clear_layer
         from compas_rhino.layers import create_layers_from_path
 
@@ -1782,18 +1839,10 @@ class MasonrySession(LazyLoadSession):
             if T is None:
                 continue
             mesh = block.modelgeometry.transformed(T)
-            vertices, faces = mesh.to_vertices_and_faces()
-            guid = rs.AddMesh(vertices, faces)
-            if guid is None:
-                continue
-            rs.ObjectLayer(guid, layer)
-            # its own colour, so the displaced copy reads against the model it
-            # sits on top of — at a small displacement scale the two overlap
-            # almost exactly, and in one colour the result looks like a no-op
-            self.set_object_color(guid, self.COLOR_DISPLACED)
-            self.set_user_params(
-                guid,
-                {
+            attributes = self._result_attributes(
+                layer,
+                color=self.COLOR_DISPLACED,
+                params={
                     "problem": problem_name,
                     "result_key": key,
                     "result_kind": "displaced_block",
@@ -1801,9 +1850,16 @@ class MasonrySession(LazyLoadSession):
                     "transformation": [list(row) for row in T.matrix],
                 },
             )
+            guid = sc.doc.Objects.AddMesh(mesh_to_rhino(mesh, disjoint=False), attributes)
+            if guid is None:
+                continue
+            # its own colour, so the displaced copy reads against the model it
+            # sits on top of — at a small displacement scale the two overlap
+            # almost exactly, and in one colour the result looks like a no-op
             drawn += 1
 
-        rs.Redraw()
+        if redraw:
+            sc.doc.Views.Redraw()
         return drawn
 
     # =============================================================================
@@ -1849,7 +1905,7 @@ class MasonrySession(LazyLoadSession):
     # Result forces (CRA / RBE: the answer is on the contacts, not the blocks)
     # =============================================================================
 
-    def draw_result_forces(self, problem_name, results, model=None, key=None) -> int:
+    def draw_result_forces(self, problem_name, results, model=None, key=None, redraw=True) -> int:
         """Draw the contact forces of a Results object under its problem.
 
         CRA and RBE do not move anything — `_post_processing_cra` stores an
@@ -1887,6 +1943,10 @@ class MasonrySession(LazyLoadSession):
         layer = self.results_layer(problem_name, key, "Forces")
         create_layers_from_path(layer, separator="::")
         clear_layer(layer)
+        interfaces_layer = self.results_layer(problem_name, key, "Interfaces")
+        create_layers_from_path(interfaces_layer, separator="::")
+        clear_layer(interfaces_layer)
+        rs.LayerVisible(interfaces_layer, False)
 
         resultants = self._result_resultants(results)
         if not resultants:
@@ -1927,18 +1987,14 @@ class MasonrySession(LazyLoadSession):
                 drawn += self._draw_cornerforces(layer, results, edge, scale, settings, problem_name, key)
                 continue
 
-            self._draw_contact_geometry(layer, results, edge)
+            self._draw_contact_geometry(interfaces_layer, results, edge)
             color = self.COLOR_REACTION if is_reaction else self.COLOR_FORCE
-            guid = self._draw_centred_line(layer, point, [c * scale for c in vector], color=color)
-            if guid is None:
-                continue
-            self._draw_decomposition(layer, results, edge, point, scale, settings)
-            drawn += self._draw_cornerforces(layer, results, edge, scale, settings, problem_name, key)
-            if is_reaction:
-                self._draw_value_tag(tags_layer, point, magnitude, edge, problem_name, key)
-            self.set_user_params(
-                guid,
-                {
+            guid = self._draw_centred_line(
+                layer,
+                point,
+                [c * scale for c in vector],
+                color=color,
+                params={
                     "problem": problem_name,
                     "result_key": key,
                     "result_kind": "support_reaction" if is_reaction else "contact_resultant",
@@ -1948,11 +2004,18 @@ class MasonrySession(LazyLoadSession):
                     "force_magnitude": magnitude,
                 },
             )
+            if guid is None:
+                continue
+            self._draw_decomposition(layer, results, edge, point, scale, settings)
+            drawn += self._draw_cornerforces(layer, results, edge, scale, settings, problem_name, key)
+            if is_reaction:
+                self._draw_value_tag(tags_layer, point, magnitude, edge, problem_name, key)
             drawn += 1
 
         drawn += self._draw_selfweight(problem_name, model, scale, settings, key)
 
-        rs.Redraw()
+        if redraw:
+            rs.Redraw()
         return drawn
 
     # `fade_model` and its `_blend` helper lived here and were deleted on
@@ -1989,35 +2052,75 @@ class MasonrySession(LazyLoadSession):
         except Exception:
             pass
 
+    def _result_attributes(self, layer, color=None, params=None):
+        """Build complete Rhino attributes before inserting a result object.
+
+        Adding an object and then changing its layer, colour, and every User
+        Text field separately causes one Rhino document modification per
+        property. Result drawing creates many objects, so prepare all those
+        attributes in memory and commit them with the geometry in one call.
+        """
+        import json
+
+        import Rhino  # type: ignore
+        import rhinoscriptsyntax as rs  # type: ignore
+        import scriptcontext as sc  # type: ignore
+        import System  # type: ignore
+        from System.Drawing import Color  # type: ignore
+
+        attributes = Rhino.DocObjects.ObjectAttributes()
+        layer_id = rs.LayerId(layer)
+        if isinstance(layer_id, str):
+            layer_id = System.Guid(layer_id)
+        rhino_layer = sc.doc.Layers.FindId(layer_id) if layer_id is not None else None
+        if rhino_layer is not None:
+            attributes.LayerIndex = rhino_layer.Index
+        if color is not None:
+            attributes.ColorSource = Rhino.DocObjects.ObjectColorSource.ColorFromObject
+            attributes.ObjectColor = Color.FromArgb(*tuple(color))
+        for name, value in (params or {}).items():
+            if value is None:
+                continue
+            text = value if isinstance(value, str) else json.dumps(value, default=list)
+            attributes.SetUserString(str(name), text)
+        return attributes
+
     def _draw_contact_geometry(self, layer, results, edge):
         """Draw a contact by its class: polygon, line, or point.
 
         EdgeContact/VertexContact results carry no polygon, so filtering on
         face contacts alone would silently drop them (same trap as §1.7).
         """
-        import rhinoscriptsyntax as rs  # type: ignore
+        import Rhino  # type: ignore
+        import scriptcontext as sc  # type: ignore
 
         guid = None
+        attributes = self._result_attributes(
+            layer,
+            color=self.COLOR_CONTACT,
+            params={"result_kind": "contact", "edge": list(edge)},
+        )
         if results.face_contact(edge):
             polygon = results.contact_polygon(edge)
             if polygon is not None:
-                points = [list(p) for p in polygon.points]
+                points = [Rhino.Geometry.Point3d(*p) for p in polygon.points]
                 if len(points) > 2:
-                    guid = rs.AddPolyline(points + [points[0]])
+                    guid = sc.doc.Objects.AddPolyline(points + [points[0]], attributes)
         elif results.edge_contact(edge):
             line = results.contact_geometry(edge)
             if line is not None:
-                guid = rs.AddLine(list(line.start), list(line.end))
+                guid = sc.doc.Objects.AddLine(
+                    Rhino.Geometry.Point3d(*line.start),
+                    Rhino.Geometry.Point3d(*line.end),
+                    attributes,
+                )
         elif results.point_contact(edge):
             points = results.contact_point(edge)
             if points:
-                guid = rs.AddPoint(list(points[0]))
+                guid = sc.doc.Objects.AddPoint(Rhino.Geometry.Point3d(*points[0]), attributes)
 
         if guid is None:
             return None
-        rs.ObjectLayer(guid, layer)
-        self.set_object_color(guid, self.COLOR_CONTACT)
-        self.set_user_params(guid, {"result_kind": "contact", "edge": list(edge)})
         return guid
 
     def _draw_selfweight(self, problem_name, model, scale, settings, key=None):
@@ -2167,45 +2270,48 @@ class MasonrySession(LazyLoadSession):
         return drawn
 
     def _draw_value_tag(self, layer, point, magnitude, edge, problem_name=None, key=None):
-        """Label a resultant with its magnitude, as a TextDot at its contact point.
+        """Label a reaction in kN, as a TextDot at its contact point.
 
-        A TextDot rather than text geometry: it keeps one screen size whatever
-        the zoom and stays readable from any view direction, which text in the
-        model plane does not. `%.4g` matches Results_print, so the number on
-        screen is the number in the report.
+        A TextDot rather than text geometry keeps one screen size whatever the
+        zoom and stays readable from any view direction. The stored mechanics
+        remain in N; only the human-readable display value is converted to kN.
         """
-        import rhinoscriptsyntax as rs  # type: ignore
+        import Rhino  # type: ignore
+        import scriptcontext as sc  # type: ignore
 
-        guid = rs.AddTextDot(f"{magnitude:.4g}", list(point))
-        if guid is None:
-            return None
-        rs.ObjectLayer(guid, layer)
-        self.set_object_color(guid, self.COLOR_REACTION)
-        self.set_user_params(
-            guid,
-            {
+        magnitude_kN = magnitude / 1000.0
+        attributes = self._result_attributes(
+            layer,
+            color=self.COLOR_REACTION,
+            params={
                 "problem": problem_name,
                 "result_key": key,
                 "result_kind": "reaction_value",
                 "edge": list(edge),
                 "force_magnitude": magnitude,
+                "force_magnitude_kN": magnitude_kN,
+                "display_unit": "kN",
             },
         )
+        text_dot = Rhino.Geometry.TextDot(f"{magnitude_kN:.4g} kN", Rhino.Geometry.Point3d(*point))
+        guid = sc.doc.Objects.AddTextDot(text_dot, attributes)
+        if guid is None:
+            return None
         return guid
 
-    def _draw_centred_line(self, layer, point, vector, color=None):
+    def _draw_centred_line(self, layer, point, vector, color=None, params=None):
         """Draw a force resultant as a line centred on `point`, spanning ±v/2."""
-        import rhinoscriptsyntax as rs  # type: ignore
+        import Rhino  # type: ignore
+        import scriptcontext as sc  # type: ignore
 
         start = [p - 0.5 * v for p, v in zip(point, vector)]
         end = [p + 0.5 * v for p, v in zip(point, vector)]
         if start == end:
             return None
-        guid = rs.AddLine(start, end)
+        attributes = self._result_attributes(layer, color=color or self.COLOR_FORCE, params=params)
+        guid = sc.doc.Objects.AddLine(Rhino.Geometry.Point3d(*start), Rhino.Geometry.Point3d(*end), attributes)
         if guid is None:
             return None
-        rs.ObjectLayer(guid, layer)
-        self.set_object_color(guid, color or self.COLOR_FORCE)
         return guid
 
     def _max_block_size(self, model=None) -> float:
@@ -2219,6 +2325,21 @@ class MasonrySession(LazyLoadSession):
             diagonal = sum((b - a) ** 2 for a, b in zip(box[0], box[6])) ** 0.5
             largest = max(largest, diagonal)
         return largest or 1.0
+
+    def _relative_vector_scale(self, vectors, model=None, factor=1.0) -> float:
+        """Scale vectors relative to the largest block in the model.
+
+        At ``factor == 1.0``, the largest non-zero vector is drawn half as
+        long as the largest block bounding-box diagonal. The vectors passed to
+        one call must have the same physical unit.
+        """
+        largest = max(
+            (sum(float(value) ** 2 for value in vector) ** 0.5 for vector in vectors),
+            default=0.0,
+        )
+        if largest <= 0.0:
+            return 1.0
+        return float(factor) * 0.5 * self._max_block_size(model) / largest
 
     # Everything a BC draws is either an applied load or a prescribed movement.
     # Anything not listed is a load.
