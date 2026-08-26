@@ -148,6 +148,13 @@ def test_solve_cra(arch_model_with_contacts):
     nodes = list(arch_model_with_contacts.graph.nodes())
     arch_model_with_contacts.add_supports([nodes[0], nodes[-1]])
 
+    from compas_dem.material.generic import GenericMaterial
+
+    material = GenericMaterial(density=2500, Ecm=1e9)
+    arch_model_with_contacts.add_material(material)
+    for block in arch_model_with_contacts.elements():
+        arch_model_with_contacts.assign_material(material, element=block)
+
     problem = Problem(arch_model_with_contacts, name="Problem_CRA")
     problem.set_contact_model("MohrCoulomb", mu=0.6)
     problem.set_solver(Solver.CRA())
