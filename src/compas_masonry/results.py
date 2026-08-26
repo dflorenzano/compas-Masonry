@@ -275,6 +275,19 @@ def tension_contacts(results, tolerance=1e-9) -> list:
     and neither carries corner forces at all.
     """
     out = []
+    # A 3DEC-to-DEM conversion may preserve an exterior resultant point by
+    # distributing it to polygon vertices with affine (therefore sometimes
+    # negative) weights. Those equivalent vertex values preserve force and
+    # moment but are not native subcontact tension. 3DEC stores its actual
+    # normal subcontact forces separately, positive in compression, so use
+    # those for the mechanical state check.
+    if results.metadata.get("solver") == "3DEC":
+        for edge in results.edges():
+            tensions = [abs(float(value)) for value in (results.force_normal(edge) or []) if float(value) < -tolerance]
+            if tensions:
+                out.append((_edge_label(edge), len(tensions), max(tensions)))
+        return out
+
     for edge in results.edges():
         contact = results.contact_data(edge)
         if contact is None:

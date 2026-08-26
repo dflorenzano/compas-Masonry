@@ -96,11 +96,13 @@ class BlockModelSettings(BaseModel):
     # are meant to be compared in.
     scale_selfweight: float = Field(default=1.0, ge=1e-6, le=1e3, title="Scale Selfweight (relative)")
 
-    # Problem load/BC display scales — Rhino length drawn per unit of the
-    # underlying quantity (see MasonrySession.draw_problem).
-    scale_loads: float = Field(default=1e-3, ge=1e-9, le=1e6, title="Scale Loads (m per N)")
+    # Problem boundary-condition display scales. Load arrows use
+    # `scale_forces`, so applied loads and result forces share the same
+    # geometry-relative convention. Displacements have different physical
+    # units and therefore use an independent relative multiplier.
     scale_gravity: float = Field(default=0.1, ge=1e-6, le=1e3, title="Scale Gravity (m per m/s2)")
-    scale_displacement: float = Field(default=1.0, ge=1e-6, le=1e6, title="Scale Displacement/Rotation BC")
+    scale_displacement_arrows: float = Field(default=1.0, ge=1e-6, le=1e3, title="Scale Displacement Arrows (relative)")
+    scale_displacement: float = Field(default=1.0, ge=1e-6, le=1e6, title="Scale Result Displacements")
 
     # Contact force results. DIMENSIONLESS, unlike the scales above: at 1.0 the
     # largest resultant of a result set is drawn half as long as the biggest

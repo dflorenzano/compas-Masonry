@@ -30,6 +30,7 @@ fallback for a result whose key does not name a known solver.
 """
 
 import pathlib
+import time
 
 import rhinoscriptsyntax as rs  # type: ignore
 
@@ -113,22 +114,26 @@ def report_forces(results) -> None:
     print("  Session_settings > BlockModel > Show Corner Forces draws where it is.")
 
 
-def show(session, model, problem_name, key, results, mode) -> None:
+def show(session, model, problem_name, key, results, mode, redraw=True) -> None:
     base = session.results_layer(problem_name, key)
 
     drew_anything = False
 
     if mode in ("Forces", "Both"):
-        drawn = session.draw_result_forces(problem_name, results, model, key=key)
+        drawn = session.draw_result_forces(problem_name, results, model, key=key, redraw=redraw)
         if drawn:
             print(f"{key}: drew {drawn} contact resultant(s) under {base}::Forces")
             report_forces(results)
             drew_anything = True
         else:
-            warn(f"{key}: the stored result carries no contact forces.")
+            available = session._result_resultants(results)
+            if available:
+                warn(f"{key}: contact forces exist, but the active force display settings produced no visible objects.")
+            else:
+                warn(f"{key}: the stored result carries no contact forces.")
 
     if mode in ("Displaced", "Both"):
-        drawn = session.draw_results(problem_name, results, model, key=key)
+        drawn = session.draw_results(problem_name, results, model, key=key, redraw=redraw)
         if drawn:
             print(f"{key}: drew {drawn} displaced block(s) under {base}::Displaced (scale {session.settings.blockmodel.scale_displacement}).")
             drew_anything = True
@@ -168,7 +173,11 @@ def RunCommand():
     # Only offer Displaced for a solver that produces displacements. For a
     # CRA/RBE set there is nothing to choose, so do not ask at all.
     if offers_displacement(selected, results, model):
-        mode = choose("Draw", ["Forces", "Displaced", "Both"], default="Displaced")
+        # A 3DEC result carries both transformations and contact forces. Forces
+        # are the useful first view and are substantially cheaper than creating
+        # a displaced mesh for every block; LMGC90 remains displacement-first.
+        default_mode = "Forces" if all(solver_of(key) == "3DEC" for key in selected) else "Displaced"
+        mode = choose("Draw", ["Forces", "Displaced", "Both"], default=default_mode)
         if mode is None:
             return
     else:
@@ -176,10 +185,39 @@ def RunCommand():
         print(f"{solver_of(selected[0])} reports contact forces, not displacements — drawing forces.")
 
     # after the last bail-out, before the first change — see Session_undo
+    # Persisted settings from an older session can override the current defaults
+    # and leave every force category disabled. If the user explicitly asks for
+    # Forces or Both, make the canonical force views visible.
+    force_settings = session.settings.blockmodel
+    force_views = (
+        force_settings.show_resultants,
+        force_settings.show_reactions,
+        force_settings.show_normalforces,
+        force_settings.show_frictionforces,
+        force_settings.show_selfweight,
+        force_settings.show_cornerforces,
+    )
+    if mode in ("Forces", "Both") and not any(force_views):
+        force_settings.show_resultants = True
+        force_settings.show_reactions = True
+        print("All force views were disabled; enabled resultants and reactions for this result view.")
+
     session.ensure_baseline()
 
-    for key in selected:
-        show(session, model, name, key, results[key], mode)
+    # Adding each mesh, layer assignment, colour and User Text field is a
+    # separate Rhino document change. Batch all selected result geometry and
+    # repaint once instead of repainting the growing document object by object.
+    rs.EnableRedraw(False)
+    drawing_started = time.perf_counter()
+    try:
+        for key in selected:
+            result_started = time.perf_counter()
+            show(session, model, name, key, results[key], mode, redraw=False)
+            print(f"{key}: Rhino drawing completed in {time.perf_counter() - result_started:.2f}s.")
+    finally:
+        rs.EnableRedraw(True)
+        rs.Redraw()
+    print(f"Result visualisation completed in {time.perf_counter() - drawing_started:.2f}s.")
 
     # Record WHAT is on screen. Solving draws nothing and this command's choices
     # (which keys, and Forces/Displaced/Both) exist nowhere else — so without this

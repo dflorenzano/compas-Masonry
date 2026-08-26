@@ -92,6 +92,12 @@ def RunCommand():
     # loaded, which is the reason the file holds one object rather than two.
     session.clear_model()
     session["analysis"] = analysis
+    imported_results = data.get("results")
+    if isinstance(imported_results, dict):
+        # Ignore orphaned result groups rather than restoring data that cannot
+        # be associated with a problem in the imported analysis.
+        imported_results = {name: runs for name, runs in imported_results.items() if name in problems and isinstance(runs, dict)}
+        session["results"] = imported_results
     if model is not None:
         session.draw_model()
 
@@ -110,7 +116,8 @@ def RunCommand():
     print(f"Imported session from {filepath}")
     print(f"  blockmodel: {'yes' if model is not None else 'no'}")
     print(f"  problems  : {len(problems)} ({', '.join(problems) or '-'})")
-    print("Results are not part of the file — re-run Problem_solve.")
+    count = sum(len(runs) for runs in imported_results.values()) if isinstance(imported_results, dict) else 0
+    print(f"  imported results: {count if isinstance(imported_results, dict) else 'not included'}")
     session.record(f"Import: {pathlib.Path(filepath).name}")
 
 

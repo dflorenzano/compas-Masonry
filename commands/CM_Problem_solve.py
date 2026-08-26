@@ -7,8 +7,8 @@
 **Every boundary condition group on the problem is solved.** There is no
 selection: `problem.solve()` takes no arguments and applies every group it
 carries. A different set of loads means a different problem — duplicate it in
-Problem_create. `Problem.set_solve_order()` exists upstream if the order matters;
-no command exposes it yet.
+Problem_create. For 3DEC, this command exposes `Problem.set_solve_order()` and
+each group is executed as a sequential stage after gravity.
 
 Solving draws NOTHING. One `Results` per solve is stored on the session under a
 key naming the solver and the time it ran ("RBE_2026-08-04T15-30-12"), so a
@@ -37,9 +37,12 @@ assumed:
 import pathlib
 import time
 
+import rhinoscriptsyntax as rs  # type: ignore
+
 from compas_dem.models import BlockModel
 from compas_masonry.boundaryconditions import conditions_of
 from compas_masonry.boundaryconditions import loads_of
+from compas_masonry.inputs import choose
 from compas_masonry.results import tension_report
 from compas_masonry.session import MasonrySession as Session
 from compas_rui.feedback import warn
@@ -115,7 +118,7 @@ def check_ready(model, problem, name):
     return None
 
 
-def solve(problem):
+def solve(problem, progress_callback=None, event_pump=None):
     """Run the problem's solver over every boundary condition it carries.
 
     `problem.solve()` takes no arguments: solving moved onto Problem, and the
@@ -126,6 +129,12 @@ def solve(problem):
     Returns the Results, or None on failure (reported through `warn`).
     """
     try:
+        solver = Session.solver_of(problem)
+        if solver is not None and solver.name == "3DEC" and (progress_callback is not None or event_pump is not None):
+            return problem.solve(
+                progress_callback=progress_callback,
+                event_pump=event_pump,
+            )
         return problem.solve()
     except ImportError as e:
         # the solver backends (compas_cra, compas_lmgc90, ...) are optional
@@ -135,6 +144,126 @@ def solve(problem):
     except Exception as e:
         warn(f"Solve failed: {e}")
     return None
+
+
+def rhino_progress_handlers():
+    """Return concise 3DEC progress and Rhino UI-pump callbacks."""
+    import Rhino  # type: ignore
+
+    previous = [None]
+
+    def progress(event):
+        message = event.get("message")
+        if not message or message == previous[0]:
+            return
+        previous[0] = message
+        print(message, flush=True)
+        try:
+            Rhino.RhinoApp.SetCommandPrompt(message)
+        except Exception:
+            pass
+
+    def pump():
+        Rhino.RhinoApp.Wait()
+
+    return progress, pump
+
+
+def choose_threedec_solve_order(problem):
+    """Choose the sequential 3DEC stage order, keeping gravity first.
+
+    Returns the complete ordered list of group names, or ``None`` when the
+    command is cancelled. With zero or one non-gravity group the mechanically
+    valid order is unambiguous and no dialog is shown.
+    """
+    groups = list(problem.boundary_conditions)
+    # BoundaryConditionGroup currently carries a default ``g`` value on every
+    # group, including load-only groups. Masonry's explicit gravity stage is
+    # therefore identified by the canonical name created by Problem_setsolver.
+    gravity = [group for group in groups if group.name.strip().casefold() == "gravity"]
+    remaining = [group for group in groups if group not in gravity]
+    current = gravity + remaining
+    if len(remaining) < 2:
+        return [group.name for group in current]
+
+    action = choose("3DEC analysis-stage order", ["Use current order", "Change order"], default="Use current order")
+    if action is None:
+        return None
+    if action == "Use current order":
+        return [group.name for group in current]
+
+    ordered = list(gravity)
+    available = list(remaining)
+    position = len(ordered) + 1
+    while len(available) > 1:
+        names = [group.name for group in available]
+        selected = rs.ListBox(names, message=f"Select analysis stage {position}", title="3DEC Analysis Order")
+        if selected is None:
+            return None
+        group = next(group for group in available if group.name == selected)
+        ordered.append(group)
+        available.remove(group)
+        position += 1
+    ordered.extend(available)
+    return [group.name for group in ordered]
+
+
+def choose_threedec_stages(problem, solver):
+    """Order and group 3DEC boundary conditions into DAT-file stages."""
+    groups_by_name = {group.name: group for group in problem.boundary_conditions}
+    saved = solver.parameters.get("stages")
+    saved_names = [name for stage in (saved or []) for name in stage]
+    if saved and len(saved_names) == len(groups_by_name) and set(saved_names) == set(groups_by_name):
+        action = choose("3DEC execution plan", ["Use saved plan", "Edit plan"], default="Use saved plan")
+        if action is None:
+            return None
+        if action == "Use saved plan":
+            return [list(stage) for stage in saved]
+
+    order = choose_threedec_solve_order(problem)
+    if order is None:
+        return None
+    ordered = [groups_by_name[name] for name in order]
+    load_groups = [group for group in ordered if loads_of(group) and not group.displacements]
+    if len(load_groups) < 2:
+        return [[group.name] for group in ordered]
+
+    mode = choose(
+        "3DEC load grouping",
+        ["Combine consecutive loads", "Separate every load group", "Define phase breaks"],
+        default="Combine consecutive loads",
+    )
+    if mode is None:
+        return None
+
+    stages = []
+    for group in ordered:
+        # Gravity and every prescribed-displacement group are hard phase
+        # boundaries. A mixed group is kept alone; compas_3dec writes its load
+        # part first and its displacement part as the following stage.
+        is_gravity = group.name.strip().casefold() == "gravity"
+        if is_gravity or group.displacements or not loads_of(group):
+            stages.append([group.name])
+            continue
+        if mode == "Separate every load group" or not stages:
+            stages.append([group.name])
+            continue
+        previous_group = groups_by_name[stages[-1][-1]]
+        can_join = bool(loads_of(previous_group)) and not previous_group.displacements
+        if mode == "Define phase breaks" and can_join:
+            action = choose(
+                "3DEC stage for {}".format(group.name),
+                ["Continue current load phase", "Start new load phase"],
+                default="Continue current load phase",
+            )
+            if action is None:
+                return None
+            can_join = action == "Continue current load phase"
+        if can_join:
+            stages[-1].append(group.name)
+        else:
+            stages.append([group.name])
+    return stages
 
 
 def RunCommand():
@@ -157,6 +286,18 @@ def RunCommand():
 
     solver = Session.solver_of(problem)
     key = result_key(solver.name)
+
+    if solver.name == "3DEC":
+        stages = choose_threedec_stages(problem, solver)
+        if stages is None:
+            return
+        session.ensure_baseline()
+        solve_order = [group for stage in stages for group in stage]
+        problem.set_solve_order(solve_order)
+        solver.set_stages(stages)
+        print("3DEC execution plan:")
+        for index, stage in enumerate(stages, start=1):
+            print("  {}. {}".format(index, " + ".join(stage)))
 
     # ipopt is an executable, looked up on PATH by compas_cra's pyomo model
     if solver.name in ("CRA", "RBE"):
@@ -182,7 +323,11 @@ def RunCommand():
     session.ensure_baseline()
 
     started = time.time()
-    results = solve(problem)
+    if solver.name == "3DEC":
+        progress_callback, event_pump = rhino_progress_handlers()
+        results = solve(problem, progress_callback=progress_callback, event_pump=event_pump)
+    else:
+        results = solve(problem)
     if results is None:
         return
     elapsed = time.time() - started

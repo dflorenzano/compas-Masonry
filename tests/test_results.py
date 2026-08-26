@@ -230,6 +230,18 @@ def test_no_tension_reports_nothing_at_all():
     assert tension_report(FakeResults(contact=FakeContact())) is None
 
 
+def test_threedec_tension_uses_native_normal_forces_not_affine_vertex_forces():
+    """Exterior resultant reconstruction must not invent native 3DEC tension."""
+    results = FakeResults(contact=FakeContact(tensions=[7.1e9]))
+    results.metadata["solver"] = "3DEC"
+    results.force_normal = lambda edge: [10.0, 20.0, 0.0]
+
+    assert tension_contacts(results) == []
+
+    results.force_normal = lambda edge: [10.0, -2.5, -7.0]
+    assert tension_contacts(results) == [("0-1", 2, 7.0)]
+
+
 # =============================================================================
 # CSV rows
 # =============================================================================
