@@ -26,6 +26,7 @@ import rhinoscriptsyntax as rs  # type: ignore
 
 from compas_dem.models import BlockModel
 from compas_masonry.inputs import choose
+from compas_masonry.results import application_point_report
 from compas_masonry.results import block_displacements
 from compas_masonry.results import contact_openings
 from compas_masonry.results import contact_resultants
@@ -83,6 +84,12 @@ def print_contacts(results) -> None:
     resultants = contact_resultants(results)
     if not resultants:
         return warn("This result set carries no contact forces.")
+
+    # The table below has no column for "where on the joint", so a contact whose
+    # point was guessed is indistinguishable from one that was solved. Say so.
+    misplaced = application_point_report(results)
+    if misplaced:
+        warn(misplaced)
 
     stresses = {label: value for value, _, label in face_stresses(results)}
     openings = {label: value for value, _, label in contact_openings(results)}

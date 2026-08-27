@@ -37,6 +37,7 @@ import rhinoscriptsyntax as rs  # type: ignore
 from compas_dem.models import BlockModel
 from compas_masonry.inputs import choose
 from compas_masonry.inputs import set_display_mode
+from compas_masonry.results import application_point_report
 from compas_masonry.results import tension_report
 from compas_masonry.session import MasonrySession as Session
 from compas_rui.feedback import warn
@@ -100,6 +101,13 @@ def report_forces(results) -> None:
     if not magnitudes:
         return
     print(f"  {len(magnitudes)} contact resultant(s): max {max(magnitudes):.4g}, total {sum(magnitudes):.4g}")
+
+    # Ahead of the tension block, which returns early when there is no tension.
+    # A force drawn at the joint centroid looks exactly like a force drawn where
+    # it acts, so this is the only place the difference is ever visible.
+    misplaced = application_point_report(results)
+    if misplaced:
+        warn(misplaced)
 
     # Said here as well as in Problem_solve: a result can be drawn any number of
     # times, and days after it was solved.

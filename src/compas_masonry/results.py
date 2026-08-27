@@ -21,6 +21,7 @@ simply returns less:
 
 __all__ = [
     "contact_resultants",
+    "application_point_report",
     "face_stresses",
     "contact_openings",
     "tension_contacts",
@@ -67,6 +68,32 @@ def contact_normal(results, edge):
     the magnitude, and nothing else. Requiring a frame silently emptied stress
     and reactions for every CRA/RBE result, so the polygon's own normal is used
     when there is no frame.
+
+    TRAP — do not "fix" this by reading `contact_data.frame`. The frame is not
+    actually missing under CRA: `cra.py` builds the FrictionContact WITH
+    `frame=interface.frame` and simply never calls
+    `set_edge(edge, "contact_frame", ...)`. So a frame is reachable at
+    `contact_data.frame`, and it is ANTI-PARALLEL to the polygon normal on every
+    contact — measured on a 15-block arch, `frame.zaxis . polygon.normal == -1.000`
+    on all 14 contacts, not some of them.
+
+    Nothing downstream is neutral about that flip:
+
+    - `face_stresses` uses `|F . n|`, so it does not care.
+    - `support_reactions` picks its sign from `offset . normal`. With the POLYGON
+      normal it produces the correct upward reaction (-10.881, 0, +25.852) N.
+      Swap in `frame.zaxis` and every CRA reaction inverts to (+10.881, 0, -25.852)
+      — pointing down and out of the abutment, which is wrong and which no test
+      would catch, because the magnitude is identical.
+
+    So the current behaviour is right and the reasoning under it is not: the
+    `support_reactions` docstring claims "the contact normal points u -> v", and
+    that is not the convention CRA is actually storing. Before touching either
+    function, settle what CRA's normal orientation really is (upstream, against
+    `interface.frame`), then make BOTH agree. The compas_dem viewer sidesteps the
+    question entirely by resolving reaction direction geometrically — flipping
+    the resultant to point away from the support centroid — and never reads a
+    stored normal at all. That is the more robust convention if this is reworked.
     """
     frame = results.contact_frame(edge)
     if frame is not None:
@@ -139,6 +166,77 @@ def contact_resultants(results) -> list:
 
         out.append((list(point), list(vector), float(magnitude), edge))
     return out
+
+
+def application_points(results) -> tuple:
+    """`(solved, centroid, dropped)` — how each contact's application point was found.
+
+    The point a resultant is drawn at is the answer, not decoration: the offset of
+    the thrust from the joint centre IS the eccentricity, and an arch whose
+    resultants all sit on the joint midpoints is reporting its own geometry back.
+    So it matters which of the four sources in `contact_resultants` supplied it.
+
+    - `solved`   — `force_point` or the contact's `resultantpoint`. Trustworthy.
+    - `centroid` — the polygon centroid or a contact frame origin. A *position on
+      the joint*, unrelated to where the force acts. Eccentricity is lost, and so
+      is every quantity derived from it.
+    - `dropped`  — nothing at all, so `contact_resultants` skips the contact even
+      though it carries a force. Missing from the drawing AND from every report.
+
+    Returns three lists of edge labels. Kept out of `contact_resultants` so that
+    function keeps its 4-tuple shape and its four call sites stay unchanged.
+    """
+    solved, centroid, dropped = [], [], []
+    for edge in results.edges():
+        if not results.resultant_global(edge):
+            continue
+        label = _edge_label(edge)
+        if results.force_point(edge) is not None:
+            solved.append(label)
+            continue
+        contact = results.contact_data(edge)
+        if getattr(contact, "resultantpoint", None) is not None:
+            solved.append(label)
+        elif results.contact_frame(edge) is not None or results.contact_polygon(edge) is not None:
+            centroid.append(label)
+        else:
+            dropped.append(label)
+    return solved, centroid, dropped
+
+
+def application_point_report(results):
+    """A message naming the contacts whose application point is not a solved one, or None.
+
+    Worded once here because two commands say it — Results_show as it draws and
+    Results_print as it tabulates — and the same finding phrased two ways reads as
+    two findings. Same reason and same shape as `tension_report`.
+
+    Nothing is returned when every contact has a solved point, which is the normal
+    case for CRA, RBE, LMGC90, PRD and BLA: all of them store a `contact_data`, and
+    every compas_dem contact class answers `resultantpoint`.
+    """
+    _, centroid, dropped = application_points(results)
+    if not centroid and not dropped:
+        return None
+
+    def where(labels):
+        shown = ", ".join(labels[:5])
+        return shown + (f", … (+{len(labels) - 5})" if len(labels) > 5 else "")
+
+    parts = []
+    if centroid:
+        parts.append(
+            f"{len(centroid)} contact(s) fall back to the joint centroid [{where(centroid)}] — "
+            "their eccentricity is lost, so the thrust line, the stress distribution "
+            "and any moment read off them are wrong."
+        )
+    if dropped:
+        parts.append(
+            f"{len(dropped)} contact(s) carry a force but have no application point at all "
+            f"[{where(dropped)}] — they are missing from the drawing and from every report. "
+            "A 3DEC edge with more than one subcontact does this."
+        )
+    return " ".join(parts)
 
 
 def face_stresses(results) -> list:
@@ -357,6 +455,14 @@ def support_reactions(results, model) -> list:
     contact normal points u → v. The Results edge key can be stored reversed, so
     v is identified geometrically: it is the block whose centroid lies on the
     +normal side of the contact point.
+
+    That "u → v" sentence is the part to distrust. Verified against a CRA solve
+    of a 15-block arch: the answer this returns is correct — both supports give
+    (-/+10.881, 0, +25.852) N, |R| = 28.049 kN, matching the compas_dem viewer to
+    the digit, with Rz exactly half the non-support weight — but it is correct
+    BECAUSE `contact_normal` hands back the polygon normal, which is flipped
+    180° from what CRA stored as the contact frame. Change the normal source and
+    every reaction here inverts. See the TRAP note in `contact_normal`.
     """
     blocks = {block.graphnode: block for block in model.elements()}
     centroids = {node: list(block.modelgeometry.centroid()) for node, block in blocks.items()}

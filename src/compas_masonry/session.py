@@ -1958,11 +1958,37 @@ class MasonrySession(LazyLoadSession):
             return 0
 
         # dimensionless -> absolute: biggest force spans half the biggest block
+        #
+        # BUG 1, unfixed — the yardstick is orientation-dependent. `_max_block_size`
+        # measures the AXIS-ALIGNED bounding box diagonal, which grows when a block
+        # is tilted relative to world XYZ even though the block itself is unchanged.
+        # So rotating a model rescales all of its force arrows. On the 15-block arch
+        # this gives 0.639 where the compas_dem viewer, which uses an actual mesh
+        # edge length (`block.modelgeometry.edge_length([0, 1])`), gives 0.500 — our
+        # arrows come out 1.28x longer than the same result in the viewer, which is
+        # exactly the kind of mismatch that reads as "the numbers disagree" when the
+        # numbers are in fact identical. Fix by measuring something intrinsic to the
+        # block (an oriented bbox, or the mesh edge length the viewer uses); the
+        # viewer's choice is the one to match if the two pictures must be comparable.
         scale = self.settings.blockmodel.scale_forces * 0.5 * self._max_block_size(model) / largest
 
         # A resultant on a contact with a support block IS that support's
         # reaction, so it is drawn red rather than green — the two read very
         # differently and there is no other cue distinguishing them.
+        #
+        # BUG 2, unfixed — this draws one red line and one kN tag per support
+        # CONTACT, where a reaction is a property of the SUPPORT. They coincide
+        # only when a support touches the model once, which is why the arch looks
+        # right: one contact per abutment, 28.049 kN, matching the viewer exactly.
+        # A dome or a vault springs from a support across several contacts, and
+        # there this draws N red lines and N overlapping tags per support, none of
+        # which is the reaction — the reaction is their vector sum. The compas_dem
+        # viewer aggregates first: it aggregates a support's contacts into ONE line
+        # at the force-weighted position of the group. `results.support_reactions`
+        # already computes exactly that total and is what the reports print, so the
+        # drawing and the report currently disagree on a dome while agreeing on an
+        # arch. Fix by drawing reactions from `support_reactions` in a pass of their
+        # own, rather than as a red-coloured special case inside the contact loop.
         supports = {block.graphnode for block in model.elements() if block.is_support}
 
         # Reaction values go on their OWN sublayer, so the numbers can be switched
@@ -2229,6 +2255,47 @@ class MasonrySession(LazyLoadSession):
         Not every contact is a `FrictionContact`. LMGC90 stores an `EdgeContact` or
         a `VertexContact` for degenerate contacts, and those carry no per-corner
         forces at all — hence `getattr` rather than an attribute access.
+
+        UNVERIFIED IN RHINO — check this before trusting it. Nothing here has ever
+        been seen to draw in the document, and there is reason to think it does
+        not: this is the only result view with no confirmed sighting. Turn on
+        Session_settings > BlockModel > Show Corner Forces against a CRA arch and
+        confirm objects actually appear. Reference numbers to check against, from
+        a headless CRA solve of the 15-block arch (rise 3, span 6, t 0.5, d 0.5,
+        rho 2400), contact edge (0, 1): FOUR corners, normal forces 4085.70,
+        9689.05, 9689.05, 4085.70 N, zero tension corners. Four lines, two long
+        two short, on that one joint. If nothing is drawn, suspect the layer:
+        corner forces currently share the resultants' `Forces` layer, so they land
+        on top of the resultant lines and may simply be invisible under them.
+
+        THEY NEED THEIR OWN LAYER, and do not yet have one. Everything else that
+        is a separate view already got one — `Forces::Values` for the reaction
+        tags, `Interfaces` for contact geometry, `Selfweight` for block weights.
+        Corner forces are a distinct view of a distinct quantity and should be a
+        sibling sublayer (`Forces::Corners`, or its own `Corners`), so they can be
+        toggled without losing the resultants. Note the layer is passed IN as
+        `layer`, so this is a change at both call sites in `draw_result_forces`,
+        not here.
+
+        TWO KNOWN LIMITS, both measured, neither fixed:
+
+        1. **Normal component only.** `compressiondata`/`tensiondata` are built as
+           `point + frame.zaxis + [0.5 * (c_np - c_nn)]`, so `c_u` and `c_v` — the
+           two shear components — are discarded. On corner 0 of edge (0, 1) that
+           draws 4085.70 N and throws away 1317.10 N of shear; the full vertex
+           force is 4292.75 N. So this is a per-corner NORMAL FORCE view, and the
+           docstring above calling it "the force at every vertex" overstates it.
+           The compas_dem viewer's "Point Results" group draws the full vector,
+           `n * c_np + t1 * c_u + t2 * c_v`, which is what to match.
+        2. **`FrictionContact` only.** Confirmed by attribute check:
+           FrictionContact has `compressiondata`, EdgeContact and VertexContact do
+           not — but all three carry `.points` and `.forces`. So LMGC90's
+           degenerate contacts draw nothing here despite holding the data, and the
+           `getattr` guard makes that silent rather than reported.
+
+        Both limits dissolve the same way: read `contact.points` / `contact.forces`
+        directly and build the full vector per vertex, instead of going through
+        `compressiondata`/`tensiondata`.
 
         Returns
         -------
