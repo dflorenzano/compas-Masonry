@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Improved result visualisation performance with batched Rhino drawing, compact result storage, hidden interface geometry, and geometry-relative load and displacement arrows.
 * Corrected 3DEC tension reporting to use native normal subcontact forces.
 
+### Fixed — 2026-08-27
+
+* **Contact resultants are drawn where the force acts, not at the joint centroid.** The application point in `results.contact_resultants` resolved as `force_point` → contact frame origin → polygon centroid, and **CRA and RBE write neither of the first two** — `_post_processing_cra` stores the contact data, points, polygon, resultants and magnitude, and nothing else. So every CRA resultant landed on the middle of its joint, which discards the eccentricity: the drawn thrust line became a function of the geometry rather than of the solve, and an arch reported its own joint midpoints back.
+
+  The value was never missing, only unread. `contact_data.resultantpoint` is the normal-force-weighted point, and it is now preferred ahead of the frame fallback. Measured on a 15-block arch, the correction is up to **0.22 m on a 0.5 m joint — 44% of the joint thickness** — and afterwards all 14 contacts match `compas_dem.viewer.DEMViewer.add_solution` to within 0.0000.
+
+  The fix reaches every backend, because `contact_resultants` is solver-agnostic and all three compas_dem contact classes answer `resultantpoint`. LMGC90, PRD and BLA were also drawing at an arbitrary point — `contact_frames[0].point`, the *first* stored contact point — and are corrected too. 3DEC is unchanged: it is the one backend that writes `force_point`, and that still takes precedence.
+
+  Magnitudes and directions were never affected. Reactions were and remain correct: 28.049 kN per support on that arch, exactly half the non-support weight in Z, matching the viewer to the digit.
+
+* **`results.application_point_report()` warns when a contact's application point had to be guessed.** Reported by `Results_show` as it draws and by `Results_print` as it tabulates — worded once in `results.py` for the same reason as `tension_report`, since the same finding phrased two ways reads as two findings. It separates contacts that fell back to a joint centroid (eccentricity lost) from contacts dropped entirely for having no application point at all, which is what a 3DEC edge carrying more than one subcontact produces — those are silently absent from both the drawing and every report.
+
 ### Added — 2026-08-20
 
 * **Loads are placed by picking the geometry, across any number of blocks.** The old flow selected ONE block, drew a temporary `TextDot` on every face or vertex, and asked the user to type the index back — a number they had no way to check, on a single block per command call. `inputs.pick_block_components` picks the faces or vertices themselves, on as many blocks as are selected in one go, and every anchor gets the same load.
