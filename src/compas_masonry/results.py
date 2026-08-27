@@ -101,9 +101,14 @@ def contact_point(results, edge):
 def contact_resultants(results) -> list:
     """[(point, vector, magnitude, edge), …] for every contact carrying a force.
 
-    The application point is `force_point` when the solver wrote one, else the
-    contact frame origin, else the contact polygon centroid — CRA fills in the
-    frame but not `force_point`.
+    The application point is where the force actually acts on the joint, which
+    is what makes the drawn resultants a line of thrust rather than a chain of
+    joint midpoints. Order: `force_point` when the solver wrote one, else the
+    contact's own `resultantpoint` (the normal-force-weighted point — the only
+    source CRA/RBE fill in), else the contact frame origin, else the polygon
+    centroid. CRA writes neither `force_point` nor a contact frame, so without
+    the `resultantpoint` step every force lands on the joint centroid and the
+    eccentricity — the whole answer — is thrown away.
     """
     out = []
     for edge in results.edges():
@@ -118,6 +123,10 @@ def contact_resultants(results) -> list:
             continue
 
         point = results.force_point(edge)
+        if point is None:
+            contact = results.contact_data(edge)
+            resultantpoint = getattr(contact, "resultantpoint", None)
+            point = None if resultantpoint is None else list(resultantpoint)
         if point is None:
             frame = results.contact_frame(edge)
             if frame is not None:

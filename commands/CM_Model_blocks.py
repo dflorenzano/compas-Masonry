@@ -25,10 +25,10 @@ from compas_masonry.session import MasonrySession as Session
 def get_arch():
     options = Options("Arch")
     options.add_number("rise", 3.0, minimum=0.0, keyword="Rise")
-    options.add_number("span", 10.0, minimum=0.0, keyword="Span")
+    options.add_number("span", 6.0, minimum=0.0, keyword="Span")
     options.add_number("thickness", 0.5, minimum=0.0, keyword="Thickness")
     options.add_number("depth", 0.5, minimum=0.0, keyword="Depth")
-    options.add_integer("n", 50, minimum=3, keyword="Blocks", prompt="Number of blocks")
+    options.add_integer("n", 15, minimum=3, keyword="Blocks", prompt="Number of blocks")
 
     values = options.get()
     if values is None:
@@ -40,8 +40,8 @@ def get_arch():
 
 def get_dome():
     options = Options("Dome")
-    options.add_integer("meridians", 40, minimum=3, keyword="Meridians")
-    options.add_integer("hoops", 20, minimum=3, keyword="Hoops")
+    options.add_integer("meridians", 20, minimum=3, keyword="Meridians")
+    options.add_integer("hoops", 10, minimum=3, keyword="Hoops")
     options.add_number("oculus", 3.14 / 30, minimum=0.0, keyword="OculusAngle", units="rad", prompt="Oculus angle")
     options.add_number("spring", 3.14 / 2, minimum=0.0, keyword="SpringingAngle", units="rad", prompt="Springing angle")
     # r_i/R_i and r_f/R_f would collapse to the same keyword, hence the explicit ones.
@@ -60,11 +60,11 @@ def get_dome():
 
 def get_barrelvault():
     options = Options("BarrelVault")
-    options.add_number("span", 10.0, minimum=0.0, keyword="Span")
-    options.add_number("length", 20.0, minimum=0.0, keyword="Length")
+    options.add_number("span", 6.0, minimum=0.0, keyword="Span")
+    options.add_number("length", 6.0, minimum=0.0, keyword="Length")
     options.add_number("rise", 3.0, minimum=0.0, keyword="Rise")
     options.add_number("thickness", 0.5, minimum=0.0, keyword="Thickness")
-    options.add_integer("vou_span", 50, minimum=3, keyword="SpanBlocks", prompt="Number of span blocks")
+    options.add_integer("vou_span", 20, minimum=3, keyword="SpanBlocks", prompt="Number of span blocks")
     options.add_integer("vou_length", 20, minimum=3, keyword="LengthBlocks", prompt="Number of length blocks")
 
     values = options.get()

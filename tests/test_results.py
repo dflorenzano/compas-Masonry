@@ -125,6 +125,33 @@ def test_resultants_without_a_frame():
     assert point == pytest.approx([0.5, 0.5, 0.0])  # the polygon centroid
 
 
+def test_the_resultant_point_beats_the_polygon_centroid():
+    """The eccentricity IS the answer — a centroid throws it away.
+
+    CRA writes neither `force_point` nor a contact frame, so the only record of
+    *where* on the joint the force acts is the contact's own `resultantpoint`
+    (the normal-force-weighted point). Falling straight through to the polygon
+    centroid drew every arch resultant on the joint midpoint, which makes the
+    thrust line a function of the geometry instead of the solve.
+    """
+    contact = FakeContact(resultantpoint=[0.8, 0.5, 0.0])
+    point, _, _, _ = contact_resultants(FakeResults(contact=contact))[0]
+    assert point == pytest.approx([0.8, 0.5, 0.0])
+
+
+def test_a_contact_without_a_resultant_point_still_falls_back():
+    """Not every stored contact object answers `resultantpoint`.
+
+    All three compas_dem contact classes do (FrictionContact weights by normal
+    force, EdgeContact by normal force along the line, VertexContact returns the
+    point itself), so this is the guard for what a *future* or foreign contact
+    object might store — and for `contact_data` being absent entirely, which is
+    what a multi-subcontact 3DEC edge produces.
+    """
+    point, _, _, _ = contact_resultants(FakeResults(contact=DegenerateContact()))[0]
+    assert point == pytest.approx([0.5, 0.5, 0.0])
+
+
 def test_stress_is_force_over_area_without_a_frame():
     """|F . n| / area — 10 N on a 1x1 contact is 10 Pa."""
     stresses = face_stresses(FakeResults())
@@ -182,8 +209,9 @@ class FakeContact:
     force, which is how compas_dem builds them.
     """
 
-    def __init__(self, tensions=()):
+    def __init__(self, tensions=(), resultantpoint=None):
         self.tensiondata = [[0.0, 0.0, 0.0, 0.0, 0.0, 1.0, -0.5 * t] for t in tensions]
+        self.resultantpoint = resultantpoint
 
 
 class DegenerateContact:
