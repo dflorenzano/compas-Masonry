@@ -46,10 +46,14 @@ Both return **contact forces** rather than displacements, and both solve through
 the `ipopt` executable, which must be on the `PATH` Rhino sees.
 
 > [!IMPORTANT]
-> These currently need **compas_cra 0.5.0**, which is not on PyPI yet, together
-> with **pyomo >= 6.7.3**. The published compas_cra 0.4.0 cannot be used with a
-> NumPy 2 environment, and only 0.5.0 accepts the external loads compas_dem
-> passes it. Until it is released, this is a manual install step.
+> These need **compas_cra >= 0.6.0**, which is on PyPI and pulls **pyomo >= 6.7**
+> with it, so no manual install step is required any more. The older compas_cra
+> 0.4.0 cannot be used in a NumPy 2 environment.
+>
+> compas_cra still solves for self-weight only — `external_force_setup(assembly,
+> density)` takes no external load vector as of 0.6.0. A problem carrying any
+> boundary condition is therefore refused by `check_ready()` and has to go to
+> LMGC90 or 3DEC instead.
 
 **LMGC90** provides contact dynamics and displacements in-process through
 `compas_lmgc90`.

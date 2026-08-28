@@ -2,130 +2,86 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 32 32">
   <defs>
     <style>
-      .cls-1, .cls-2, .cls-3 {
-        fill: none;
+      .h {
+        fill: url(#f);
       }
 
-      .cls-4 {
-        fill: url(#linear-gradient);
+      .i {
+        fill: #eaeaea;
       }
 
-      .cls-2 {
+      .j {
         stroke-width: .25px;
       }
 
-      .cls-2, .cls-3 {
+      .j, .k {
+        fill: none;
         stroke: #000;
         stroke-linecap: round;
         stroke-linejoin: round;
       }
 
-      .cls-3 {
+      .k {
         stroke-width: .4px;
       }
 
-      .cls-5 {
-        isolation: isolate;
-      }
-
-      .cls-6 {
-        mix-blend-mode: multiply;
-      }
-
-      .cls-7 {
-        clip-path: url(#clippath-1);
-      }
-
-      .cls-8 {
-        clip-path: url(#clippath-2);
-      }
-
-      .cls-9 {
+      .l {
         fill: #fff;
       }
-
-      .cls-10 {
-        clip-path: url(#clippath);
-      }
     </style>
-    <clipPath id="clippath">
-      <rect class="cls-1" x="42.35" width="32" height="32"/>
-    </clipPath>
-    <clipPath id="clippath-1">
-      <rect class="cls-1" x="0" y="0" width="32" height="32"/>
-    </clipPath>
-    <clipPath id="clippath-2">
-      <rect class="cls-1" x="-39.15" y="0" width="32" height="32"/>
-    </clipPath>
-    <linearGradient id="linear-gradient" x1="19.34" y1="18.27" x2="29.12" y2="18.27" gradientTransform="translate(0 34) scale(1 -1)" gradientUnits="userSpaceOnUse">
+    <linearGradient id="f" x1="19.34" y1="18.27" x2="29.12" y2="18.27" gradientTransform="translate(0 34) scale(1 -1)" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#2e4ab5"/>
       <stop offset=".14" stop-color="#455ec0"/>
       <stop offset=".43" stop-color="#8093dc"/>
       <stop offset=".7" stop-color="#bdc9fa"/>
     </linearGradient>
-    <image id="image" width="6135" height="3378" xlink:href="../../../../../Documents/GitHub/obsidian/ETH_PhD/600_Dev/610_Libs/compas_masonry/icons/wip/arch1/viewfront.png"/>
   </defs>
-  <g class="cls-5">
-    <g id="Layer_1" data-name="Layer 1">
-      <g class="cls-10">
-        <g>
-          <image width="6135" height="3378" transform="translate(27.13 -2.11) scale(.01)" xlink:href="../../../../../Documents/GitHub/obsidian/ETH_PhD/600_Dev/610_Libs/compas_masonry/icons/wip/displaced/Support.png"/>
-          <image class="cls-6" width="6135" height="3378" transform="translate(27.13 -2.1) scale(.01)" xlink:href="../../../../../Documents/GitHub/obsidian/ETH_PhD/600_Dev/610_Libs/compas_masonry/icons/wip/displaced/View.png"/>
-        </g>
-      </g>
+  <g id="b" data-name="Layer 2">
+    <g>
+      <polygon class="i" points="1.83 22.69 5.88 22.69 7.2 22.53 8.08 18.7 10.52 15.63 14.06 13.93 17.99 13.93 21.52 15.63 23.97 18.7 24.85 22.61 26.17 22.69 30.23 22.69 28.83 16.52 24.88 11.58 19.18 8.84 12.86 8.84 7.17 11.58 3.23 16.53 1.83 22.69"/>
+      <line class="j" x1="9.7" y1="14.76" x2="10.52" y2="15.63"/>
+      <line class="j" x1="10.52" y1="15.63" x2="8.08" y2="18.7"/>
+      <line class="j" x1="7.17" y1="11.58" x2="3.23" y2="16.53"/>
+      <line class="j" x1="6.89" y1="18.29" x2="8.08" y2="18.7"/>
+      <line class="j" x1="8.08" y1="18.7" x2="7.2" y2="22.53"/>
+      <line class="j" x1="3.23" y1="16.53" x2="1.83" y2="22.69"/>
+      <line class="j" x1="1.83" y1="22.69" x2="5.88" y2="22.69"/>
+      <line class="j" x1="7.2" y1="22.53" x2="5.88" y2="22.69"/>
+      <line class="j" x1="6.89" y1="18.29" x2="5.88" y2="22.69"/>
+      <line class="j" x1="9.7" y1="14.76" x2="6.89" y2="18.29"/>
+      <line class="j" x1="3.23" y1="16.53" x2="6.89" y2="18.29"/>
+      <line class="j" x1="14.06" y1="13.93" x2="10.52" y2="15.63"/>
+      <line class="j" x1="12.86" y1="8.84" x2="7.17" y2="11.58"/>
+      <line class="j" x1="18.28" y1="12.8" x2="17.99" y2="13.93"/>
+      <line class="j" x1="18.28" y1="12.8" x2="19.18" y2="8.84"/>
+      <line class="j" x1="17.99" y1="13.93" x2="14.06" y2="13.93"/>
+      <line class="j" x1="19.18" y1="8.84" x2="12.86" y2="8.84"/>
+      <line class="j" x1="14.06" y1="13.93" x2="13.77" y2="12.8"/>
+      <line class="j" x1="12.86" y1="8.84" x2="13.77" y2="12.8"/>
+      <line class="j" x1="8.26" y1="12.95" x2="9.7" y2="14.76"/>
+      <line class="j" x1="8.26" y1="12.95" x2="7.17" y2="11.58"/>
+      <line class="j" x1="13.77" y1="12.8" x2="9.7" y2="14.76"/>
+      <line class="j" x1="26.17" y1="22.69" x2="24.85" y2="22.53"/>
+      <line class="j" x1="26.17" y1="22.69" x2="30.23" y2="22.69"/>
+      <line class="j" x1="24.85" y1="22.53" x2="23.97" y2="18.7"/>
+      <line class="j" x1="26.17" y1="22.69" x2="25.17" y2="18.28"/>
+      <line class="j" x1="22.35" y1="14.75" x2="21.52" y2="15.63"/>
+      <line class="j" x1="22.35" y1="14.75" x2="24.88" y2="11.58"/>
+      <line class="j" x1="21.52" y1="15.63" x2="17.99" y2="13.93"/>
+      <line class="j" x1="24.88" y1="11.58" x2="19.18" y2="8.84"/>
+      <line class="j" x1="25.17" y1="18.28" x2="23.97" y2="18.7"/>
+      <line class="j" x1="25.17" y1="18.28" x2="28.83" y2="16.52"/>
+      <line class="j" x1="23.97" y1="18.7" x2="21.52" y2="15.63"/>
+      <line class="j" x1="28.83" y1="16.52" x2="24.88" y2="11.58"/>
+      <line class="j" x1="22.35" y1="14.75" x2="18.28" y2="12.8"/>
+      <line class="j" x1="25.17" y1="18.28" x2="22.35" y2="14.75"/>
+      <line class="j" x1="18.28" y1="12.8" x2="13.77" y2="12.8"/>
+      <polygon class="k" points="1.83 22.69 5.88 22.69 7.2 22.53 8.08 18.7 10.52 15.63 14.06 13.93 17.99 13.93 21.52 15.63 23.97 18.7 24.85 22.53 26.17 22.69 30.23 22.69 28.83 16.52 24.88 11.58 19.18 8.84 12.86 8.84 7.17 11.58 3.23 16.53 1.83 22.69"/>
     </g>
-    <g id="Layer_2" data-name="Layer 2">
-      <g>
-        <g class="cls-7">
-          <use transform="translate(-19.42 -5.24) scale(.01)" xlink:href="#image"/>
-        </g>
-        <line class="cls-2" x1="9.7" y1="14.76" x2="10.52" y2="15.63"/>
-        <line class="cls-2" x1="10.52" y1="15.63" x2="8.08" y2="18.7"/>
-        <line class="cls-2" x1="7.17" y1="11.58" x2="3.23" y2="16.53"/>
-        <line class="cls-2" x1="6.89" y1="18.29" x2="8.08" y2="18.7"/>
-        <line class="cls-2" x1="8.08" y1="18.7" x2="7.2" y2="22.53"/>
-        <line class="cls-2" x1="3.23" y1="16.53" x2="1.83" y2="22.69"/>
-        <line class="cls-2" x1="1.83" y1="22.69" x2="5.88" y2="22.69"/>
-        <line class="cls-2" x1="7.2" y1="22.53" x2="5.88" y2="22.69"/>
-        <line class="cls-2" x1="6.89" y1="18.29" x2="5.88" y2="22.69"/>
-        <line class="cls-2" x1="9.7" y1="14.76" x2="6.89" y2="18.29"/>
-        <line class="cls-2" x1="3.23" y1="16.53" x2="6.89" y2="18.29"/>
-        <line class="cls-2" x1="14.06" y1="13.93" x2="10.52" y2="15.63"/>
-        <line class="cls-2" x1="12.86" y1="8.84" x2="7.17" y2="11.58"/>
-        <line class="cls-2" x1="18.28" y1="12.8" x2="17.99" y2="13.93"/>
-        <line class="cls-2" x1="18.28" y1="12.8" x2="19.18" y2="8.84"/>
-        <line class="cls-2" x1="17.99" y1="13.93" x2="14.06" y2="13.93"/>
-        <line class="cls-2" x1="19.18" y1="8.84" x2="12.86" y2="8.84"/>
-        <line class="cls-2" x1="14.06" y1="13.93" x2="13.77" y2="12.8"/>
-        <line class="cls-2" x1="12.86" y1="8.84" x2="13.77" y2="12.8"/>
-        <line class="cls-2" x1="8.26" y1="12.95" x2="9.7" y2="14.76"/>
-        <line class="cls-2" x1="8.26" y1="12.95" x2="7.17" y2="11.58"/>
-        <line class="cls-2" x1="13.77" y1="12.8" x2="9.7" y2="14.76"/>
-        <line class="cls-2" x1="26.17" y1="22.69" x2="24.85" y2="22.53"/>
-        <line class="cls-2" x1="26.17" y1="22.69" x2="30.23" y2="22.69"/>
-        <line class="cls-2" x1="24.85" y1="22.53" x2="23.97" y2="18.7"/>
-        <line class="cls-2" x1="26.17" y1="22.69" x2="25.17" y2="18.28"/>
-        <line class="cls-2" x1="22.35" y1="14.75" x2="21.52" y2="15.63"/>
-        <line class="cls-2" x1="22.35" y1="14.75" x2="24.88" y2="11.58"/>
-        <line class="cls-2" x1="21.52" y1="15.63" x2="17.99" y2="13.93"/>
-        <line class="cls-2" x1="24.88" y1="11.58" x2="19.18" y2="8.84"/>
-        <line class="cls-2" x1="25.17" y1="18.28" x2="23.97" y2="18.7"/>
-        <line class="cls-2" x1="25.17" y1="18.28" x2="28.83" y2="16.52"/>
-        <line class="cls-2" x1="23.97" y1="18.7" x2="21.52" y2="15.63"/>
-        <line class="cls-2" x1="28.83" y1="16.52" x2="24.88" y2="11.58"/>
-        <line class="cls-2" x1="22.35" y1="14.75" x2="18.28" y2="12.8"/>
-        <line class="cls-2" x1="25.17" y1="18.28" x2="22.35" y2="14.75"/>
-        <line class="cls-2" x1="18.28" y1="12.8" x2="13.77" y2="12.8"/>
-        <polygon class="cls-3" points="1.83 22.69 5.88 22.69 7.2 22.53 8.08 18.7 10.52 15.63 14.06 13.93 17.99 13.93 21.52 15.63 23.97 18.7 24.85 22.53 26.17 22.69 30.23 22.69 28.83 16.52 24.88 11.58 19.18 8.84 12.86 8.84 7.17 11.58 3.23 16.53 1.83 22.69"/>
-      </g>
-      <g class="cls-8">
-        <use transform="translate(-93.94 -19.83) scale(.02)" xlink:href="#image"/>
-      </g>
-      <rect class="cls-9" x="17.8" y="12.07" width="12.96" height="18.51"/>
-    </g>
-    <g id="Layer_4" data-name="Layer 4">
-      <rect class="cls-4" x="18.73" y="13.56" width="11" height="4.35"/>
-      <path d="M30.76,13.02v-.95h-12.96v18.51h12.96V12.99c0-.51-.42-.93-.93-.93M21.5,28.72h-1.85v-1.85h1.85v1.85ZM21.5,25.02h-1.85v-1.85h1.85v1.85ZM21.5,21.32h-1.85v-1.85h1.85v1.85ZM25.2,28.72h-1.85v-1.85h1.85v1.85ZM25.2,25.02h-1.85v-1.85h1.85v1.85ZM25.2,21.32h-1.85v-1.85h1.85v1.85ZM28.91,28.72h-1.85v-5.55h1.85v5.55ZM28.91,21.32h-1.85v-1.85h1.85v1.85ZM28.91,17.62h-9.25v-3.7h9.25v3.7Z"/>
-    </g>
+    <rect class="l" x="17.8" y="12.07" width="12.96" height="18.51"/>
+  </g>
+  <g id="e" data-name="Layer 4">
+    <rect class="h" x="18.73" y="13.56" width="11" height="4.35"/>
+    <path d="M30.76,13.02v-.95h-12.96v18.51h12.96V12.99c0-.51-.42-.93-.93-.93M21.5,28.72h-1.85v-1.85h1.85v1.85ZM21.5,25.02h-1.85v-1.85h1.85v1.85ZM21.5,21.32h-1.85v-1.85h1.85v1.85ZM25.2,28.72h-1.85v-1.85h1.85v1.85ZM25.2,25.02h-1.85v-1.85h1.85v1.85ZM25.2,21.32h-1.85v-1.85h1.85v1.85ZM28.91,28.72h-1.85v-5.55h1.85v5.55ZM28.91,21.32h-1.85v-1.85h1.85v1.85ZM28.91,17.62h-9.25v-3.7h9.25v3.7Z"/>
   </g>
 </svg>

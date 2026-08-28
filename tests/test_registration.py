@@ -72,10 +72,25 @@ def test_every_toolbar_item_is_a_registered_command(ui):
     assert items - names == set()
 
 
-def test_every_command_is_on_a_toolbar(ui):
+def test_toolbar_items_match_commands(ui):
+    """Every button is a real command, and only the parked set is off the bar.
+
+    The TNA commands stay in commands/ and in ui.json — still typeable, still in
+    the command palette — but were taken off the toolbar on 2026-08-28 pending a
+    decision on retiring them. Pinning the set here means neither dropping a
+    button by accident nor quietly parking another command passes unnoticed.
+    """
     names = {command["name"] for command in ui["commands"]}
     items = {item["left"] for toolbar in ui["toolbars"] for item in toolbar["items"] if "left" in item}
-    assert names - items == set()
+    assert items - names == set()
+    assert names - items == {
+        "CM_TNA_analysis",
+        "CM_TNA_blockexport",
+        "CM_TNA_envelope",
+        "CM_TNA_formdiagram",
+        "CM_TNA_loads",
+        "CM_TNA_supports",
+    }
 
 
 def test_toolbar_groups_reference_real_toolbars(ui):

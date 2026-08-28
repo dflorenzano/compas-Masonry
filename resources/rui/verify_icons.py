@@ -36,12 +36,19 @@ def main():
     commands = {p.stem for p in (ROOT / "commands").glob("CM_*.py")}
 
     print("System A — rhproj, per command")
-    without = [c["title"] for c in proj["codes"] if not ((c.get("image") or {}).get("light") or {}).get("data")]
-    check(not without, f"every entry has an SVG ({len(proj['codes'])} entries)" if not without else f"no SVG: {without}")
+    # The rhproj must mirror resources/icons/, in both directions. A command with
+    # no SVG is legitimate (parked, pending retirement); an rhproj image whose SVG
+    # was deleted is not — it ships artwork with no source.
+    havesvg = {p.stem for p in (ROOT / "resources" / "icons").glob("*.svg")}
+    bound = {c["title"] for c in proj["codes"] if ((c.get("image") or {}).get("light") or {}).get("data")}
+    check(not havesvg - bound, f"every SVG is bound into the rhproj ({len(bound)} entries)" if not havesvg - bound else f"SVG present but not bound: {sorted(havesvg - bound)}")
+    check(
+        not bound - havesvg,
+        "no rhproj icon outlives its SVG" if not bound - havesvg else f"bound but the SVG is gone - run clear_icons.py, then rebuild: {sorted(bound - havesvg)}",
+    )
+
     nodark = [
-        c["title"]
-        for c in proj["codes"]
-        if (d := ((c.get("image") or {}).get("light") or {}).get("data")) and "fill-dark" not in base64.b64decode(d).decode("utf-8", "replace")
+        c["title"] for c in proj["codes"] if (d := ((c.get("image") or {}).get("light") or {}).get("data")) and "fill-dark" not in base64.b64decode(d).decode("utf-8", "replace")
     ]
     check(not nodark, "every SVG carries fill-dark (dark theme)" if not nodark else f"no fill-dark: {nodark}")
 
@@ -50,7 +57,15 @@ def main():
     check(bool(icons.get("bitmap")), f"icons.bitmap set ({icons.get('bitmap') or 'EMPTY'})")
     images = icons.get("images") or []
     indexed = [c for c in ui["commands"] if "icon" in c]
-    check(len(indexed) == len(ui["commands"]), f"every command has an icon index ({len(indexed)}/{len(ui['commands'])})")
+    # A command may deliberately carry no icon: parked off the toolbar, still
+    # typeable, pending retirement (the TNA set, 2026-08-28). What must never
+    # ship is a BUTTON with no icon — that is a blank square on the bar.
+    onbar = {i["left"] for tb in ui["toolbars"] for i in tb["items"] if "left" in i}
+    blank = sorted(onbar - {c["name"] for c in indexed})
+    check(not blank, f"every toolbar button has an icon ({len(onbar)} buttons)" if not blank else f"on the toolbar with no icon: {blank}")
+    parked = sorted({c["name"] for c in ui["commands"]} - onbar)
+    print(f" .. not on the toolbar ({len(parked)}): {', '.join(parked)}" if parked else " .. every command is on the toolbar")
+
     bad = [c["name"] for c in indexed if not 0 <= c["icon"] < len(images)]
     check(not bad, f"every index is in range (0..{len(images) - 1})" if not bad else f"out of range: {bad}")
     mismatch = [c["name"] for c in indexed if 0 <= c["icon"] < len(images) and images[c["icon"]] != c["name"]]

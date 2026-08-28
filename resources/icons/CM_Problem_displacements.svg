@@ -2,113 +2,96 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 32 32">
   <defs>
     <style>
-      .cls-1, .cls-2, .cls-3, .cls-4 {
+      .h, .i, .j, .k {
         fill: none;
       }
 
-      .cls-5 {
+      .l {
+        fill: #eaeaea;
+      }
+
+      .m {
         font-family: OpenSans-Bold, 'Open Sans';
         font-size: 6.19px;
         font-weight: 700;
         letter-spacing: -.03em;
       }
 
-      .cls-2 {
+      .i {
         stroke-width: .25px;
       }
 
-      .cls-2, .cls-3 {
+      .i, .j {
         stroke-linecap: round;
         stroke-linejoin: round;
       }
 
-      .cls-2, .cls-3, .cls-4 {
+      .i, .j, .k {
         stroke: #000;
       }
 
-      .cls-3 {
+      .j {
         stroke-width: .4px;
       }
 
-      .cls-6 {
+      .n {
         isolation: isolate;
       }
 
-      .cls-7 {
-        clip-path: url(#clippath-1);
-      }
-
-      .cls-8 {
-        clip-path: url(#clippath-2);
-      }
-
-      .cls-4 {
+      .k {
         stroke-miterlimit: 10;
         stroke-width: .5px;
       }
 
-      .cls-9 {
+      .o {
+        clip-path: url(#c);
+      }
+
+      .p {
         fill: #c92d2d;
         mix-blend-mode: multiply;
       }
-
-      .cls-10 {
-        clip-path: url(#clippath);
-      }
     </style>
-    <clipPath id="clippath">
-      <rect class="cls-1" x="39.15" y="0" width="32" height="32"/>
+    <clipPath id="c">
+      <rect class="h" x="0" y="0" width="32" height="32"/>
     </clipPath>
-    <clipPath id="clippath-1">
-      <rect class="cls-1" x="-38.4" y="0" width="32" height="32"/>
-    </clipPath>
-    <clipPath id="clippath-2">
-      <rect class="cls-1" x="0" y="0" width="32" height="32"/>
-    </clipPath>
-    <image id="image" width="6135" height="3378" xlink:href="../../../../../Documents/GitHub/obsidian/ETH_PhD/600_Dev/610_Libs/compas_masonry/icons/wip/arch1/viewfront.png"/>
   </defs>
-  <g class="cls-6">
-    <g id="Layer_2" data-name="Layer 2">
-      <g class="cls-10">
-        <use transform="translate(19.73 -5.24) scale(.01)" xlink:href="#image"/>
-      </g>
-      <g class="cls-7">
-        <use transform="translate(-57.82 -5.24) scale(.01)" xlink:href="#image"/>
-      </g>
-      <g class="cls-8">
+  <g class="n">
+    <g id="b" data-name="Layer 2">
+      <g class="o">
+        <polygon class="l" points="-22.07 23.43 -15.78 23.43 -13.73 23.19 -12.37 17.25 -8.57 12.48 -3.08 9.84 3.01 9.84 8.5 12.48 12.3 17.24 13.66 23.31 15.71 23.43 22.02 23.43 19.83 13.87 13.71 6.19 4.87 1.94 -4.94 1.94 -13.78 6.2 -19.89 13.87 -22.07 23.43"/>
         <g>
-          <use transform="translate(-54.79 -19.83) scale(.02)" xlink:href="#image"/>
-          <line class="cls-2" x1="3.07" y1="9.82" x2="-3" y2="9.82"/>
-          <line class="cls-2" x1="4.92" y1="1.94" x2="-4.85" y2="1.95"/>
-          <line class="cls-2" x1="3.53" y1="8.07" x2="-3.46" y2="8.07"/>
+          <line class="i" x1="3.07" y1="9.82" x2="-3" y2="9.82"/>
+          <line class="i" x1="4.92" y1="1.94" x2="-4.85" y2="1.95"/>
+          <line class="i" x1="3.53" y1="8.07" x2="-3.46" y2="8.07"/>
         </g>
       </g>
-      <line class="cls-2" x1="3.53" y1="8.07" x2="3.07" y2="9.82"/>
-      <line class="cls-2" x1="3.53" y1="8.07" x2="4.92" y2="1.94"/>
-      <line class="cls-2" x1="15.73" y1="23.37" x2="13.69" y2="23.12"/>
-      <line class="cls-2" x1="15.73" y1="23.37" x2="22.02" y2="23.37"/>
-      <line class="cls-2" x1="13.69" y1="23.12" x2="12.33" y2="17.2"/>
-      <line class="cls-2" x1="15.73" y1="23.37" x2="14.18" y2="16.55"/>
-      <line class="cls-2" x1="9.82" y1="11.09" x2="8.55" y2="12.45"/>
-      <line class="cls-2" x1="9.82" y1="11.09" x2="13.74" y2="6.18"/>
-      <line class="cls-2" x1="8.55" y1="12.45" x2="3.07" y2="9.82"/>
-      <line class="cls-2" x1="13.74" y1="6.18" x2="4.92" y2="1.94"/>
-      <line class="cls-2" x1="14.18" y1="16.55" x2="12.33" y2="17.2"/>
-      <line class="cls-2" x1="14.18" y1="16.55" x2="19.84" y2="13.83"/>
-      <line class="cls-2" x1="12.33" y1="17.2" x2="8.55" y2="12.45"/>
-      <line class="cls-2" x1="19.84" y1="13.83" x2="13.74" y2="6.18"/>
-      <line class="cls-2" x1="9.82" y1="11.09" x2="3.53" y2="8.07"/>
-      <line class="cls-2" x1="14.18" y1="16.55" x2="9.82" y2="11.09"/>
+      <line class="i" x1="3.53" y1="8.07" x2="3.07" y2="9.82"/>
+      <line class="i" x1="3.53" y1="8.07" x2="4.92" y2="1.94"/>
+      <line class="i" x1="15.73" y1="23.37" x2="13.69" y2="23.12"/>
+      <line class="i" x1="15.73" y1="23.37" x2="22.02" y2="23.37"/>
+      <line class="i" x1="13.69" y1="23.12" x2="12.33" y2="17.2"/>
+      <line class="i" x1="15.73" y1="23.37" x2="14.18" y2="16.55"/>
+      <line class="i" x1="9.82" y1="11.09" x2="8.55" y2="12.45"/>
+      <line class="i" x1="9.82" y1="11.09" x2="13.74" y2="6.18"/>
+      <line class="i" x1="8.55" y1="12.45" x2="3.07" y2="9.82"/>
+      <line class="i" x1="13.74" y1="6.18" x2="4.92" y2="1.94"/>
+      <line class="i" x1="14.18" y1="16.55" x2="12.33" y2="17.2"/>
+      <line class="i" x1="14.18" y1="16.55" x2="19.84" y2="13.83"/>
+      <line class="i" x1="12.33" y1="17.2" x2="8.55" y2="12.45"/>
+      <line class="i" x1="19.84" y1="13.83" x2="13.74" y2="6.18"/>
+      <line class="i" x1="9.82" y1="11.09" x2="3.53" y2="8.07"/>
+      <line class="i" x1="14.18" y1="16.55" x2="9.82" y2="11.09"/>
       <g>
-        <line class="cls-4" x1="17.17" y1="19.96" x2="23.41" y2="19.96"/>
+        <line class="k" x1="17.17" y1="19.96" x2="23.41" y2="19.96"/>
         <path d="M17.17,20.52c-.31,0-.56-.25-.56-.56s.25-.56.56-.56.56.25.56.56-.25.56-.56.56Z"/>
         <polygon points="23.26 20.46 24.13 19.96 23.26 19.46 23.26 20.46"/>
       </g>
     </g>
-    <g id="Layer_4" data-name="Layer 4">
-      <polygon class="cls-3" points="12.33 17.2 14.18 16.55 19.84 13.83 22.02 23.37 15.59 23.37 13.69 23.12 12.33 17.2"/>
-      <text class="cls-5" transform="translate(15.09 29.46)"><tspan x="0" y="0">δ</tspan></text>
-      <polygon class="cls-9" points="12.33 17.2 14.18 16.55 19.84 13.83 22.02 23.37 15.59 23.37 13.69 23.12 12.33 17.2"/>
+    <g id="f" data-name="Layer 4">
+      <polygon class="j" points="12.33 17.2 14.18 16.55 19.84 13.83 22.02 23.37 15.59 23.37 13.69 23.12 12.33 17.2"/>
+      <text class="m" transform="translate(15.09 29.46)"><tspan x="0" y="0">δ</tspan></text>
+      <polygon class="p" points="12.33 17.2 14.18 16.55 19.84 13.83 22.02 23.37 15.59 23.37 13.69 23.12 12.33 17.2"/>
     </g>
   </g>
 </svg>

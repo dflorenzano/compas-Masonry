@@ -2,167 +2,156 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 32 32">
   <defs>
     <style>
-      .cls-1, .cls-2, .cls-3, .cls-4, .cls-5 {
+      .n, .o, .p, .q, .r, .s, .t {
         fill: none;
       }
 
-      .cls-2 {
+      .u {
+        fill: url(#l);
+      }
+
+      .o, .q, .v, .w, .x, .r, .s, .y {
+        stroke: #000;
+      }
+
+      .o, .q, .v, .x, .r, .t, .y {
+        stroke-width: .25px;
+      }
+
+      .o, .v, .w, .x, .r, .s, .y {
+        stroke-miterlimit: 10;
+      }
+
+      .o, .v, .x {
+        mix-blend-mode: multiply;
+      }
+
+      .p {
         stroke-width: .4px;
       }
 
-      .cls-2, .cls-3, .cls-5 {
+      .p, .q, .t {
         stroke-linecap: round;
         stroke-linejoin: round;
       }
 
-      .cls-2, .cls-5 {
+      .p, .t {
         stroke: #93278f;
       }
 
-      .cls-6 {
-        fill: url(#linear-gradient);
+      .z {
+        isolation: isolate;
       }
 
-      .cls-3, .cls-7, .cls-4 {
-        stroke: #000;
-      }
-
-      .cls-3, .cls-5 {
-        stroke-width: .25px;
-      }
-
-      .cls-8 {
-        clip-path: url(#clippath-1);
-      }
-
-      .cls-9 {
-        clip-path: url(#clippath-3);
-      }
-
-      .cls-10 {
-        clip-path: url(#clippath-4);
-      }
-
-      .cls-11 {
-        clip-path: url(#clippath-2);
-      }
-
-      .cls-12 {
-        clip-path: url(#clippath-6);
-      }
-
-      .cls-13 {
-        clip-path: url(#clippath-5);
-      }
-
-      .cls-7 {
+      .v, .w {
         fill: #fff;
       }
 
-      .cls-7, .cls-4 {
-        stroke-miterlimit: 10;
+      .x {
+        fill: #e9e9e9;
       }
 
-      .cls-14 {
-        opacity: .5;
+      .aa {
+        opacity: .3;
       }
 
-      .cls-15 {
-        clip-path: url(#clippath);
+      .ab {
+        clip-path: url(#d);
       }
 
-      .cls-16 {
+      .ac {
+        clip-path: url(#c);
+      }
+
+      .ad {
         fill: #0092d2;
       }
+
+      .y {
+        fill: #ececec;
+      }
     </style>
-    <clipPath id="clippath">
-      <rect class="cls-1" x="-40.28" y="0" width="32" height="32"/>
+    <clipPath id="c">
+      <rect class="n" x="0" y="0" width="32" height="32"/>
     </clipPath>
-    <clipPath id="clippath-1">
-      <rect class="cls-1" x="-40.28" y="0" width="32" height="32"/>
+    <clipPath id="d">
+      <rect class="r" x="-24.11" y="-4" width="63.21" height="63.21"/>
     </clipPath>
-    <clipPath id="clippath-2">
-      <rect class="cls-1" x="-40.28" y="0" width="32" height="32"/>
-    </clipPath>
-    <clipPath id="clippath-3">
-      <rect class="cls-1" x="41.41" y="0" width="32" height="32"/>
-    </clipPath>
-    <clipPath id="clippath-4">
-      <rect class="cls-1" x="41.41" y="0" width="32" height="32"/>
-    </clipPath>
-    <clipPath id="clippath-5">
-      <rect class="cls-1" x="41.41" y="0" width="32" height="32"/>
-    </clipPath>
-    <clipPath id="clippath-6">
-      <rect class="cls-1" x="0" y="0" width="32" height="32"/>
-    </clipPath>
-    <linearGradient id="linear-gradient" x1="19.41" y1="20.48" x2="29.19" y2="20.48" gradientTransform="translate(0 34) scale(1 -1)" gradientUnits="userSpaceOnUse">
+    <linearGradient id="l" x1="19.41" y1="20.48" x2="29.19" y2="20.48" gradientTransform="translate(0 34) scale(1 -1)" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#2e4ab5"/>
       <stop offset="1" stop-color="#bdc9fa"/>
     </linearGradient>
-    <image id="image" width="6135" height="3378" xlink:href="../../../../../Documents/GitHub/obsidian/ETH_PhD/600_Dev/610_Libs/compas_masonry/icons/wip/arch1/viewfront.png"/>
   </defs>
-  <g id="Layer_2" data-name="Layer 2">
-    <g class="cls-15">
-      <use transform="translate(-59.7 -5.24) scale(.01)" xlink:href="#image"/>
-    </g>
-    <g class="cls-8">
-      <use transform="translate(-59.7 -5.24) scale(.01)" xlink:href="#image"/>
-    </g>
-    <g class="cls-11">
-      <use transform="translate(-59.7 -5.24) scale(.01)" xlink:href="#image"/>
-    </g>
-    <g class="cls-9">
-      <use transform="translate(21.99 -5.24) scale(.01)" xlink:href="#image"/>
-    </g>
-    <g class="cls-10">
-      <use transform="translate(21.99 -5.24) scale(.01)" xlink:href="#image"/>
-    </g>
-    <g class="cls-13">
-      <use transform="translate(21.99 -5.24) scale(.01)" xlink:href="#image"/>
-    </g>
-  </g>
-  <g id="Layer_4" data-name="Layer 4">
-    <g class="cls-12">
-      <g>
+  <g class="z">
+    <g id="b" data-name="Layer 2">
+      <g class="ac">
         <g>
-          <image width="6135" height="3378" transform="translate(-61.47 -7.12) scale(.02)" xlink:href="../../../../../Documents/GitHub/obsidian/ETH_PhD/600_Dev/610_Libs/compas_masonry/icons/wip/arch1/Interfaces.png"/>
-          <image class="cls-14" width="6135" height="3378" transform="translate(-61.47 -7.12) scale(.02)" xlink:href="../../../../../Documents/GitHub/obsidian/ETH_PhD/600_Dev/610_Libs/compas_masonry/icons/wip/arch1/View.png"/>
+          <polygon class="y" points="-18.18 17.5 -12.16 24.39 -3.18 20.98 -5.65 17.99 -1.02 16.24 -.82 17.54 7.87 14.26 6.5 21.18 15.71 17.72 17.08 9.56 8.1 12.97 6.79 4.48 -1.84 7.74 -2.59 6.09 -11.81 9.55 -9.55 14.24 -18.18 17.5"/>
+          <polygon class="y" points="26.58 20.27 17.48 23.7 13.32 28.82 22.41 25.38 26.58 20.27"/>
+          <g class="aa">
+            <g class="ab">
+              <polygon class="x" points="-20.8 30.27 -18.48 17.52 -11.99 9.55 -2.61 7.94 7.8 13 17.18 23.73 23.67 38.01 25.99 53 19.31 49.75 17.65 39.04 13.02 28.84 6.31 21.18 -1.12 17.57 -7.82 18.72 -12.46 24.41 -14.11 33.51 -20.8 30.27"/>
+              <polygon class="v" points="25.99 53 35.27 49.57 32.95 34.57 26.46 20.29 17.08 9.56 6.67 4.5 -2.71 6.12 -11.99 9.55 -2.61 7.94 7.8 13 17.18 23.73 23.67 38.01 25.99 53"/>
+              <line class="o" x1="-2.71" y1="6.12" x2="6.67" y2="4.5"/>
+              <line class="o" x1="6.5" y1="21.18" x2="13.2" y2="28.84"/>
+              <line class="o" x1="7.98" y1="13" x2="17.08" y2="9.56"/>
+              <line class="o" x1="17.08" y1="9.56" x2="26.46" y2="20.29"/>
+              <line class="o" x1="-2.43" y1="7.94" x2="6.67" y2="4.5"/>
+              <line class="o" x1="-2.43" y1="7.94" x2="7.98" y2="13"/>
+              <line class="o" x1="6.67" y1="4.5" x2="17.08" y2="9.56"/>
+              <line class="o" x1="7.98" y1="13" x2="17.36" y2="23.73"/>
+              <line class="o" x1="13.2" y1="28.84" x2="17.36" y2="23.73"/>
+              <line class="o" x1="13.2" y1="28.84" x2="17.83" y2="39.04"/>
+              <line class="o" x1="17.36" y1="23.73" x2="26.46" y2="20.29"/>
+              <line class="o" x1="26.46" y1="20.29" x2="32.95" y2="34.57"/>
+              <line class="o" x1="17.36" y1="23.73" x2="23.86" y2="38.01"/>
+              <line class="o" x1="6.5" y1="21.18" x2="7.98" y2="13"/>
+              <line class="o" x1="-.94" y1="17.57" x2="6.5" y2="21.18"/>
+            </g>
+            <rect class="r" x="-24.11" y="-4" width="63.21" height="63.21"/>
+          </g>
+          <line class="r" x1="17.2" y1="9.54" x2="8.1" y2="12.97"/>
+          <line class="r" x1="15.71" y1="17.72" x2="6.62" y2="21.15"/>
+          <line class="r" x1="26.58" y1="20.27" x2="22.41" y2="25.38"/>
+          <line class="r" x1="26.58" y1="20.27" x2="17.48" y2="23.7"/>
+          <line class="r" x1="22.41" y1="25.38" x2="13.32" y2="28.82"/>
+          <line class="r" x1="13.32" y1="28.82" x2="17.48" y2="23.7"/>
+          <line class="r" x1="6.79" y1="4.48" x2="8.1" y2="12.97"/>
+          <line class="r" x1="7.87" y1="14.26" x2="-.82" y2="17.54"/>
+          <line class="r" x1="6.62" y1="21.15" x2="8.1" y2="12.97"/>
+          <line class="r" x1="6.79" y1="4.48" x2="-2.31" y2="7.91"/>
         </g>
-        <line class="cls-3" x1="7.62" y1="14.27" x2="-1.29" y2="17.63"/>
-        <line class="cls-3" x1="6.52" y1="4.24" x2="-2.81" y2="7.77"/>
       </g>
     </g>
-    <line class="cls-3" x1="26.8" y1="20.43" x2="22.53" y2="25.67"/>
-    <line class="cls-3" x1="26.8" y1="20.43" x2="17.48" y2="23.95"/>
-    <line class="cls-3" x1="22.53" y1="25.67" x2="13.21" y2="29.19"/>
-    <line class="cls-3" x1="13.21" y1="29.19" x2="17.48" y2="23.95"/>
-    <line class="cls-3" x1="6.52" y1="4.24" x2="7.86" y2="12.95"/>
-    <polygon class="cls-16" points="15.66 17.82 17.19 9.43 7.86 12.95 6.34 21.34 15.66 17.82"/>
-    <polygon class="cls-3" points="15.66 17.82 17.19 9.43 7.86 12.95 6.34 21.34 15.66 17.82"/>
-    <g>
-      <g id="POLYLINE-31">
-        <line class="cls-5" x1="22.8" y1="17.23" x2="22.94" y2="17.41"/>
+    <g id="g" data-name="Layer 4">
+      <line class="q" x1="26.8" y1="20.43" x2="22.53" y2="25.67"/>
+      <line class="q" x1="26.8" y1="20.43" x2="17.48" y2="23.95"/>
+      <polygon class="ad" points="15.66 17.82 17.19 9.43 7.86 12.95 6.34 21.34 15.66 17.82"/>
+      <polygon class="q" points="15.66 17.82 17.19 9.43 7.86 12.95 6.34 21.34 15.66 17.82"/>
+      <g>
+        <g id="h" data-name="POLYLINE-31">
+          <line class="t" x1="22.8" y1="17.23" x2="22.94" y2="17.41"/>
+        </g>
+        <g id="i" data-name="POLYLINE-32">
+          <line class="t" x1="22.8" y1="17.23" x2="22.82" y2="17.54"/>
+        </g>
+        <g id="j" data-name="POLYLINE-33">
+          <line class="p" x1="19.43" y1="15.91" x2="19.51" y2="17.44"/>
+        </g>
+        <g id="k" data-name="POLYLINE-34">
+          <line class="p" x1="19.39" y1="14.26" x2="19.43" y2="15.91"/>
+        </g>
+        <rect class="w" x="18.3" y="12.52" width="12" height="18"/>
+        <line class="s" x1="18.8" y1="14.52" x2="29.8" y2="14.52"/>
+        <line class="s" x1="21.8" y1="18.52" x2="26.8" y2="18.52"/>
+        <line class="s" x1="21.8" y1="20.52" x2="24.8" y2="20.52"/>
+        <line class="s" x1="21.8" y1="22.52" x2="25.8" y2="22.52"/>
+        <line class="s" x1="23.8" y1="24.52" x2="27.8" y2="24.52"/>
+        <line class="s" x1="23.8" y1="26.52" x2="26.8" y2="26.52"/>
+        <line class="s" x1="23.8" y1="28.52" x2="28.8" y2="28.52"/>
+        <rect class="u" x="18.8" y="13.02" width="11" height="1"/>
+        <line class="s" x1="19.8" y1="16.52" x2="25.8" y2="16.52"/>
       </g>
-      <g id="POLYLINE-32">
-        <line class="cls-5" x1="22.8" y1="17.23" x2="22.82" y2="17.54"/>
-      </g>
-      <g id="POLYLINE-33">
-        <line class="cls-2" x1="19.43" y1="15.91" x2="19.51" y2="17.44"/>
-      </g>
-      <g id="POLYLINE-34">
-        <line class="cls-2" x1="19.39" y1="14.26" x2="19.43" y2="15.91"/>
-      </g>
-      <rect class="cls-7" x="18.3" y="12.52" width="12" height="18"/>
-      <line class="cls-4" x1="18.8" y1="14.52" x2="29.8" y2="14.52"/>
-      <line class="cls-4" x1="21.8" y1="18.52" x2="26.8" y2="18.52"/>
-      <line class="cls-4" x1="21.8" y1="20.52" x2="24.8" y2="20.52"/>
-      <line class="cls-4" x1="21.8" y1="22.52" x2="25.8" y2="22.52"/>
-      <line class="cls-4" x1="23.8" y1="24.52" x2="27.8" y2="24.52"/>
-      <line class="cls-4" x1="23.8" y1="26.52" x2="26.8" y2="26.52"/>
-      <line class="cls-4" x1="23.8" y1="28.52" x2="28.8" y2="28.52"/>
-      <rect class="cls-6" x="18.8" y="13.02" width="11" height="1"/>
-      <line class="cls-4" x1="19.8" y1="16.52" x2="25.8" y2="16.52"/>
     </g>
   </g>
 </svg>

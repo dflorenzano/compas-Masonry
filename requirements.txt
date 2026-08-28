@@ -7,6 +7,6 @@ compas_rui >=0.6
 compas_session >=0.7
 compas_tna >=0.7
 compas_tno >=0.3
-compas_lmgc90 >= 0.1.10
-compas_cra
+compas_lmgc90 >= 0.1.11
+compas_cra >= 0.5.0
 compas_rbe
