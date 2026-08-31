@@ -39,11 +39,15 @@ import compas_rhino.objects
 from compas_dem.models import BlockModel
 from compas_masonry.inputs import Options
 from compas_masonry.results import CSV_HEADER
+from compas_masonry.results import FORCE_UNIT
+from compas_masonry.results import STRESS_UNIT
 from compas_masonry.results import block_displacements
 from compas_masonry.results import block_result_rows
 from compas_masonry.results import contact_openings
 from compas_masonry.results import contact_resultants
 from compas_masonry.results import face_stresses
+from compas_masonry.results import to_force_unit
+from compas_masonry.results import to_stress_unit
 from compas_masonry.session import MasonrySession as Session
 from compas_rui.feedback import warn
 
@@ -127,8 +131,14 @@ def print_report(report) -> None:
         print("contacts     : none carrying force")
         return
 
-    print(f"contacts     : {len(report['contacts'])}, total |F| = {report['force_total']:.6g}")
-    header = f"  {'with':<8}{'|F|':>14}{'Fx':>14}{'Fy':>14}{'Fz':>14}{'stress':>14}{'opening':>14}"
+    print(f"contacts     : {len(report['contacts'])}, total |F| = {to_force_unit(report['force_total']):.6g} {FORCE_UNIT}")
+    # Units in the column heads, and the same conversion the CSV and the Rhino
+    # tags use — this table and `block_result_rows` describe the same contacts.
+    header = (
+        f"  {'with':<8}{'|F| [' + FORCE_UNIT + ']':>14}{'Fx [' + FORCE_UNIT + ']':>14}"
+        f"{'Fy [' + FORCE_UNIT + ']':>14}{'Fz [' + FORCE_UNIT + ']':>14}"
+        f"{'stress [' + STRESS_UNIT + ']':>16}{'opening':>14}"
+    )
     print(header)
     print("  " + "-" * (len(header) - 2))
     for contact in report["contacts"]:
@@ -136,8 +146,9 @@ def print_report(report) -> None:
         stress = contact["stress"]
         opening = contact["opening"]
         print(
-            f"  {contact['with']:<8}{contact['magnitude']:>14.6g}{force[0]:>14.6g}{force[1]:>14.6g}{force[2]:>14.6g}"
-            f"{('-' if stress is None else format(stress, '.6g')):>14}"
+            f"  {contact['with']:<8}{to_force_unit(contact['magnitude']):>14.6g}{to_force_unit(force[0]):>14.6g}"
+            f"{to_force_unit(force[1]):>14.6g}{to_force_unit(force[2]):>14.6g}"
+            f"{('-' if stress is None else format(to_stress_unit(stress), '.6g')):>16}"
             f"{('-' if opening is None else format(opening, '.6g')):>14}"
         )
 

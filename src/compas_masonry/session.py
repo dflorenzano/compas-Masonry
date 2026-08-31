@@ -718,6 +718,22 @@ class MasonrySession(LazyLoadSession):
         # problem it deserializes — which is the whole reason the model and the
         # problems share one key.
 
+    def redraw_document(self) -> None:
+        """Rebuild the WHOLE document from session data — model, problems, results.
+
+        Not the same job as `redraw()`, and the difference is the reason
+        `Session_redraw` used to leave a half-empty document. `redraw()` only
+        refreshes the scene objects (the blocks) and re-tags their guids; it
+        creates no problem, boundary-condition or results layers, because those
+        are drawn by the commands that own them. So a Rhino session that closed
+        without saving came back with the session data intact and none of the
+        layers the commands had created, and only undo — which routes through
+        `_restore_state` — put them back.
+
+        This is that same rebuild, without moving through history.
+        """
+        self._redraw_state()
+
     def _redraw_state(self) -> None:
         """Empty the document and redraw it from the restored session data.
 
@@ -1329,6 +1345,24 @@ class MasonrySession(LazyLoadSession):
     COLOR_SELFWEIGHT = (100, 116, 139)  # per-block weight, the yardstick for the rest
     COLOR_NORMAL = (124, 58, 237)  # normal component of a contact resultant
     COLOR_FRICTION = (202, 138, 4)  # tangential (friction) component
+    COLOR_HORIZONTAL = (13, 148, 136)  # world-XY (thrust) part of a resultant
+    COLOR_VERTICAL = (109, 40, 217)  # world-Z (weight) part of a resultant
+
+    # Sublayer of "…::Results::<key>::Forces" for each drawn quantity, keyed by the
+    # name `draw_result_forces` uses. One layer per view, so each can be switched
+    # off in Rhino independently and each corresponds to exactly one `show_*`
+    # setting — a layer the user hides and a setting they clear now mean the same
+    # thing. "Values" is the reaction magnitude tags and predates the split.
+    RESULT_FORCE_LAYERS = {
+        "resultants": "Forces::Resultants",
+        "horizontal": "Forces::Resultants::Horizontal",
+        "vertical": "Forces::Resultants::Vertical",
+        "reactions": "Forces::Reactions::Interface",
+        "normal": "Forces::Reactions::Normal",
+        "friction": "Forces::Reactions::Friction",
+        "corners": "Forces::Corners",
+        "values": "Forces::Values",
+    }
     COLOR_DISPLACED = (255, 140, 0)  # displaced blocks, to read against the undisplaced model
     # Tensile corner forces. NOT COLOR_REACTION red, though red is the obvious
     # choice for "wrong": reactions are already red, and the two get drawn in the
@@ -1911,9 +1945,23 @@ class MasonrySession(LazyLoadSession):
         if model is None or results is None:
             return 0
 
-        layer = self.results_layer(problem_name, key, "Forces")
-        create_layers_from_path(layer, separator="::")
-        clear_layer(layer)
+        # ONE LAYER PER DRAWN QUANTITY. Everything below used to land on a single
+        # "Forces" layer, which made a view impossible to switch off on its own and
+        # — the reason this changed — hid the corner forces underneath the
+        # resultants, so they were never once seen to draw despite the data being
+        # present on every FrictionContact.
+        #
+        # The grouping is the user's: normal and friction sit under Reactions
+        # because they are the interface force resolved in the joint's own frame,
+        # while horizontal and vertical sit under Resultants because they are the
+        # same force resolved in world axes. Note this means an INTERIOR contact's
+        # normal/friction also draw under Reactions; the split is by kind of
+        # decomposition, not by which contacts happen to touch a support.
+        layers = {name: self.results_layer(problem_name, key, path) for name, path in self.RESULT_FORCE_LAYERS.items()}
+        for path in layers.values():
+            create_layers_from_path(path, separator="::")
+            clear_layer(path)
+
         interfaces_layer = self.results_layer(problem_name, key, "Interfaces")
         create_layers_from_path(interfaces_layer, separator="::")
         clear_layer(interfaces_layer)
@@ -1965,9 +2013,7 @@ class MasonrySession(LazyLoadSession):
         # Reaction values go on their OWN sublayer, so the numbers can be switched
         # off without losing the arrows. Only reactions are labelled: a dot per
         # contact resultant is one per contact and buries the model.
-        tags_layer = self.results_layer(problem_name, key, "Forces::Values")
-        create_layers_from_path(tags_layer, separator="::")
-        clear_layer(tags_layer)
+        tags_layer = layers["values"]
 
         settings = self.settings.blockmodel
 
@@ -1980,14 +2026,14 @@ class MasonrySession(LazyLoadSession):
                 # the decompositions and the corner forces below are still drawn:
                 # normal, friction and per-corner are separate views, not extra
                 # detail on the resultant
-                self._draw_decomposition(layer, results, edge, point, scale, settings)
-                drawn += self._draw_cornerforces(layer, results, edge, scale, settings, problem_name, key)
+                self._draw_decomposition(layers, results, edge, point, scale, settings)
+                drawn += self._draw_cornerforces(layers["corners"], results, edge, scale, settings, problem_name, key)
                 continue
 
             self._draw_contact_geometry(interfaces_layer, results, edge)
             color = self.COLOR_REACTION if is_reaction else self.COLOR_FORCE
             guid = self._draw_centred_line(
-                layer,
+                layers["reactions"] if is_reaction else layers["resultants"],
                 point,
                 [c * scale for c in vector],
                 color=color,
@@ -2003,8 +2049,8 @@ class MasonrySession(LazyLoadSession):
             )
             if guid is None:
                 continue
-            self._draw_decomposition(layer, results, edge, point, scale, settings)
-            drawn += self._draw_cornerforces(layer, results, edge, scale, settings, problem_name, key)
+            self._draw_decomposition(layers, results, edge, point, scale, settings)
+            drawn += self._draw_cornerforces(layers["corners"], results, edge, scale, settings, problem_name, key)
             if is_reaction:
                 self._draw_value_tag(tags_layer, point, magnitude, edge, problem_name, key)
             drawn += 1
@@ -2174,34 +2220,57 @@ class MasonrySession(LazyLoadSession):
             drawn += 1
         return drawn
 
-    def _draw_decomposition(self, layer, results, edge, point, scale, settings):
-        """Draw the normal and/or friction part of one contact resultant.
+    def _draw_decomposition(self, layers, results, edge, point, scale, settings):
+        """Draw one contact resultant split two independent ways.
 
-        `resultant_local` is the same force as `resultant_global`, expressed in
-        the contact frame: z is the contact normal, x and y are the tangential
-        directions. So the normal part is `local[2] * frame.zaxis` and the
-        friction part is `local[0] * frame.xaxis + local[1] * frame.yaxis`, and
-        the two sum back to the resultant. Nothing new is computed here — this
-        is the stored answer, split.
+        **In the contact frame** — `resultant_local` is the same force as
+        `resultant_global` expressed there: z is the contact normal, x and y the
+        tangential directions. The normal part is `local[2] * frame.zaxis`, the
+        friction part `local[0] * frame.xaxis + local[1] * frame.yaxis`, and the
+        two sum back to the resultant. Answers "how does this force sit relative
+        to the joint" — whether it is sliding.
 
-        Both are off by default: drawing a resultant together with both of its
-        parts puts three lines through one contact point.
+        **In world axes** — horizontal is `(Fx, Fy, 0)` and vertical `(0, 0, Fz)`
+        of `resultant_global`. Answers "how much of it is thrust and how much is
+        weight", which is the masonry question and is NOT recoverable from the
+        normal/friction pair on an inclined joint: on a springing joint a large
+        normal force is mostly horizontal thrust, and the normal/friction split
+        cannot say so.
+
+        Nothing is computed that the solver did not already give: both are the
+        stored resultant, resolved on different axes. All four are off by default
+        — a resultant drawn with all of its parts is five lines through one point.
+
+        `layers` is the sublayer map from `draw_result_forces`; each component
+        goes to its own layer so it can be switched off on its own.
         """
-        if not (settings.show_normalforces or settings.show_frictionforces):
-            return
+        if settings.show_normalforces or settings.show_frictionforces:
+            local = results.resultant_local(edge)
+            frame = results.contact_frame(edge)
+            # CRA and RBE write no contact frame, so the frame-relative split is
+            # simply unavailable for them — the world-axis split below is not, and
+            # is the one that still works on a CRA result.
+            if local is not None and frame is not None:
+                if settings.show_normalforces:
+                    normal = [c * local[2] * scale for c in frame.zaxis]
+                    self._draw_centred_line(layers["normal"], point, normal, color=self.COLOR_NORMAL)
 
-        local = results.resultant_local(edge)
-        frame = results.contact_frame(edge)
-        if local is None or frame is None:
-            return
+                if settings.show_frictionforces:
+                    friction = [(x * local[0] + y * local[1]) * scale for x, y in zip(frame.xaxis, frame.yaxis)]
+                    self._draw_centred_line(layers["friction"], point, friction, color=self.COLOR_FRICTION)
 
-        if settings.show_normalforces:
-            normal = [c * local[2] * scale for c in frame.zaxis]
-            self._draw_centred_line(layer, point, normal, color=self.COLOR_NORMAL)
+        if settings.show_horizontalforces or settings.show_verticalforces:
+            resultant = results.resultant_global(edge)
+            if resultant is None:
+                return
 
-        if settings.show_frictionforces:
-            friction = [(x * local[0] + y * local[1]) * scale for x, y in zip(frame.xaxis, frame.yaxis)]
-            self._draw_centred_line(layer, point, friction, color=self.COLOR_FRICTION)
+            if settings.show_horizontalforces:
+                horizontal = [resultant[0] * scale, resultant[1] * scale, 0.0]
+                self._draw_centred_line(layers["horizontal"], point, horizontal, color=self.COLOR_HORIZONTAL)
+
+            if settings.show_verticalforces:
+                vertical = [0.0, 0.0, resultant[2] * scale]
+                self._draw_centred_line(layers["vertical"], point, vertical, color=self.COLOR_VERTICAL)
 
     def _draw_cornerforces(self, layer, results, edge, scale, settings, problem_name=None, key=None):
         """Draw the per-corner normal forces of one contact.
@@ -2308,16 +2377,25 @@ class MasonrySession(LazyLoadSession):
         return drawn
 
     def _draw_value_tag(self, layer, point, magnitude, edge, problem_name=None, key=None):
-        """Label a reaction in kN, as a TextDot at its contact point.
+        """Label a reaction as a TextDot at its contact point, in display units.
 
         A TextDot rather than text geometry keeps one screen size whatever the
         zoom and stays readable from any view direction. The stored mechanics
-        remain in N; only the human-readable display value is converted to kN.
+        remain in N; only the human-readable display value is converted.
+
+        The conversion comes from `compas_masonry.results` rather than being done
+        here. This tag used to divide by 1000 on its own while every report
+        printed raw newtons, so the label on a contact and the table row for the
+        same contact disagreed by 10^3 with nothing on screen to say which was
+        which.
         """
         import Rhino  # type: ignore
         import scriptcontext as sc  # type: ignore
 
-        magnitude_kN = magnitude / 1000.0
+        from compas_masonry.results import FORCE_UNIT
+        from compas_masonry.results import to_force_unit
+
+        display = to_force_unit(magnitude)
         attributes = self._result_attributes(
             layer,
             color=self.COLOR_REACTION,
@@ -2327,11 +2405,11 @@ class MasonrySession(LazyLoadSession):
                 "result_kind": "reaction_value",
                 "edge": list(edge),
                 "force_magnitude": magnitude,
-                "force_magnitude_kN": magnitude_kN,
-                "display_unit": "kN",
+                f"force_magnitude_{FORCE_UNIT}": display,
+                "display_unit": FORCE_UNIT,
             },
         )
-        text_dot = Rhino.Geometry.TextDot(f"{magnitude_kN:.4g} kN", Rhino.Geometry.Point3d(*point))
+        text_dot = Rhino.Geometry.TextDot(f"{display:.4g} {FORCE_UNIT}", Rhino.Geometry.Point3d(*point))
         guid = sc.doc.Objects.AddTextDot(text_dot, attributes)
         if guid is None:
             return None

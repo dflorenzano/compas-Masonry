@@ -377,3 +377,53 @@ def test_a_contact_carrying_no_force_is_not_counted_at_all():
 
     assert application_points(results) == ([], [], [])
     assert application_point_report(results) is None
+
+
+# =============================================================================
+# Display units
+#
+# Stored mechanics stay in newtons; only what a human reads is converted. The
+# conversion lives in one place because the Rhino reaction tag used to divide by
+# 1000 on its own while every report printed raw newtons — so a label and the
+# table row for the same contact disagreed by 10^3, with nothing on screen
+# saying which was which.
+# =============================================================================
+
+
+def test_force_and_stress_conversions_pass_none_through():
+    """A quantity the solver never produced is not zero."""
+    from compas_masonry.results import to_force_unit, to_stress_unit
+
+    assert to_force_unit(45530.3331) == pytest.approx(45.5303331)
+    assert to_stress_unit(1.0e6) == pytest.approx(1000.0)
+    assert to_force_unit(None) is None
+    assert to_stress_unit(None) is None
+
+
+def test_the_csv_header_names_its_units():
+    """A bare "F_magnitude" is what let the tags say kN while the rows said N."""
+    from compas_masonry.results import CSV_HEADER, FORCE_UNIT, STRESS_UNIT
+
+    assert f"F_magnitude_{FORCE_UNIT}" in CSV_HEADER
+    assert f"Fx_{FORCE_UNIT}" in CSV_HEADER
+    assert f"stress_{STRESS_UNIT}" in CSV_HEADER
+    # displacements are lengths, not forces, and are left in model units
+    assert "u_magnitude" in CSV_HEADER
+
+
+def test_csv_rows_are_written_in_display_units():
+    report = _report(
+        [{"with": 5, "label": "4-5", "force": [1000.0, 2000.0, 3000.0], "magnitude": 45530.3331, "stress": 1.0e6, "opening": None}]
+    )
+
+    row = block_result_rows(report)[0]
+
+    assert row[2] == pytest.approx(45.5303331)  # |F| kN
+    assert row[3:6] == pytest.approx([1.0, 2.0, 3.0])  # Fx Fy Fz kN
+    assert row[6] == pytest.approx(1000.0)  # stress kPa
+
+
+def test_a_missing_stress_stays_an_empty_cell_rather_than_zero():
+    report = _report([{"with": 5, "label": "4-5", "force": [0.0, 0.0, -1.0], "magnitude": 1.0, "stress": None, "opening": None}])
+
+    assert block_result_rows(report)[0][6] == ""

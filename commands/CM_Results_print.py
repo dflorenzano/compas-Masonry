@@ -26,6 +26,8 @@ import rhinoscriptsyntax as rs  # type: ignore
 
 from compas_dem.models import BlockModel
 from compas_masonry.inputs import choose
+from compas_masonry.results import FORCE_UNIT
+from compas_masonry.results import STRESS_UNIT
 from compas_masonry.results import application_point_report
 from compas_masonry.results import block_displacements
 from compas_masonry.results import contact_openings
@@ -33,6 +35,8 @@ from compas_masonry.results import contact_resultants
 from compas_masonry.results import face_stresses
 from compas_masonry.results import summary
 from compas_masonry.results import support_reactions
+from compas_masonry.results import to_force_unit
+from compas_masonry.results import to_stress_unit
 from compas_masonry.session import MasonrySession as Session
 from compas_rui.feedback import warn
 
@@ -67,7 +71,7 @@ def print_summary(key, results, model) -> None:
     if meta.get("mu") is not None:
         print(f"friction mu: {meta['mu']:.4f}")
 
-    print(f"contacts   : {values['contacts']} carrying force, total |F| = {values['force_total']:.6g}")
+    print(f"contacts   : {values['contacts']} carrying force, total |F| = {to_force_unit(values['force_total']):.6g} {FORCE_UNIT}")
 
     rows = [
         ("max |F|", values["force"], values["force_at"]),
@@ -94,7 +98,13 @@ def print_contacts(results) -> None:
     stresses = {label: value for value, _, label in face_stresses(results)}
     openings = {label: value for value, _, label in contact_openings(results)}
 
-    header = f"{'contact':<12}{'|F|':>14}{'Fx':>14}{'Fy':>14}{'Fz':>14}{'stress':>14}{'opening':>14}"
+    # Units in the column heads: a bare "|F|" was newtons here while the Rhino
+    # tag on the same contact said kN, which reads as two different answers.
+    header = (
+        f"{'contact':<12}{'|F| [' + FORCE_UNIT + ']':>14}{'Fx [' + FORCE_UNIT + ']':>14}"
+        f"{'Fy [' + FORCE_UNIT + ']':>14}{'Fz [' + FORCE_UNIT + ']':>14}"
+        f"{'stress [' + STRESS_UNIT + ']':>16}{'opening':>14}"
+    )
     print("\n" + header)
     print("-" * len(header))
     for _, vector, magnitude, edge in sorted(resultants, key=lambda row: -row[2]):
@@ -102,8 +112,9 @@ def print_contacts(results) -> None:
         stress = stresses.get(label)
         opening = openings.get(label)
         print(
-            f"{label:<12}{magnitude:>14.6g}{vector[0]:>14.6g}{vector[1]:>14.6g}{vector[2]:>14.6g}"
-            f"{('-' if stress is None else format(stress, '.6g')):>14}"
+            f"{label:<12}{to_force_unit(magnitude):>14.6g}{to_force_unit(vector[0]):>14.6g}"
+            f"{to_force_unit(vector[1]):>14.6g}{to_force_unit(vector[2]):>14.6g}"
+            f"{('-' if stress is None else format(to_stress_unit(stress), '.6g')):>16}"
             f"{('-' if opening is None else format(opening, '.6g')):>14}"
         )
     print(f"{len(resultants)} contact(s).")
@@ -127,14 +138,17 @@ def print_reactions(results, model) -> None:
     if not rows:
         return warn("No support reaction could be resolved — the model has no supports, or no contact reaches them.")
 
-    header = f"{'support':<12}{'|R|':>14}{'Rx':>14}{'Ry':>14}{'Rz':>14}"
+    header = (
+        f"{'support':<12}{'|R| [' + FORCE_UNIT + ']':>14}{'Rx [' + FORCE_UNIT + ']':>14}"
+        f"{'Ry [' + FORCE_UNIT + ']':>14}{'Rz [' + FORCE_UNIT + ']':>14}"
+    )
     print("\n" + header)
     print("-" * len(header))
     total = [0.0, 0.0, 0.0]
     for node, reaction, magnitude in sorted(rows, key=lambda row: -row[2]):
-        print(f"{node:<12}{magnitude:>14.6g}{reaction[0]:>14.6g}{reaction[1]:>14.6g}{reaction[2]:>14.6g}")
+        print(f"{node:<12}{to_force_unit(magnitude):>14.6g}{to_force_unit(reaction[0]):>14.6g}{to_force_unit(reaction[1]):>14.6g}{to_force_unit(reaction[2]):>14.6g}")
         total = [t + r for t, r in zip(total, reaction)]
-    print(f"{'sum':<12}{'':>14}{total[0]:>14.6g}{total[1]:>14.6g}{total[2]:>14.6g}")
+    print(f"{'sum':<12}{'':>14}{to_force_unit(total[0]):>14.6g}{to_force_unit(total[1]):>14.6g}{to_force_unit(total[2]):>14.6g}")
     print("The sum should balance the applied loads; a large residual means the solve did not converge.")
 
 

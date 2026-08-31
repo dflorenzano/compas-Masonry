@@ -99,4 +99,9 @@ def test_the_expected_commands_are_the_ones_recording():
         "CM_Problem_solve.py",
         "CM_Results_show.py",
         "CM_Session_import.py",
+        # Added 2026-08-31. Editing settings mutates an in-memory pydantic model
+        # and writes nothing; the settings file is only produced by `dump()`,
+        # which `record()` calls. Without it the command did not survive a Rhino
+        # restart.
+        "CM_Session_settings.py",
     }

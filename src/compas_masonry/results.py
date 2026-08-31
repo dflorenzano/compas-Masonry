@@ -31,19 +31,55 @@ __all__ = [
     "summary",
     "CSV_HEADER",
     "block_result_rows",
+    "FORCE_UNIT",
+    "STRESS_UNIT",
+    "to_force_unit",
+    "to_stress_unit",
 ]
+
+# DISPLAY UNITS. The solvers work in newtons and every stored value stays in
+# newtons — only what a human reads is converted. The conversion lives here, in
+# the one module both the reports and the Rhino drawing derive their numbers
+# from, so a table, an exported row and a reaction tag cannot disagree about a
+# force the way they did while the tag divided by 1000 on its own.
+#
+# Stress is `|F . n| / area`, so newtons over square metres: the same factor
+# takes Pa to kPa, and kN/m2 IS kPa. The two constants are therefore one
+# conversion, not two that happen to match.
+#
+# ASSUMES A MODEL IN METRES. Nothing here can detect the document's unit, so a
+# model drawn in millimetres reports forces that are correct and areas that are
+# not, which shows up as stress wrong by 10^6. That was true of the kN tag
+# before this and is unchanged by it — it is simply now written down.
+FORCE_UNIT = "kN"
+STRESS_UNIT = "kPa"
+_PER_KILO = 1e-3
+
+
+def to_force_unit(value):
+    """N -> kN. `None` passes through: a force the solver never produced is not 0."""
+    return None if value is None else value * _PER_KILO
+
+
+def to_stress_unit(value):
+    """Pa -> kPa, i.e. kN/m2. `None` passes through."""
+    return None if value is None else value * _PER_KILO
+
 
 # One row per (block, contact), with the block's displacement repeated on every
 # row of that block. Flat and redundant on purpose: it pivots in a spreadsheet
 # without anyone having to carry a value down a merged cell.
+#
+# The unit is in the column NAME rather than in a legend somewhere, because a
+# bare "F_magnitude" is what let the tags say kN while these rows said N.
 CSV_HEADER = [
     "block",
     "with",
-    "F_magnitude",
-    "Fx",
-    "Fy",
-    "Fz",
-    "stress",
+    f"F_magnitude_{FORCE_UNIT}",
+    f"Fx_{FORCE_UNIT}",
+    f"Fy_{FORCE_UNIT}",
+    f"Fz_{FORCE_UNIT}",
+    f"stress_{STRESS_UNIT}",
     "opening",
     "u_magnitude",
     "ux",
@@ -343,17 +379,19 @@ def block_result_rows(report) -> list:
         return [[node, "", "", "", "", "", "", ""] + u]
 
     rows = []
+    # The report carries newtons, as everything stored does; the row is what a
+    # person reads, so it is converted here and the column names say so.
     for contact in report["contacts"]:
         force = contact["force"]
         rows.append(
             [
                 node,
                 contact["with"],
-                contact["magnitude"],
-                force[0],
-                force[1],
-                force[2],
-                cell(contact["stress"]),
+                to_force_unit(contact["magnitude"]),
+                to_force_unit(force[0]),
+                to_force_unit(force[1]),
+                to_force_unit(force[2]),
+                cell(to_stress_unit(contact["stress"])),
                 cell(contact["opening"]),
             ]
             + u

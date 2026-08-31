@@ -17,8 +17,9 @@ The Analysis is what makes one key enough. A Problem serializes as a guid
 REFERENCE to its model, so a file holding them separately has to hand the model
 back to every problem on the way in; `Analysis.__from_data__` does that itself.
 
-Solver results are excluded by default. They can be selected from a hierarchy
-of problems and solve runs and embedded in the portable session file.
+Solver results are excluded by default. They can be included wholesale, or
+selected from a hierarchy of problems and solve runs, and are then embedded in
+the portable session file.
 
 Re-open with Session_import. Files written before 2026-08-07 carried separate
 `blockmodel` and `problems` keys and are NOT readable — Session_import says so
@@ -45,6 +46,20 @@ def session_data(session, results=None) -> dict:
     if results is not None:
         data["results"] = results
 
+        # WHICH results were on screen, so an import restores the view and not
+        # just the data. Filtered to what is actually being exported: recording
+        # the intent to draw a result the file does not carry would make the
+        # import replay a view it cannot fill. `draw_shown_results` skips unknown
+        # keys anyway, but a session file should not describe what is not in it.
+        shown = session.get("shown_results") or {}
+        kept = {}
+        for problem_name, view in shown.items():
+            exported_keys = [key for key in view.get("keys", []) if key in (results.get(problem_name) or {})]
+            if exported_keys:
+                kept[problem_name] = dict(view, keys=exported_keys)
+        if kept:
+            data["shown_results"] = kept
+
     # settings are pydantic, not compas Data
     try:
         data["settings"] = session.settings.model_dump()
@@ -67,14 +82,20 @@ def RunCommand():
     exported_results = None
     if stored:
         result_mode = rs.ListBox(
-            ["Do not include results", "Select results to include"],
+            ["Do not include results", "Include all results", "Select results to include"],
             message="Solver results in exported session",
             title="Save Session",
             default="Do not include results",
         )
         if result_mode is None:
             return
-        if result_mode == "Select results to include":
+        if result_mode == "Include all results":
+            # `stored` is already the {problem: {key: result}} shape the session
+            # file wants, so "all" is the whole mapping and needs no selection
+            # pass. Kept distinct from the default rather than made the default:
+            # results are the bulky part of an exported session.
+            exported_results = stored
+        elif result_mode == "Select results to include":
             from compas_masonry.forms.results import ResultSelectionForm
 
             selection = ResultSelectionForm(stored).show()

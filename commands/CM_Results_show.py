@@ -197,14 +197,34 @@ def RunCommand():
     # and leave every force category disabled. If the user explicitly asks for
     # Forces or Both, make the canonical force views visible.
     force_settings = session.settings.blockmodel
+    # EVERY force view belongs in here. A view left out is a view that, on its
+    # own, still reads as "all force views are disabled" — so asking for Forces
+    # with only that one enabled would switch resultants and reactions back on
+    # over the user's explicit choice, and persist it at the `record()` below.
+    # `test_every_force_view_is_counted_as_one` pins this against the settings.
     force_views = (
         force_settings.show_resultants,
         force_settings.show_reactions,
         force_settings.show_normalforces,
         force_settings.show_frictionforces,
+        force_settings.show_horizontalforces,
+        force_settings.show_verticalforces,
         force_settings.show_selfweight,
         force_settings.show_cornerforces,
     )
+    # ponytail: this WRITES the user's settings, it does not override them for one
+    # draw. `session.record()` at the end of this command persists
+    # `settings.model_dump()`, so asking to view forces once permanently flips
+    # show_resultants and show_reactions on disk. Reviewed 2026-08-31 and
+    # deliberately KEPT: the case only fires when every force view is off, where
+    # the alternative is drawing nothing and looking broken, and making it stick
+    # means the next Results_show behaves the same way.
+    #
+    # Known ceiling: a user who switched those two off on purpose gets them back
+    # and is not told the setting changed, only that it was "enabled ... for this
+    # result view" — which is not what happened. Upgrade path is a temporary
+    # override: copy `force_settings`, flip the copy, draw from it, leave the
+    # session's own settings alone. Deferred, not forgotten.
     if mode in ("Forces", "Both") and not any(force_views):
         force_settings.show_resultants = True
         force_settings.show_reactions = True

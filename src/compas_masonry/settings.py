@@ -50,6 +50,18 @@ class BlockModelSettings(BaseModel):
     show_reactions: bool = Field(default=True, title="Show Reactions")
     show_normalforces: bool = Field(default=False, title="Show Normal Forces")
     show_frictionforces: bool = Field(default=False, title="Show Friction Forces")
+
+    # The SAME resultant resolved in world axes instead of the contact frame:
+    # horizontal is (Fx, Fy, 0) and vertical is (0, 0, Fz). Normal/friction answer
+    # "how does this force sit relative to the joint"; these answer "how much of it
+    # is thrust and how much is weight", which is the masonry question and cannot
+    # be read off the normal/friction pair on an inclined joint.
+    #
+    # Computed here, not read: compas_dem has no horizontal/vertical concept — it
+    # stores `resultant_global` and the contact-frame components, and nothing else.
+    show_horizontalforces: bool = Field(default=False, title="Show Horizontal Forces")
+    show_verticalforces: bool = Field(default=False, title="Show Vertical Forces")
+
     show_selfweight: bool = Field(default=False, title="Show Selfweight")
 
     # The per-corner forces the solver actually solved for, before they are summed

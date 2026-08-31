@@ -828,3 +828,40 @@ def test_undo_across_the_format_change(populated, arch_model):
     assert back.name == "from-a-legacy-record"
     assert [problem.name for problem in back.problems] == ["Problem_9"]
     assert back.problems[0].model is back.model
+
+
+# =============================================================================
+# Result force layers
+#
+# One layer per drawn quantity. Everything except the value tags used to land on
+# a single "Forces" layer, which is why corner forces were never seen in Rhino:
+# the data is written on every FrictionContact, but the lines were drawn
+# underneath the resultants on the same layer, with no way to switch either off.
+# =============================================================================
+
+
+def test_every_force_view_has_its_own_layer():
+    """No two drawn quantities may share a sublayer, or one hides the other."""
+    paths = list(MasonrySession.RESULT_FORCE_LAYERS.values())
+
+    assert len(paths) == len(set(paths))
+    assert all(path.startswith("Forces::") for path in paths)
+
+
+def test_the_force_layer_tree_matches_the_agreed_grouping():
+    """Pins the shape, so a regrouping is a decision rather than a drift.
+
+    Normal and friction hang off Reactions (the interface force in the joint's
+    own frame); horizontal and vertical hang off Resultants (the same force in
+    world axes).
+    """
+    assert MasonrySession.RESULT_FORCE_LAYERS == {
+        "resultants": "Forces::Resultants",
+        "horizontal": "Forces::Resultants::Horizontal",
+        "vertical": "Forces::Resultants::Vertical",
+        "reactions": "Forces::Reactions::Interface",
+        "normal": "Forces::Reactions::Normal",
+        "friction": "Forces::Reactions::Friction",
+        "corners": "Forces::Corners",
+        "values": "Forces::Values",
+    }

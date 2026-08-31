@@ -620,3 +620,173 @@ def test_pickmode_settings_exist_for_both_kinds():
     settings = BlockModelSettings()
     assert settings.pickmode_face == "Shaded"
     assert settings.pickmode_vertex == "Wireframe"
+
+
+# =============================================================================
+# Result provenance
+#
+# A Results carries model_id, problem_id and the per-node/edge data, and nothing
+# about the configuration that produced it. A problem is mutable, so without a
+# stamp a result silently outlives the setup it describes — and `problem_id` does
+# not help, because editing a problem in place leaves the guid unchanged.
+# =============================================================================
+
+
+class _FakeContactModel:
+    # mu is a property over _mu, so __data__ is the only way to read it back
+    __data__ = {"name": "MohrCoulomb", "mu": 0.6, "phi": 30.96, "c": None, "t_c": None}
+
+
+class _FakeGroup:
+    def __init__(self, name):
+        self.name = name
+
+
+class _FakeProblem:
+    def __init__(self):
+        self.name = "Arch_v1"
+        self.contact_properties = type("CP", (), {"contact_model": _FakeContactModel()})()
+        self.boundary_conditions = [_FakeGroup("Gravity"), _FakeGroup("Wind")]
+
+
+class _FakeSolver:
+    name = "CRA"
+    parameters = {"d_bnd": 0.01, "eps": 0.001, "penalty": True}
+
+
+class _FakeResults:
+    def __init__(self):
+        self.metadata = {}
+
+
+def test_provenance_records_what_produced_the_results(problem_solve):
+    results = _FakeResults()
+
+    problem_solve.stamp_provenance(results, _FakeProblem(), _FakeSolver())
+
+    assert results.metadata["solver"] == "CRA"
+    assert results.metadata["solver_parameters"]["penalty"] is True
+    assert results.metadata["problem_name"] == "Arch_v1"
+    assert results.metadata["contact_model"]["mu"] == 0.6
+    assert results.metadata["boundary_conditions"] == ["Gravity", "Wind"]
+
+
+def test_provenance_is_all_primitives_so_an_old_result_stays_loadable(problem_solve):
+    """Storing live Data objects would break the day compas_dem renames a class."""
+    import json
+
+    results = _FakeResults()
+    problem_solve.stamp_provenance(results, _FakeProblem(), _FakeSolver())
+
+    # plain json, no compas encoder: nothing stamped may need reconstruction
+    assert json.loads(json.dumps(results.metadata)) == results.metadata
+
+
+def test_provenance_never_overwrites_what_a_backend_already_wrote(problem_solve):
+    results = _FakeResults()
+    results.metadata["solver"] = "3DEC"
+
+    problem_solve.stamp_provenance(results, _FakeProblem(), _FakeSolver())
+
+    assert results.metadata["solver"] == "3DEC"
+
+
+def test_provenance_survives_a_contact_model_that_cannot_describe_itself(problem_solve):
+    """A broken contact model is not worth failing a solve over."""
+
+    class Exploding:
+        @property
+        def __data__(self):
+            raise RuntimeError("boom")
+
+    problem = _FakeProblem()
+    problem.contact_properties = type("CP", (), {"contact_model": Exploding()})()
+    results = _FakeResults()
+
+    problem_solve.stamp_provenance(results, problem, _FakeSolver())
+
+    assert results.metadata["contact_model"] == {"name": "Exploding"}
+    assert results.metadata["solver"] == "CRA"
+
+
+# =============================================================================
+# Exporting the view, not just the data
+#
+# Solving draws nothing — Results_show does, and what it drew lives only in
+# "shown_results". An exported session that omits it re-imports with the results
+# present and a blank document.
+# =============================================================================
+
+
+class _FakeSession:
+    def __init__(self, shown):
+        self.analysis = "ANALYSIS"
+        self.active_problem_name = "Problem A"
+        self.settings = type("S", (), {"model_dump": lambda self: {}})()
+        self._shown = shown
+
+    def get(self, key):
+        return self._shown if key == "shown_results" else None
+
+
+def test_export_records_which_results_were_on_screen():
+    save = load_command(command_path("Session_save"), "session_save")
+    shown = {"Problem A": {"mode": "Forces", "keys": ["CRA_first"]}}
+    results = {"Problem A": {"CRA_first": "r1"}}
+
+    data = save.session_data(_FakeSession(shown), results=results)
+
+    assert data["shown_results"] == {"Problem A": {"mode": "Forces", "keys": ["CRA_first"]}}
+
+
+def test_export_does_not_claim_a_view_onto_results_it_left_out():
+    """Exporting a subset must not record intent to draw what is not in the file."""
+    save = load_command(command_path("Session_save"), "session_save")
+    shown = {"Problem A": {"mode": "Forces", "keys": ["CRA_first", "CRA_second"]}}
+    results = {"Problem A": {"CRA_first": "r1"}}  # second not exported
+
+    data = save.session_data(_FakeSession(shown), results=results)
+
+    assert data["shown_results"]["Problem A"]["keys"] == ["CRA_first"]
+
+
+def test_a_view_onto_no_exported_result_is_dropped_entirely():
+    save = load_command(command_path("Session_save"), "session_save")
+    shown = {"Problem B": {"mode": "Forces", "keys": ["CRA_only"]}}
+
+    data = save.session_data(_FakeSession(shown), results={"Problem A": {"CRA_first": "r1"}})
+
+    assert "shown_results" not in data
+
+
+def test_no_view_is_exported_when_results_are_excluded():
+    """`results=None` is the "do not include results" path; a view would dangle."""
+    save = load_command(command_path("Session_save"), "session_save")
+    shown = {"Problem A": {"mode": "Forces", "keys": ["CRA_first"]}}
+
+    data = save.session_data(_FakeSession(shown), results=None)
+
+    assert "shown_results" not in data
+    assert "results" not in data
+
+
+def test_every_force_view_is_counted_as_one():
+    """`Results_show` decides "all force views are off" from a hand-written tuple.
+
+    A view missing from it reads as off even when the user switched it on, so
+    asking for Forces would re-enable resultants and reactions over an explicit
+    choice — and persist that, because the command records. Adding a `show_*`
+    force setting without adding it there is the whole failure mode.
+    """
+    import re
+
+    from compas_masonry.settings import BlockModelSettings
+
+    source = (COMMANDS / "CM_Results_show.py").read_text()
+    counted = set(re.findall(r"force_settings\.(show_\w+)", source))
+
+    model_views = {name for name in BlockModelSettings.model_fields if name.startswith("show_")}
+    # these draw model geometry, not result forces
+    model_views -= {"show_blocks", "show_supports", "show_contacts", "show_interactions"}
+
+    assert model_views == counted, f"force views not counted by Results_show: {sorted(model_views - counted)}"

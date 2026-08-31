@@ -131,6 +131,56 @@ def check_ready(model, problem, name):
     return None
 
 
+def stamp_provenance(results, problem, solver) -> None:
+    """Record on the Results WHAT produced them, so they stay readable later.
+
+    A Results carries `model_id`, `problem_id` and the per-node/edge data, and
+    nothing about the configuration that produced it. A problem is mutable: change
+    the solver, the contact law or the loads and yesterday's results still sit
+    under the same problem name, describing a setup that no longer exists
+    anywhere. `problem_id` does not save you — edit a problem in place and the
+    guid is unchanged while the configuration differs.
+
+    `metadata` is the right place: it is in `Results.__data__`, restored by
+    `__from_data__`, and so survives a session save and re-import.
+
+    Everything stamped is a PRIMITIVE, deliberately. This is a record, not a live
+    object: `contact_model.__data__` is a plain dict (it is also the only way to
+    read `mu`, which is a property over `_mu` and not a public attribute), and
+    storing the Data object instead would make an old result unloadable the day
+    compas_dem renames the class.
+
+    `setdefault` throughout, so a backend that starts writing its own values wins.
+    """
+    if results is None:
+        return
+
+    # WHICH backend. `results.tension_contacts` depends on this: 3DEC tension must
+    # be read from native normal subcontact forces, because the affine vertex
+    # values a 3DEC-to-DEM conversion produces carry negative weights that are not
+    # tension. No compas_dem backend writes it, so before this stamp existed that
+    # guard never fired and 3DEC tension was over-reported.
+    if solver is not None:
+        results.metadata.setdefault("solver", solver.name)
+        results.metadata.setdefault("solver_parameters", dict(getattr(solver, "parameters", None) or {}))
+
+    if problem is None:
+        return
+
+    results.metadata.setdefault("problem_name", problem.name)
+
+    contact_model = getattr(problem.contact_properties, "contact_model", None)
+    if contact_model is not None:
+        try:
+            results.metadata.setdefault("contact_model", dict(contact_model.__data__))
+        except Exception:
+            # a contact model that cannot describe itself is not worth failing a
+            # solve over — the rest of the stamp is still useful
+            results.metadata.setdefault("contact_model", {"name": type(contact_model).__name__})
+
+    results.metadata.setdefault("boundary_conditions", [group.name for group in problem.boundary_conditions])
+
+
 def solve(problem, progress_callback=None, event_pump=None):
     """Run the problem's solver over every boundary condition it carries.
 
@@ -151,15 +201,7 @@ def solve(problem, progress_callback=None, event_pump=None):
         else:
             results = problem.solve()
 
-        # Record WHICH backend produced these results. No compas_dem backend
-        # writes this, and `results.tension_contacts` depends on it: 3DEC tension
-        # must be read from native normal subcontact forces, because the affine
-        # vertex values a 3DEC-to-DEM conversion produces carry negative weights
-        # that are not tension. Without this stamp that guard never fired and
-        # 3DEC tension was over-reported. `setdefault`, so a backend that starts
-        # writing its own name keeps it.
-        if results is not None and solver is not None:
-            results.metadata.setdefault("solver", solver.name)
+        stamp_provenance(results, problem, solver)
         return results
     except ImportError as e:
         # the solver backends (compas_cra, compas_lmgc90, ...) are optional
