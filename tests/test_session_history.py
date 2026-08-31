@@ -853,7 +853,9 @@ def test_the_force_layer_tree_matches_the_agreed_grouping():
 
     Normal and friction hang off Reactions (the interface force in the joint's
     own frame); horizontal and vertical hang off Resultants (the same force in
-    world axes).
+    world axes). X/Y/Z are the world-axis parts of a support reaction and are
+    kept off the Interface layer — they share its colour, so on one layer neither
+    could be switched off without the other.
     """
     assert MasonrySession.RESULT_FORCE_LAYERS == {
         "resultants": "Forces::Resultants",
@@ -862,6 +864,148 @@ def test_the_force_layer_tree_matches_the_agreed_grouping():
         "reactions": "Forces::Reactions::Interface",
         "normal": "Forces::Reactions::Normal",
         "friction": "Forces::Reactions::Friction",
+        "reaction_x": "Forces::Reactions::X",
+        "reaction_y": "Forces::Reactions::Y",
+        "reaction_z": "Forces::Reactions::Z",
         "corners": "Forces::Corners",
         "values": "Forces::Values",
     }
+
+
+class _ArrowRecorder:
+    """Stands in for the session so the component maths can be read back.
+
+    `_draw_reaction_components` only needs `_draw_vector_arrow` and the reaction
+    colour, so an unbound call with this in place of `self` exercises the real
+    method without Rhino.
+    """
+
+    COLOR_REACTION = (214, 40, 40)
+
+    def __init__(self):
+        self.calls = []
+
+    def _draw_vector_arrow(self, layer, point, vector, color=None, params=None):
+        self.calls.append({"layer": layer, "point": tuple(point), "vector": tuple(vector), "params": params})
+        return "guid"
+
+
+_LAYERS = {"reaction_x": "…::X", "reaction_y": "…::Y", "reaction_z": "…::Z"}
+
+
+def test_reaction_components_sum_back_to_the_reaction():
+    """Three parts of one force, not three forces — so they must add up."""
+    recorder = _ArrowRecorder()
+    reaction = [-10.881, 4.0, 25.852]
+    scale = 2.0
+
+    drawn = MasonrySession._draw_reaction_components(recorder, _LAYERS, [1.0, 2.0, 3.0], reaction, scale)
+
+    assert drawn == 3
+    total = [sum(call["vector"][axis] for call in recorder.calls) for axis in range(3)]
+    assert total == pytest.approx([c * scale for c in reaction])
+
+
+def test_reaction_components_share_the_resultant_point_and_split_by_layer():
+    recorder = _ArrowRecorder()
+
+    MasonrySession._draw_reaction_components(recorder, _LAYERS, [1.0, 2.0, 3.0], [1.0, 1.0, 1.0], 1.0)
+
+    assert {call["point"] for call in recorder.calls} == {(1.0, 2.0, 3.0)}
+    assert [call["layer"] for call in recorder.calls] == ["…::X", "…::Y", "…::Z"]
+    assert [call["params"]["component_axis"] for call in recorder.calls] == ["x", "y", "z"]
+
+
+def test_a_zero_component_draws_nothing():
+    """The reference arch is planar: Ry is 0, and a zero-length arrow is noise."""
+    recorder = _ArrowRecorder()
+
+    drawn = MasonrySession._draw_reaction_components(recorder, _LAYERS, [0.0, 0.0, 0.0], [-10.881, 0.0, 25.852], 1.0)
+
+    assert drawn == 2
+    assert [call["params"]["component_axis"] for call in recorder.calls] == ["x", "z"]
+
+
+def test_a_numerically_zero_component_draws_nothing_either():
+    """A planar arch solves to Ry = 6e-07 N, not to 0.
+
+    An `== 0` test would let that through and add a ~1e-11 m arrow to the
+    document: invisible, unselectable and unexplainable. The threshold is
+    relative to the reaction, so it scales with the model rather than assuming
+    newtons and metres.
+    """
+    recorder = _ArrowRecorder()
+
+    drawn = MasonrySession._draw_reaction_components(recorder, _LAYERS, [0.0, 0.0, 0.0], [-10.881, 6.0656e-07, 25.852], 1.0)
+
+    assert drawn == 2
+    assert [call["params"]["component_axis"] for call in recorder.calls] == ["x", "z"]
+
+
+# =============================================================================
+# BUG 1 — the force-scale yardstick must not depend on placement
+# =============================================================================
+
+
+class _FakeGeometry:
+    def __init__(self, points):
+        self._points = points
+
+    def vertices_attributes(self, _):
+        return list(self._points)
+
+
+class _SizedBlock:
+    def __init__(self, points):
+        self.modelgeometry = _FakeGeometry(points)
+
+
+class _SizedModel:
+    def __init__(self, blocks):
+        self._blocks = blocks
+
+    def elements(self):
+        return iter(self._blocks)
+
+
+def _unit_cube():
+    return [(x, y, z) for x in (0.0, 1.0) for y in (0.0, 1.0) for z in (0.0, 1.0)]
+
+
+def test_the_yardstick_is_the_block_diameter():
+    """A unit cube's diameter is its space diagonal, sqrt(3)."""
+    model = _SizedModel([_SizedBlock(_unit_cube())])
+
+    assert MasonrySession._max_block_size(None, model) == pytest.approx(3**0.5)
+
+
+def test_rotating_a_model_does_not_rescale_its_force_arrows():
+    """BUG 1. The axis-aligned bbox diagonal drifted 23% over a 45 degree turn.
+
+    Same cube, turned about a skew axis: the block is unchanged, so the yardstick
+    it sets must be unchanged too, or every arrow in the document silently
+    rescales when someone rotates the model.
+    """
+    import math
+
+    upright = _SizedModel([_SizedBlock(_unit_cube())])
+
+    def turned(angle):
+        c, s = math.cos(angle), math.sin(angle)
+        points = []
+        for x, y, z in _unit_cube():
+            # rotate about Z, then about X — enough to move every axis
+            x1, y1 = x * c - y * s, x * s + y * c
+            y2, z2 = y1 * c - z * s, y1 * s + z * c
+            points.append((x1, y2, z2))
+        return _SizedModel([_SizedBlock(points)])
+
+    reference = MasonrySession._max_block_size(None, upright)
+    for degrees in (15, 30, 45, 60):
+        rotated = MasonrySession._max_block_size(None, turned(math.radians(degrees)))
+        assert rotated == pytest.approx(reference), f"yardstick moved at {degrees} degrees"
+
+
+def test_an_empty_model_still_gives_a_usable_yardstick():
+    """Zero would make the scale a division by zero at the call site."""
+    assert MasonrySession._max_block_size(None, _SizedModel([])) == 1.0

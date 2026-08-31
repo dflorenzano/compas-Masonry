@@ -1360,6 +1360,13 @@ class MasonrySession(LazyLoadSession):
         "reactions": "Forces::Reactions::Interface",
         "normal": "Forces::Reactions::Normal",
         "friction": "Forces::Reactions::Friction",
+        # World-axis parts of a support reaction, drawn from the reaction's own
+        # point of application. Deliberately NOT on the Interface layer: a
+        # component and the reaction it came from are the same colour, and on one
+        # layer neither can be switched off without the other.
+        "reaction_x": "Forces::Reactions::X",
+        "reaction_y": "Forces::Reactions::Y",
+        "reaction_z": "Forces::Reactions::Z",
         "corners": "Forces::Corners",
         "values": "Forces::Values",
     }
@@ -1976,19 +1983,14 @@ class MasonrySession(LazyLoadSession):
         if largest <= 0:
             return 0
 
-        # dimensionless -> absolute: biggest force spans half the biggest block
+        # dimensionless -> absolute: the biggest force spans half the biggest block.
         #
-        # BUG 1, unfixed — the yardstick is orientation-dependent. `_max_block_size`
-        # measures the AXIS-ALIGNED bounding box diagonal, which grows when a block
-        # is tilted relative to world XYZ even though the block itself is unchanged.
-        # So rotating a model rescales all of its force arrows. On the 15-block arch
-        # this gives 0.639 where the compas_dem viewer, which uses an actual mesh
-        # edge length (`block.modelgeometry.edge_length([0, 1])`), gives 0.500 — our
-        # arrows come out 1.28x longer than the same result in the viewer, which is
-        # exactly the kind of mismatch that reads as "the numbers disagree" when the
-        # numbers are in fact identical. Fix by measuring something intrinsic to the
-        # block (an oriented bbox, or the mesh edge length the viewer uses); the
-        # viewer's choice is the one to match if the two pictures must be comparable.
+        # BUG 1, fixed 2026-08-31 in `_max_block_size` — the yardstick used to be
+        # the AXIS-ALIGNED bounding box diagonal, so rotating a model rescaled
+        # every arrow in it. It is the block's own diameter now, which is invariant
+        # under placement. Read that method before changing anything here: the
+        # 0.5 factor and the choice of measure together set how a force here
+        # compares with the same force in the compas_dem viewer.
         scale = self.settings.blockmodel.scale_forces * 0.5 * self._max_block_size(model) / largest
 
         # A resultant on a contact with a support block IS that support's
@@ -2022,38 +2024,45 @@ class MasonrySession(LazyLoadSession):
             if magnitude <= 0:
                 continue
             is_reaction = any(node in supports for node in edge)
-            if not (settings.show_reactions if is_reaction else settings.show_resultants):
-                # the decompositions and the corner forces below are still drawn:
-                # normal, friction and per-corner are separate views, not extra
-                # detail on the resultant
-                self._draw_decomposition(layers, results, edge, point, scale, settings)
-                drawn += self._draw_cornerforces(layers["corners"], results, edge, scale, settings, problem_name, key)
+
+            # The decompositions and the corner forces are separate views, not
+            # extra detail on the resultant, so they are drawn whatever the
+            # resultant setting says.
+            self._draw_decomposition(layers, results, edge, point, scale, settings)
+            drawn += self._draw_cornerforces(layers["corners"], results, edge, scale, settings, problem_name, key)
+
+            # A SUPPORT contact draws no resultant of its own. The same force is
+            # drawn once per support by the reaction pass after this loop, summed
+            # over every contact reaching that support — one contact or twenty.
+            # Its interface geometry is still its own.
+            if is_reaction:
+                self._draw_contact_geometry(interfaces_layer, results, edge)
+                continue
+
+            if not settings.show_resultants:
                 continue
 
             self._draw_contact_geometry(interfaces_layer, results, edge)
-            color = self.COLOR_REACTION if is_reaction else self.COLOR_FORCE
             guid = self._draw_centred_line(
-                layers["reactions"] if is_reaction else layers["resultants"],
+                layers["resultants"],
                 point,
                 [c * scale for c in vector],
-                color=color,
+                color=self.COLOR_FORCE,
                 params={
                     "problem": problem_name,
                     "result_key": key,
-                    "result_kind": "support_reaction" if is_reaction else "contact_resultant",
+                    "result_kind": "contact_resultant",
                     "edge": list(edge),
                     "resultant_global": list(vector),
                     "resultant_local": results.resultant_local(edge),
                     "force_magnitude": magnitude,
                 },
             )
-            if guid is None:
-                continue
-            self._draw_decomposition(layers, results, edge, point, scale, settings)
-            drawn += self._draw_cornerforces(layers["corners"], results, edge, scale, settings, problem_name, key)
-            if is_reaction:
-                self._draw_value_tag(tags_layer, point, magnitude, edge, problem_name, key)
-            drawn += 1
+            if guid is not None:
+                drawn += 1
+
+        if settings.show_reactions:
+            drawn += self._draw_support_reactions(layers, tags_layer, results, model, scale, problem_name, key)
 
         drawn += self._draw_selfweight(problem_name, model, scale, settings, key)
 
@@ -2264,13 +2273,17 @@ class MasonrySession(LazyLoadSession):
             if resultant is None:
                 return
 
+            # Arrows from the point, not centred lines: thrust and weight are read
+            # for their DIRECTION as much as their size — which way the arch pushes
+            # its abutment, which way the load bears — and a centred line draws a
+            # push and a pull identically.
             if settings.show_horizontalforces:
                 horizontal = [resultant[0] * scale, resultant[1] * scale, 0.0]
-                self._draw_centred_line(layers["horizontal"], point, horizontal, color=self.COLOR_HORIZONTAL)
+                self._draw_vector_arrow(layers["horizontal"], point, horizontal, color=self.COLOR_HORIZONTAL)
 
             if settings.show_verticalforces:
                 vertical = [0.0, 0.0, resultant[2] * scale]
-                self._draw_centred_line(layers["vertical"], point, vertical, color=self.COLOR_VERTICAL)
+                self._draw_vector_arrow(layers["vertical"], point, vertical, color=self.COLOR_VERTICAL)
 
     def _draw_cornerforces(self, layer, results, edge, scale, settings, problem_name=None, key=None):
         """Draw the per-corner normal forces of one contact.
@@ -2415,6 +2428,131 @@ class MasonrySession(LazyLoadSession):
             return None
         return guid
 
+    def _draw_vector_arrow(self, layer, point, vector, color=None, params=None):
+        """Draw a force as an arrow STARTING at `point`, head at `point + vector`.
+
+        The other convention in this file, `_draw_centred_line`, spans ±v/2 about
+        the point and carries no head, so `v` and `-v` draw identically. That is
+        tolerable for a contact resultant, whose sign is a matter of which block
+        you look from, and wrong for a reaction, which has a direction the model
+        depends on: a support pushing up and a support pulling down are the same
+        picture there.
+
+        The head is set through `ObjectDecoration` on the attributes rather than
+        with `rs.CurveArrows` after the fact, so the arrow still commits in ONE
+        document modification with its layer, colour and User Text — the reason
+        `_result_attributes` exists. `_draw_bc_vector` uses `rs.CurveArrows`
+        because it draws a handful of objects; result drawing creates many.
+
+        Tail semantics, matching `_arrow_endpoints(..., at="tail")`: the arrow
+        leaves the point of application. A reaction is the abutment pushing back
+        into the arch, so the tail sits where the force acts and the head shows
+        where it goes.
+        """
+        import Rhino  # type: ignore
+        import scriptcontext as sc  # type: ignore
+
+        start = list(point)
+        end = [p + v for p, v in zip(point, vector)]
+        if start == end:
+            return None
+        attributes = self._result_attributes(layer, color=color or self.COLOR_FORCE, params=params)
+        attributes.ObjectDecoration = Rhino.DocObjects.ObjectDecoration.EndArrowhead
+        guid = sc.doc.Objects.AddLine(Rhino.Geometry.Point3d(*start), Rhino.Geometry.Point3d(*end), attributes)
+        if guid is None:
+            return None
+        return guid
+
+    def _draw_support_reactions(self, layers, tags_layer, results, model, scale, problem_name=None, key=None) -> int:
+        """Draw ONE reaction per support, summed over the contacts reaching it.
+
+        This is BUG 2, fixed. Reactions used to be drawn inside the contact loop
+        as a red-coloured special case: one line and one kN tag per support
+        CONTACT. That is right on an arch, where each abutment touches the model
+        once — which is why it looked correct for so long — and wrong on a dome or
+        a vault, where a support springs across several contacts and the reaction
+        is their vector SUM. There the drawing showed N red lines and N
+        overlapping tags per support, not one of which was the reaction, while
+        `Results_print` printed the correct total from `support_reactions`. The
+        picture and the report disagreed, and the picture was the wrong one.
+
+        The aggregate is drawn at the force-weighted mean of the support's contact
+        points (`support_reaction_points`), which is where the compas_dem viewer
+        puts it.
+
+        Each reaction gets its world X/Y/Z components from the same point, so a
+        support reads as one force resolved rather than four unrelated arrows.
+        """
+        from compas_masonry.results import support_reaction_points
+        from compas_masonry.results import support_reactions
+
+        points = support_reaction_points(results, model)
+
+        drawn = 0
+        for node, vector, magnitude in support_reactions(results, model):
+            point = points.get(node)
+            if point is None or magnitude <= 0:
+                continue
+
+            params = {
+                "problem": problem_name,
+                "result_key": key,
+                "result_kind": "support_reaction",
+                "support": node,
+                "resultant_global": list(vector),
+                "force_magnitude": magnitude,
+            }
+            guid = self._draw_vector_arrow(
+                layers["reactions"],
+                point,
+                [c * scale for c in vector],
+                color=self.COLOR_REACTION,
+                params=params,
+            )
+            if guid is None:
+                continue
+            drawn += 1
+
+            drawn += self._draw_reaction_components(layers, point, vector, scale, params=params)
+            self._draw_value_tag(tags_layer, point, magnitude, (node, node), problem_name, key)
+        return drawn
+
+    def _draw_reaction_components(self, layers, point, vector, scale, params=None) -> int:
+        """Draw the world X/Y/Z parts of one reaction, from the reaction's own point.
+
+        A single reaction arrow answers "how big and which way"; these answer "how
+        much of it is horizontal thrust and how much is vertical load", which is
+        the question an abutment is sized on and cannot be read off the resultant
+        by eye. Drawn in the reaction colour, from the SAME point of application,
+        so the three components and their resultant visibly form one bundle.
+
+        Each axis gets its own layer, so a component can be switched off without
+        losing the others, and none of them share a layer with the interface
+        reactions — a component and a reaction on one layer cannot be told apart.
+
+        A negligible component draws nothing rather than a degenerate line. The
+        test is RELATIVE, not `== 0`: a planar arch solves to Ry = 6e-07 N rather
+        than to zero, which is numerically zero against a 28 kN reaction but would
+        still add a third arrow of about 1e-11 m to the document — an object you
+        cannot see, cannot select and cannot explain.
+        """
+        total = sum(c * c for c in vector) ** 0.5
+        negligible = total * 1e-6
+
+        drawn = 0
+        for axis, key in enumerate(("reaction_x", "reaction_y", "reaction_z")):
+            if abs(vector[axis]) <= negligible:
+                continue
+            component = [0.0, 0.0, 0.0]
+            component[axis] = vector[axis] * scale
+            tags = dict(params or {})
+            tags["result_kind"] = "support_reaction_component"
+            tags["component_axis"] = "xyz"[axis]
+            tags["component_value"] = vector[axis]
+            if self._draw_vector_arrow(layers[key], point, component, color=self.COLOR_REACTION, params=tags) is not None:
+                drawn += 1
+        return drawn
+
     def _draw_centred_line(self, layer, point, vector, color=None, params=None):
         """Draw a force resultant as a line centred on `point`, spanning ±v/2."""
         import Rhino  # type: ignore
@@ -2431,15 +2569,42 @@ class MasonrySession(LazyLoadSession):
         return guid
 
     def _max_block_size(self, model=None) -> float:
-        """Largest block bounding-box diagonal, the yardstick for force scaling."""
-        from compas.geometry import bounding_box
+        """Largest block DIAMETER, the yardstick for force and arrow scaling.
 
+        The diameter is the greatest distance between any two of a block's own
+        vertices. It is a property of the block, so it does not change when the
+        block is moved or turned.
+
+        This was BUG 1 until 2026-08-31: it measured the AXIS-ALIGNED bounding box
+        diagonal, which grows as a block is tilted relative to world XYZ even
+        though the block itself is unchanged — so rotating a model silently
+        rescaled every force arrow in it. Measured on the 15-block reference arch,
+        the old yardstick gave 1.2771 upright, 1.4934 at 30 degrees and 1.5684 at
+        45 degrees, a 23% drift for a model that had not otherwise changed. The
+        diameter gives 0.9792 at all three.
+
+        It also brings the picture back in line with the compas_dem viewer, which
+        is the point of comparison when the same result is opened in both: half
+        the diameter is 0.4896 against the viewer's 0.500, where the old
+        yardstick's half was 0.6386 and made our arrows 1.28x too long. The
+        viewer's own measure is a single mesh edge (`edge_length([0, 1])`), which
+        is not used here because it depends on which edge the mesh happens to
+        store first.
+
+        ponytail: O(v^2) in the vertices of one block, which is 28 comparisons for
+        the 8-vertex blocks every template produces (sub-millisecond for a
+        58-block vault). A block imported as a dense mesh would make this the slow
+        part of a redraw; compute the diameter over the convex hull if that ever
+        shows up in a profile.
+        """
         model = model or self.model
         largest = 0.0
         for block in model.elements():
-            box = bounding_box(block.modelgeometry.vertices_attributes("xyz"))
-            diagonal = sum((b - a) ** 2 for a, b in zip(box[0], box[6])) ** 0.5
-            largest = max(largest, diagonal)
+            points = block.modelgeometry.vertices_attributes("xyz")
+            for index, first in enumerate(points):
+                for second in points[index + 1 :]:
+                    distance = sum((b - a) ** 2 for a, b in zip(first, second)) ** 0.5
+                    largest = max(largest, distance)
         return largest or 1.0
 
     def _relative_vector_scale(self, vectors, model=None, factor=1.0) -> float:

@@ -28,6 +28,7 @@ __all__ = [
     "tension_report",
     "block_displacements",
     "support_reactions",
+    "support_reaction_points",
     "summary",
     "CSV_HEADER",
     "block_result_rows",
@@ -539,6 +540,60 @@ def support_reactions(results, model) -> list:
         if found:
             out.append((node, reaction, _magnitude(reaction)))
     return out
+
+
+def support_reaction_points(results, model) -> dict:
+    """`{node: [x, y, z]}` — where each support's total reaction acts.
+
+    A support that touches the model once has its reaction at that contact. A
+    dome or a vault springs from a support across SEVERAL contacts, and the
+    reaction is their vector sum, which acts at the force-weighted mean of their
+    points — the position the compas_dem viewer draws the aggregate at. Weighting
+    by force rather than averaging the points keeps a contact carrying almost
+    nothing from dragging the arrow off the loaded part of the abutment.
+
+    Companion to `support_reactions`, deliberately NOT a fourth element on its
+    tuples: three call sites unpack those as triples, and widening the shape to
+    carry a value only the drawing needs is the mistake `contact_resultants`
+    already taught (see its note about a fifth element).
+
+    None of the sign reasoning in `support_reactions` is repeated here. A point
+    has no direction, so this needs no contact normal and is untouched by the
+    TRAP in `contact_normal`.
+    """
+    blocks = {block.graphnode: block for block in model.elements()}
+
+    points = {}
+    for node, block in blocks.items():
+        if not getattr(block, "is_support", False):
+            continue
+
+        weighted = [0.0, 0.0, 0.0]
+        total = 0.0
+        fallback = None
+        for edge in results.edges():
+            if node not in edge:
+                continue
+            other = edge[1] if edge[0] == node else edge[0]
+            if other not in blocks:
+                continue
+            point = contact_point(results, edge)
+            if point is None:
+                continue
+            fallback = fallback or point
+            weight = results.force_magnitude(edge) or 0.0
+            if weight <= 0:
+                continue
+            weighted = [w + weight * c for w, c in zip(weighted, point)]
+            total += weight
+
+        if total > 0:
+            points[node] = [c / total for c in weighted]
+        elif fallback is not None:
+            # every contact reaching this support carries zero force: there is no
+            # weighting to do, but a position is still better than nothing
+            points[node] = fallback
+    return points
 
 
 def summary(results, model) -> dict:
