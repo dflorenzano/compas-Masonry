@@ -17,9 +17,6 @@ To install COMPAS-Masonry, use Rhino's package manager Yak.
 To open Yak, type `PackageManager` on the Rhino command line.
 Then search for "COMPAS Masonry" and install.
 
-To build and run **this repository's** code in Rhino instead of the published
-package — for development, or to try a branch — see [SETUP.md](SETUP.md).
-
 ## COMPAS Packages
 
 COMPAS-Masonry uses the following COMPAS packages:

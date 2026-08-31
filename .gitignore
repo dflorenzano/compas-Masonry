@@ -118,6 +118,7 @@ generated/
 libs/**
 !libs/PLACEHOLDER
 
+.claude/**
 temp/**
 !temp/PLACEHOLDER
 
