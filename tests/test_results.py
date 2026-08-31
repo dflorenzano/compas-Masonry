@@ -18,6 +18,7 @@ from compas_masonry.results import application_points  # noqa: E402
 from compas_masonry.results import block_result_rows  # noqa: E402
 from compas_masonry.results import contact_normal  # noqa: E402
 from compas_masonry.results import contact_openings  # noqa: E402
+from compas_masonry.results import contact_point  # noqa: E402
 from compas_masonry.results import contact_resultants  # noqa: E402
 from compas_masonry.results import face_stresses  # noqa: E402
 from compas_masonry.results import summary  # noqa: E402
@@ -427,3 +428,45 @@ def test_a_missing_stress_stays_an_empty_cell_rather_than_zero():
     report = _report([{"with": 5, "label": "4-5", "force": [0.0, 0.0, -1.0], "magnitude": 1.0, "stress": None, "opening": None}])
 
     assert block_result_rows(report)[0][6] == ""
+
+
+# =============================================================================
+# Application point — one resolution order
+#
+# Two orders is how a reaction ends up drawn somewhere the resultant it sums is
+# not. `contact_point()` answers "a representative point ON the contact" and puts
+# the frame origin first; for LMGC90 the stored frame is `contact_frames[0]`, the
+# FIRST subcontact, which sits at a CORNER of the interface. Measured on a real
+# LMGC90 solve: the frame origin was [3.1534, 0.0, 1.5186], exactly polygon
+# corner [3.153, 0.0, 1.519], while the force acts at [2.8374, 0.2471, 1.3664].
+# =============================================================================
+
+
+def test_application_point_prefers_the_force_weighted_point_over_the_frame():
+    """The LMGC90 case: a frame origin sitting on a corner must not win."""
+    from compas_masonry.results import application_point
+
+    results = FakeResults(with_frame=True, contact=FakeContact(resultantpoint=[0.25, 0.4, 0.0]))
+
+    assert application_point(results, (0, 1)) == pytest.approx([0.25, 0.4, 0.0])
+    # the frame origin is a different point, and is NOT what was chosen
+    assert contact_point(results, (0, 1)) == pytest.approx([0.5, 0.5, 0.0])
+
+
+def test_application_point_falls_back_to_the_frame_then_the_centroid():
+    from compas_masonry.results import application_point
+
+    framed = FakeResults(with_frame=True, contact=FakeContact())
+    assert application_point(framed, (0, 1)) == pytest.approx([0.5, 0.5, 0.0])
+
+    bare = FakeResults(contact=FakeContact())
+    assert application_point(bare, (0, 1)) == pytest.approx(list(bare.polygon.centroid))
+
+
+def test_reactions_and_resultants_agree_on_where_a_force_acts(model):
+    """They are the same force; drawing them at different points is the bug."""
+    from compas_masonry.results import application_point, support_reaction_points
+
+    results = FakeResults(with_frame=True, contact=FakeContact(resultantpoint=[0.25, 0.4, 0.0]))
+
+    assert support_reaction_points(results, model)[0] == pytest.approx(application_point(results, (0, 1)))

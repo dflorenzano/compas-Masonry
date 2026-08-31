@@ -29,6 +29,7 @@ __all__ = [
     "block_displacements",
     "support_reactions",
     "support_reaction_points",
+    "application_point",
     "summary",
     "CSV_HEADER",
     "block_result_rows",
@@ -186,23 +187,53 @@ def contact_resultants(results) -> list:
         if not magnitude:
             continue
 
-        point = results.force_point(edge)
+        point = application_point(results, edge)
         if point is None:
-            contact = results.contact_data(edge)
-            resultantpoint = getattr(contact, "resultantpoint", None)
-            point = None if resultantpoint is None else list(resultantpoint)
-        if point is None:
-            frame = results.contact_frame(edge)
-            if frame is not None:
-                point = list(frame.point)
-            else:
-                polygon = results.contact_polygon(edge)
-                if polygon is None:
-                    continue
-                point = list(polygon.centroid)
+            continue
 
         out.append((list(point), list(vector), float(magnitude), edge))
     return out
+
+
+def application_point(results, edge):
+    """Where a contact's force acts, or None when nothing says.
+
+    THE one resolution order, because two of them is how a reaction ends up in a
+    different place from the resultant it sums:
+
+    1. `force_point` — only 3DEC writes one.
+    2. `contact_data.resultantpoint` — the normal-force-weighted point. The only
+       source CRA and RBE fill in, and the correct answer for LMGC90 too.
+    3. the contact frame origin.
+    4. the polygon centroid.
+
+    **Do not reorder 2 and 3, and do not use `contact_point()` here.** That
+    helper answers a different question — "a representative point ON the
+    contact" — and puts the frame origin first. For LMGC90 the stored frame is
+    `contact_frames[0]`, the FIRST subcontact, which sits at a corner of the
+    interface. Resolving an application point that way puts the force on the
+    edge of the joint instead of where it acts, which is what
+    `support_reaction_points` did until 2026-09-01 and what made LMGC90
+    reactions draw from a corner.
+    """
+    point = results.force_point(edge)
+    if point is not None:
+        return list(point)
+
+    contact = results.contact_data(edge)
+    resultantpoint = getattr(contact, "resultantpoint", None)
+    if resultantpoint is not None:
+        return list(resultantpoint)
+
+    frame = results.contact_frame(edge)
+    if frame is not None:
+        return list(frame.point)
+
+    polygon = results.contact_polygon(edge)
+    if polygon is not None:
+        return list(polygon.centroid)
+
+    return None
 
 
 def application_points(results) -> tuple:
@@ -577,7 +608,11 @@ def support_reaction_points(results, model) -> dict:
             other = edge[1] if edge[0] == node else edge[0]
             if other not in blocks:
                 continue
-            point = contact_point(results, edge)
+            # the SAME resolution the resultants use -- see `application_point`.
+            # `contact_point` would put the frame origin first, which for LMGC90
+            # is a corner of the interface, and the support's reaction would then
+            # be drawn somewhere no force acts.
+            point = application_point(results, edge)
             if point is None:
                 continue
             fallback = fallback or point
