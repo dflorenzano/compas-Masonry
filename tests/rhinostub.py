@@ -57,6 +57,13 @@ def install() -> None:
     feedback.confirm = lambda *a, **k: True
     feedback.displaywarning = lambda *a, **k: None
 
+    # Session_save / Session_import open Eto file dialogs at import time. Only the
+    # NAMES have to resolve — anything that actually prompts must not be called.
+    forms = types.ModuleType("compas_rui.forms")
+    forms.FileForm = object
+    forms.InfoForm = object
+    forms.SplashForm = object
+
     rs = types.ModuleType("rhinoscriptsyntax")
     rs._compas_masonry_stub = True
 
@@ -72,6 +79,7 @@ def install() -> None:
         "compas_rhino.conversions": types.ModuleType("compas_rhino.conversions"),
         "compas_rui": types.ModuleType("compas_rui"),
         "compas_rui.feedback": feedback,
+        "compas_rui.forms": forms,
     }
     for name, module in modules.items():
         sys.modules[name] = module

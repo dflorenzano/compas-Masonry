@@ -75,8 +75,11 @@ echo "==> 1/7  regenerate the icon sheet and compile the RUI"
 if [ "$SKIP_ICONS" -eq 1 ]; then
     echo "    skipped (--skip-icons); $RUI is used as it stands"
 else
-    # Defaults reproduce the shipped look (--color "#E6E6E6", --min-stroke 0.6).
-    # To use different ones, run make_icons.py by hand and pass --skip-icons here.
+    # Defaults reproduce the shipped look: --color "" (the artwork AS DRAWN) and
+    # --min-stroke 0.6. This comment said `--color "#E6E6E6"` until 2026-08-31 --
+    # that was the old default, chosen when the icons were black-on-dark, and it
+    # repainted the current light-toolbar set near-white until it vanished.
+    # To use different values, run make_icons.py by hand and pass --skip-icons here.
     python resources/rui/set_rhproj_icons.py     # System A: rhproj, per command
     python resources/rui/make_icons.py           # System B: icons.png + ui.json wiring
     python resources/rui/generate_rui.py         # ui.json + icons.png -> the .rui
@@ -173,6 +176,12 @@ Toolbar in it: yours ($RUI)
 QUIT RHINO, then:
 
   "$YAK" install --source "$ROOT/$BUILDDIR" COMPAS-Masonry $INSTALLED_VERSION
+
+Then confirm the package really carries the commands in the repo -- a version bump
+proves a build happened, not what went into it, and Rhino keeps older versions on
+disk beside the new one:
+
+  python3 resources/rui/verify_install.py
 
 On the next start Rhino registers the packaged RUI from the plugin folder. If a
 second COMPAS-Masonry tab appears, it is the copy you opened by hand from

@@ -13,6 +13,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Improved result visualisation performance with batched Rhino drawing, compact result storage, hidden interface geometry, and geometry-relative load and displacement arrows.
 * Corrected 3DEC tension reporting to use native normal subcontact forces.
 
+### Changed — 2026-08-31
+
+* **Every dependency now resolves from PyPI, so the environment can be rebuilt off the developer's machine.** `compas_dem` 0.6.0 and `compas_3dec` 0.2.0 reached PyPI, and `compas_cra` 0.8.0 ships wheels for CPython 3.9-3.13 on macOS (arm64 and x86_64), manylinux and Windows. A clean install on Rhino 8's own python3.9 resolves 49 distributions and passes the full suite, with no `--ignore-requires-python` and no local checkouts. `compas_cra` 0.5.0-0.7.0 have been withdrawn from PyPI, so the pin cannot go backwards; 0.4.0 breaks under NumPy 2.
+
+* **`ipopt` is no longer an install step, and the machinery that hunted for it is gone.** compas_cra 0.8.0 dropped pyomo and runs IPOPT in-process through a bundled native binding, so no executable is looked up and `PATH` is never read. Removed `MasonrySession.ensure_solver_path()`, the `solver_bin` setting — whose default was a developer's own conda prefix, shipped to every user as a path that exists on one machine — and the pre-solve check that warned *"ipopt was not found … this will fail"*, which after 0.8.0 said that to installations that solve perfectly. Verified by solving the 20-block test arch with `ipopt` absent from `PATH`: identical reactions.
+
+* `pyomo` became an explicit requirement rather than an inherited one. compas_cra no longer pulls it, but `compas_dem.analysis.cra` still imports `pyomo.environ` to inject `DEFAULT_IPOPT_OPTIONS`, so a CRA solve without it dies with `ModuleNotFoundError`. Against compas_cra 0.8.0 that injection is a no-op; the measured cost on the 20-block arch is 1.8e-07 relative, with IPOPT reporting `acceptable` where 0.5.0 reported `optimal`.
+
+* `compas_3dec` moved from the optional `threedec` extra into the base requirements, and the extra was removed. At 324 KB of pure Python it costs little, and it lets a 3DEC solver be configured — and correctly refused — on every machine rather than only where someone installed an extra.
+
+### Added — 2026-08-31
+
+* **A 3DEC solve is refused up front on a machine that cannot run one.** `solvers.threedec_blocker()` reports why, and is consulted both when the solver is selected (a warning; the solver is still set, because its parameters are portable and belong to the problem) and by `check_ready()` before any stage prompt. Availability is asked of compas_3dec rather than inferred from `sys.platform`: an explicit executable path is honoured everywhere, so a macOS machine with a reachable licensed install is allowed, and a Windows machine *without* 3DEC is correctly refused — both of which a platform check gets wrong. Replaces `threedec_available()`, which tested only whether the adapter imported.
+
+* **Every report is in kN, and every column says so.** The Rhino reaction tags divided by 1000 and appended " kN" while `Results_print`, `Results_block` and the CSV export all emitted raw newtons, so a label and the table row for the same contact disagreed by a factor of 1000 with nothing on screen saying which was which. The conversion now lives once in `compas_masonry.results` — the module both the reports and the drawing derive their numbers from — and the units are in the column headings rather than in a legend. Stress follows as kPa, which is kN/m2, so it is the same conversion rather than a second one that happens to match. Stored values are unchanged: everything on a `Results` stays in newtons, and only what a person reads is converted. CSV columns are renamed accordingly (`F_magnitude_kN`, `Fx_kN`, `stress_kPa`); displacements are lengths and are left in model units. Note this assumes a model in metres — nothing can detect the document unit, so a model drawn in millimetres reports correct forces over incorrect areas, which shows as stress wrong by 10^6.
+
+* **Every drawn force view has its own Rhino layer.** Contact resultants, interface reactions, the normal and friction components, the per-corner forces and the value tags all landed on one `Forces` layer, so no view could be switched off without the others. `Results::<key>::Forces` now splits into `Reactions::Interface | Normal | Friction`, `Resultants::Horizontal | Vertical`, `Corners` and `Values` — normal and friction under Reactions because they are the interface force resolved in the joint's own frame, horizontal and vertical under Resultants because they are the same force resolved in world axes.
+
+* **Horizontal and vertical force components can be drawn** (`show_horizontalforces`, `show_verticalforces`), separating thrust from weight. This is not recoverable from the normal/friction pair: on an inclined springing joint a large normal force is mostly horizontal thrust and the frame-relative split cannot say so. Computed from `resultant_global` — compas_dem stores no horizontal/vertical quantity — and available on CRA and RBE results, which carry no contact frame and therefore cannot show the normal/friction split at all.
+
+* `Session_save` can include **all** solver results in one step, instead of only "none" or a hand-picked selection.
+
+* **Results now record what produced them.** A `Results` carried `model_id`, `problem_id` and the per-node/edge data and nothing about the configuration behind them — and `problem_id` does not help, because editing a problem in place leaves its guid unchanged while the configuration differs. Solving stamps the solver name and parameters, the problem name, the contact model and the boundary-condition group names into `results.metadata`, which is part of `Results.__data__` and so survives a session save and re-import. Everything stamped is a primitive: `contact_model.__data__` is a plain dict — also the only way to read `mu`, which is a property rather than a public attribute — and storing live Data objects would make an old result unloadable the day compas_dem renames a class.
+
+### Fixed — 2026-08-31
+
+* **Corner forces were never visible in Rhino.** The per-corner data is written on every `FrictionContact` — verified on a 3-block CRA solve: four `compressiondata` rows per contact, 8486.47 N each, summing to the 33945.86 N resultant — but they were drawn onto the same `Forces` layer as the resultants and buried underneath them. They now have their own `Forces::Corners` layer.
+
+* **`Session_redraw` rebuilt only the blocks, not the layers.** It called `redraw()`, which refreshes the scene objects and re-tags their guids and nothing else, so reopening Rhino after closing without saving came back with the session data intact and every problem, boundary-condition and results layer missing — and only `Session_undo`, which routes through `_restore_state`, brought them back. It now calls `redraw_document()`, the same full rebuild, without moving through history.
+
+* **`Results_show` could re-enable force views the user had deliberately switched off.** It decides "all force views are disabled" from a hand-written tuple, and the horizontal/vertical views added above were not in it — so asking for Forces with only those enabled would switch resultants and reactions back on over an explicit choice, and persist it, because the command records. All eight force views are now counted, and a test pins the tuple against the settings model so adding a view without adding it there fails.
+
+* **An imported session showed no results.** `Session_import` restored the results into the data and drew the model and the boundary conditions, but never the result geometry — so results were present and invisible until `Results_show` was re-run by hand. Three things were missing, not one: `Session_save` never exported `shown_results`, `Session_import` never restored it, and `clear_model` deletes it on the way in, so there was nothing left to replay. The view is now exported (filtered to the results actually included, so a file never claims a view onto data it omits), restored on import (filtered again to the problems and keys that arrived), and drawn.
+
+* **Session settings did not survive a restart.** `Session_settings` mutated the in-memory pydantic model and wrote nothing: the settings file is only produced by `dump()`, which `record()` calls, and this was the one state-changing command that never recorded. It now records, which also puts settings under undo/redo like the rest of the session.
+
+* **3DEC tension reporting was never actually using native subcontact forces.** `tension_contacts` guards against reading the affine, sometimes-negative vertex weights of a 3DEC-to-DEM conversion as tension — but the guard keyed off `results.metadata["solver"]`, and no backend has ever written it, so the branch never ran and 3DEC results silently took the path it exists to prevent. `Problem_solve` now stamps the solver name onto the results, which also persists through a saved session. Not yet exercised on a real 3DEC run.
+
+* Corrected the stale claim, in three places, that `compas_lmgc90` is built only for cp312 and is therefore unavailable inside Rhino. It has shipped a cp39 wheel since 0.1.10 and is installed.
+
+### Fixed — 2026-08-28
+
+* **Toolbar rework: five tabs collapsed to one flat `COMPAS Masonry` bar** of 22 buttons with separators at the old group boundaries, and 22 redrawn icons. The six `CM_TNA_*` commands came off the bar but remain in `commands/` and typeable, pending a decision on retiring them.
+
+* **`make_icons.py` no longer flattens CSS into presentation attributes.** `mix-blend-mode`, `isolation` and `clip-path` have no attribute form, so flattening silently dropped them and produced wrong z-order — `CM_Model_supports` painted an opaque white block over its own artwork. Eight of 22 icons were affected, the worst by 23.5% of pixels. `rsvg-convert` honours the `<style>` block natively, so reading the source verbatim is pixel-exact across all 22.
+
+* **`make_icons.py --color` now defaults to shipping the artwork as drawn.** The old `#E6E6E6` default was chosen for a black icon set on a dark toolbar and made the redrawn light-toolbar set invisible. Measured over the real 22-tile sheet rather than a single swatch, which reversed the conclusion a swatch suggested.
+
+* `verify_icons.py` and `test_registration.py` now assert that every toolbar *button* has an icon and pin the parked command set by name, instead of asserting that every command has a button — an assertion the parking made false. The rhproj ↔ `resources/icons/` check became two-directional, which caught six icons whose SVGs had been deleted.
+
+### Fixed — 2026-08-27
+
+* **Contact resultants are drawn where the force acts, not at the joint centroid.** The application point in `results.contact_resultants` resolved as `force_point` → contact frame origin → polygon centroid, and **CRA and RBE write neither of the first two** — `_post_processing_cra` stores the contact data, points, polygon, resultants and magnitude, and nothing else. So every CRA resultant landed on the middle of its joint, which discards the eccentricity: the drawn thrust line became a function of the geometry rather than of the solve, and an arch reported its own joint midpoints back.
+
+  The value was never missing, only unread. `contact_data.resultantpoint` is the normal-force-weighted point, and it is now preferred ahead of the frame fallback. Measured on a 15-block arch, the correction is up to **0.22 m on a 0.5 m joint — 44% of the joint thickness** — and afterwards all 14 contacts match `compas_dem.viewer.DEMViewer.add_solution` to within 0.0000.
+
+  The fix reaches every backend, because `contact_resultants` is solver-agnostic and all three compas_dem contact classes answer `resultantpoint`. LMGC90, PRD and BLA were also drawing at an arbitrary point — `contact_frames[0].point`, the *first* stored contact point — and are corrected too. 3DEC is unchanged: it is the one backend that writes `force_point`, and that still takes precedence.
+
+  Magnitudes and directions were never affected. Reactions were and remain correct: 28.049 kN per support on that arch, exactly half the non-support weight in Z, matching the viewer to the digit.
+
+* **`results.application_point_report()` warns when a contact's application point had to be guessed.** Reported by `Results_show` as it draws and by `Results_print` as it tabulates — worded once in `results.py` for the same reason as `tension_report`, since the same finding phrased two ways reads as two findings. It separates contacts that fell back to a joint centroid (eccentricity lost) from contacts dropped entirely for having no application point at all, which is what a 3DEC edge carrying more than one subcontact produces — those are silently absent from both the drawing and every report.
+
 ### Added — 2026-08-20
 
 * **Loads are placed by picking the geometry, across any number of blocks.** The old flow selected ONE block, drew a temporary `TextDot` on every face or vertex, and asked the user to type the index back — a number they had no way to check, on a single block per command call. `inputs.pick_block_components` picks the faces or vertices themselves, on as many blocks as are selected in one go, and every anchor gets the same load.

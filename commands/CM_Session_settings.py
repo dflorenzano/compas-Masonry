@@ -104,6 +104,14 @@ def RunCommand():
 
     session.redraw()
 
+    # Editing `session.settings` mutates an in-memory pydantic model and writes
+    # NOTHING: the settings file is only produced by `dump()`, which `record()`
+    # calls. Without this the whole command was a no-op across a Rhino restart —
+    # every other command that changes session state records, and this one did
+    # not. Recording also puts settings under undo/redo, which is consistent
+    # with how the rest of the session behaves.
+    session.record("Session settings")
+
 
 # TO_DO: visualize the BlockModel settings
 

@@ -13,6 +13,8 @@ compas = pytest.importorskip("compas")
 
 from compas.geometry import Polygon  # noqa: E402
 from compas_masonry.results import CSV_HEADER  # noqa: E402
+from compas_masonry.results import application_point_report  # noqa: E402
+from compas_masonry.results import application_points  # noqa: E402
 from compas_masonry.results import block_result_rows  # noqa: E402
 from compas_masonry.results import contact_normal  # noqa: E402
 from compas_masonry.results import contact_openings  # noqa: E402
@@ -125,6 +127,33 @@ def test_resultants_without_a_frame():
     assert point == pytest.approx([0.5, 0.5, 0.0])  # the polygon centroid
 
 
+def test_the_resultant_point_beats_the_polygon_centroid():
+    """The eccentricity IS the answer — a centroid throws it away.
+
+    CRA writes neither `force_point` nor a contact frame, so the only record of
+    *where* on the joint the force acts is the contact's own `resultantpoint`
+    (the normal-force-weighted point). Falling straight through to the polygon
+    centroid drew every arch resultant on the joint midpoint, which makes the
+    thrust line a function of the geometry instead of the solve.
+    """
+    contact = FakeContact(resultantpoint=[0.8, 0.5, 0.0])
+    point, _, _, _ = contact_resultants(FakeResults(contact=contact))[0]
+    assert point == pytest.approx([0.8, 0.5, 0.0])
+
+
+def test_a_contact_without_a_resultant_point_still_falls_back():
+    """Not every stored contact object answers `resultantpoint`.
+
+    All three compas_dem contact classes do (FrictionContact weights by normal
+    force, EdgeContact by normal force along the line, VertexContact returns the
+    point itself), so this is the guard for what a *future* or foreign contact
+    object might store — and for `contact_data` being absent entirely, which is
+    what a multi-subcontact 3DEC edge produces.
+    """
+    point, _, _, _ = contact_resultants(FakeResults(contact=DegenerateContact()))[0]
+    assert point == pytest.approx([0.5, 0.5, 0.0])
+
+
 def test_stress_is_force_over_area_without_a_frame():
     """|F . n| / area — 10 N on a 1x1 contact is 10 Pa."""
     stresses = face_stresses(FakeResults())
@@ -182,8 +211,9 @@ class FakeContact:
     force, which is how compas_dem builds them.
     """
 
-    def __init__(self, tensions=()):
+    def __init__(self, tensions=(), resultantpoint=None):
         self.tensiondata = [[0.0, 0.0, 0.0, 0.0, 0.0, 1.0, -0.5 * t] for t in tensions]
+        self.resultantpoint = resultantpoint
 
 
 class DegenerateContact:
@@ -293,3 +323,107 @@ def test_a_block_with_no_contacts_still_gets_a_row():
     assert len(rows) == 1
     assert rows[0][0] == 4
     assert len(rows[0]) == len(CSV_HEADER)
+
+
+# =============================================================================
+# Application points
+#
+# `dropped` is the branch that matters. After the 2026-08-27 fix every compas_dem
+# backend writes a `contact_data` answering `resultantpoint`, so `centroid` is
+# nearly unreachable and `dropped` is what actually fires in the field: a 3DEC
+# edge split into several subcontacts gets a resultant and a magnitude and
+# nothing else, and is then missing from the drawing AND from every report while
+# still carrying force. Silence is the failure mode, so it is pinned here.
+# =============================================================================
+
+
+def test_application_point_is_solved_when_the_contact_carries_a_resultantpoint():
+    results = FakeResults(contact=FakeContact(resultantpoint=[0.25, 0.5, 0.0]))
+
+    solved, centroid, dropped = application_points(results)
+
+    assert (solved, centroid, dropped) == (["0-1"], [], [])
+    assert application_point_report(results) is None
+
+
+def test_application_point_falls_back_to_the_centroid_without_a_resultantpoint():
+    """A polygon is a position on the joint, not where the force acts."""
+    results = FakeResults(contact=FakeContact())
+
+    solved, centroid, dropped = application_points(results)
+
+    assert (solved, centroid, dropped) == ([], ["0-1"], [])
+    assert "joint centroid" in application_point_report(results)
+
+
+def test_a_contact_with_no_application_point_at_all_is_reported_as_dropped():
+    """The 3DEC multi-subcontact case: force present, nowhere to draw it."""
+    results = FakeResults(contact=FakeContact())
+    results.contact_polygon = lambda edge: None
+
+    solved, centroid, dropped = application_points(results)
+
+    assert (solved, centroid, dropped) == ([], [], ["0-1"])
+    message = application_point_report(results)
+    assert "no application point at all" in message
+    assert "missing from the drawing" in message
+
+
+def test_a_contact_carrying_no_force_is_not_counted_at_all():
+    """Only force-carrying contacts are classified; the rest are not findings."""
+    results = FakeResults(contact=FakeContact())
+    results.contact_polygon = lambda edge: None
+    results.resultant_global = lambda edge: None
+
+    assert application_points(results) == ([], [], [])
+    assert application_point_report(results) is None
+
+
+# =============================================================================
+# Display units
+#
+# Stored mechanics stay in newtons; only what a human reads is converted. The
+# conversion lives in one place because the Rhino reaction tag used to divide by
+# 1000 on its own while every report printed raw newtons — so a label and the
+# table row for the same contact disagreed by 10^3, with nothing on screen
+# saying which was which.
+# =============================================================================
+
+
+def test_force_and_stress_conversions_pass_none_through():
+    """A quantity the solver never produced is not zero."""
+    from compas_masonry.results import to_force_unit, to_stress_unit
+
+    assert to_force_unit(45530.3331) == pytest.approx(45.5303331)
+    assert to_stress_unit(1.0e6) == pytest.approx(1000.0)
+    assert to_force_unit(None) is None
+    assert to_stress_unit(None) is None
+
+
+def test_the_csv_header_names_its_units():
+    """A bare "F_magnitude" is what let the tags say kN while the rows said N."""
+    from compas_masonry.results import CSV_HEADER, FORCE_UNIT, STRESS_UNIT
+
+    assert f"F_magnitude_{FORCE_UNIT}" in CSV_HEADER
+    assert f"Fx_{FORCE_UNIT}" in CSV_HEADER
+    assert f"stress_{STRESS_UNIT}" in CSV_HEADER
+    # displacements are lengths, not forces, and are left in model units
+    assert "u_magnitude" in CSV_HEADER
+
+
+def test_csv_rows_are_written_in_display_units():
+    report = _report(
+        [{"with": 5, "label": "4-5", "force": [1000.0, 2000.0, 3000.0], "magnitude": 45530.3331, "stress": 1.0e6, "opening": None}]
+    )
+
+    row = block_result_rows(report)[0]
+
+    assert row[2] == pytest.approx(45.5303331)  # |F| kN
+    assert row[3:6] == pytest.approx([1.0, 2.0, 3.0])  # Fx Fy Fz kN
+    assert row[6] == pytest.approx(1000.0)  # stress kPa
+
+
+def test_a_missing_stress_stays_an_empty_cell_rather_than_zero():
+    report = _report([{"with": 5, "label": "4-5", "force": [0.0, 0.0, -1.0], "magnitude": 1.0, "stress": None, "opening": None}])
+
+    assert block_result_rows(report)[0][6] == ""

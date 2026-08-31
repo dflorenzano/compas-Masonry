@@ -50,6 +50,18 @@ class BlockModelSettings(BaseModel):
     show_reactions: bool = Field(default=True, title="Show Reactions")
     show_normalforces: bool = Field(default=False, title="Show Normal Forces")
     show_frictionforces: bool = Field(default=False, title="Show Friction Forces")
+
+    # The SAME resultant resolved in world axes instead of the contact frame:
+    # horizontal is (Fx, Fy, 0) and vertical is (0, 0, Fz). Normal/friction answer
+    # "how does this force sit relative to the joint"; these answer "how much of it
+    # is thrust and how much is weight", which is the masonry question and cannot
+    # be read off the normal/friction pair on an inclined joint.
+    #
+    # Computed here, not read: compas_dem has no horizontal/vertical concept — it
+    # stores `resultant_global` and the contact-frame components, and nothing else.
+    show_horizontalforces: bool = Field(default=False, title="Show Horizontal Forces")
+    show_verticalforces: bool = Field(default=False, title="Show Vertical Forces")
+
     show_selfweight: bool = Field(default=False, title="Show Selfweight")
 
     # The per-corner forces the solver actually solved for, before they are summed
@@ -127,12 +139,12 @@ class MasonrySettings(Settings):
     # Read by compas_masonry.inputs.Options.get().
     dialog_input: bool = Field(default=False, title="Use Dialogs For Command Input")
 
-    # Directory holding the solver executables the CRA/RBE backends shell out
-    # to. compas_cra builds its pyomo model against `ipopt`, which it looks up
-    # on PATH — and Rhino, launched from the Finder, does not inherit a shell
-    # PATH, so the conda binary is invisible to it. Prepended by
-    # MasonrySession.ensure_solver_path() only when the lookup already fails.
-    solver_bin: str = Field(default="/opt/anaconda3/envs/masonry/bin", title="Solver Executables Directory")
+    # `solver_bin` lived here and was removed on 2026-08-31. It pointed at a
+    # directory to prepend to PATH so compas_cra's pyomo model could find the
+    # `ipopt` executable; its default was a developer's own conda prefix, which
+    # shipped to every user as a path that exists on exactly one machine.
+    # compas_cra 0.8.0 runs IPOPT in-process (`compas_cra._native`) and consults
+    # no PATH at all, so the setting had nothing left to configure.
 
     formdiagram: FormDiagramSettings = FormDiagramSettings()
     envelope: EnvelopeSettings = EnvelopeSettings()

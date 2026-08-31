@@ -98,6 +98,24 @@ def RunCommand():
         # be associated with a problem in the imported analysis.
         imported_results = {name: runs for name, runs in imported_results.items() if name in problems and isinstance(runs, dict)}
         session["results"] = imported_results
+
+        # Restore WHICH results were on screen. Without this an imported session
+        # had its results in the data and a blank document, because `clear_model`
+        # above deletes "shown_results" and nothing put it back — so the replay at
+        # the end of this command had nothing to replay. Filtered twice: the
+        # problem must exist in the imported analysis, and the key must be among
+        # the results actually imported.
+        imported_shown = data.get("shown_results")
+        if isinstance(imported_shown, dict):
+            restored_shown = {}
+            for problem_name, view in imported_shown.items():
+                if problem_name not in problems or not isinstance(view, dict):
+                    continue
+                keys = [key for key in view.get("keys", []) if key in (imported_results.get(problem_name) or {})]
+                if keys:
+                    restored_shown[problem_name] = dict(view, keys=keys)
+            if restored_shown:
+                session["shown_results"] = restored_shown
     if model is not None:
         session.draw_model()
 
@@ -111,6 +129,13 @@ def RunCommand():
         session.ensure_indexed_problem_layer(name)
         session.draw_problem_conditions(name, model)
 
+    # Result geometry is the one thing a restore cannot infer from the data:
+    # solving draws nothing, Results_show does, and what it drew lives only in
+    # "shown_results". Undo already replays it through `_restore_state`; an import
+    # did not, so an imported session opened with results present and nothing
+    # visible until Results_show was re-run by hand.
+    drawn_results = session.draw_shown_results(model)
+
     rs.Redraw()
 
     print(f"Imported session from {filepath}")
@@ -118,6 +143,7 @@ def RunCommand():
     print(f"  problems  : {len(problems)} ({', '.join(problems) or '-'})")
     count = sum(len(runs) for runs in imported_results.values()) if isinstance(imported_results, dict) else 0
     print(f"  imported results: {count if isinstance(imported_results, dict) else 'not included'}")
+    print(f"  redrawn results : {drawn_results}")
     session.record(f"Import: {pathlib.Path(filepath).name}")
 
 

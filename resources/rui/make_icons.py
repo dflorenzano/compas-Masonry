@@ -30,7 +30,11 @@ import sys
 from PIL import Image
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from svgtools import enforce_min_stroke, flatten_css, have_rasterizer, rasterize, recolor_black, wrap_for_rhino  # noqa: E402
+from svgtools import enforce_min_stroke  # noqa: E402
+from svgtools import have_rasterizer  # noqa: E402
+from svgtools import rasterize  # noqa: E402
+from svgtools import recolor_black  # noqa: E402
+from svgtools import wrap_for_rhino  # noqa: E402
 
 TILE = 32  # compas_rui's large_bitmap item size
 
@@ -48,7 +52,16 @@ def main():
     ap.add_argument("--stroke-dark", default="#FFF")
     # The sheet is a BITMAP: Rhino cannot recolour it per theme, so the colour is
     # baked here. Black artwork is near-invisible on Rhino's dark toolbar.
-    ap.add_argument("--color", default="#E6E6E6", help='repaint black artwork for a dark toolbar ("" to keep black)')
+    # ONE sheet, ONE baked colour: the RUI format has no light/dark variant (verified
+    # against Rhino's own defaultmac.rui — three SIZE slots, no theme attribute) and
+    # Rhino cannot recolour a bitmap. #E6E6E6 was chosen for the old set, which was
+    # drawn black and vanished on a dark toolbar. The 2026-08-28 set is drawn for a
+    # light toolbar, and repainting it inverted the problem: measured over the real
+    # 22-tile sheet, pixels below the 3:1 graphical minimum went 41% -> 86% on a light
+    # toolbar. Shipping the artwork as drawn is the balanced option (56% dark / 41%
+    # light); pass --color to trade one theme against the other.
+    ap.add_argument("--color", default="", help='repaint near-black artwork ("" keeps the artwork as drawn)')
+
     ap.add_argument("--min-stroke", type=float, default=0.6, help="floor for hairline strokes, in viewBox units (0 to disable)")
     args = ap.parse_args()
 
@@ -65,7 +78,21 @@ def main():
         if not source.exists():
             missing.append(name)
             continue
-        svg = flatten_css(source.read_text())
+        # Deliberately NOT flatten_css. rsvg-convert honours the <style> block, and
+        # flattening it into presentation attributes silently destroys the CSS-ONLY
+        # properties: `mix-blend-mode`, `isolation` and `clip-path` have no attribute
+        # form, so promoting them (PAINT_PROPS) cannot bring them back either.
+        #
+        # Measured 2026-08-28 over the 22-tile sheet: 8 icons rendered wrong, worst
+        # CM_Problem_create at 23.5% of the tile. The failure looks like z-order gone
+        # wrong, because `.k { fill: #fff }` under `mix-blend-mode: multiply` is
+        # invisible by design, and without the blend it paints an opaque white block
+        # over everything behind it. Reading the source verbatim is pixel-exact (max
+        # deviation 0.0000%).
+        #
+        # System A still flattens: there Rhino renders the stored SVG itself, and
+        # betting on its renderer supporting stylesheets has no upside (see svgtools).
+        svg = source.read_text()
         svg = enforce_min_stroke(svg, args.min_stroke)
         svg = recolor_black(svg, args.color)
         wrapped = wrap_for_rhino(svg, args.fill_dark, args.stroke_dark)

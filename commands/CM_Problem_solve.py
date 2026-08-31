@@ -19,9 +19,10 @@ document.
 Three things about the environment shape this command, all verified rather than
 assumed:
 
-1. `ipopt` — compas_cra hands its pyomo model to `SolverFactory("ipopt")`, an
-   executable lookup on PATH. Rhino does not inherit a shell PATH, so
-   `session.ensure_solver_path()` runs first and reports what it found.
+1. **No external solver executable is needed for CRA/RBE.** compas_cra 0.8.0
+   runs IPOPT in-process through `compas_cra._native`; the pyomo model and its
+   `SolverFactory("ipopt")` PATH lookup are gone, and with them the PATH
+   workaround this command used to run first.
 2. **CRA and RBE ignore boundary conditions entirely.** `cra_solve` and
    `rbe_solve` take the problem, the model, a friction coefficient and a density
    — and never read `problem.boundary_conditions`. They solve self-weight
@@ -45,6 +46,7 @@ from compas_masonry.boundaryconditions import loads_of
 from compas_masonry.inputs import choose
 from compas_masonry.results import tension_report
 from compas_masonry.session import MasonrySession as Session
+from compas_masonry.solvers import threedec_blocker
 from compas_rui.feedback import warn
 
 
@@ -93,6 +95,17 @@ def check_ready(model, problem, name):
 
     solver_name = Session.solver_of(problem).name
 
+    # 3DEC is the one backend that shells out to external licensed software.
+    # Configuring it anywhere is fine and deliberate -- the parameters are
+    # portable -- but refuse to START a run that cannot reach an executable,
+    # rather than let it fail inside a subprocess launch after the stage
+    # prompts. Asked of compas_3dec, not of sys.platform: see threedec_blocker.
+    if solver_name == "3DEC":
+        parameters = Session.solver_of(problem).parameters
+        blocker = threedec_blocker(parameters.get("version"), parameters.get("executable") or "")
+        if blocker:
+            return blocker
+
     # CRA/RBE read no boundary conditions at all — they solve self-weight
     # equilibrium — so a problem carrying any would come back with a plausible
     # answer to a question nobody asked. Refuse instead of returning that.
@@ -118,6 +131,56 @@ def check_ready(model, problem, name):
     return None
 
 
+def stamp_provenance(results, problem, solver) -> None:
+    """Record on the Results WHAT produced them, so they stay readable later.
+
+    A Results carries `model_id`, `problem_id` and the per-node/edge data, and
+    nothing about the configuration that produced it. A problem is mutable: change
+    the solver, the contact law or the loads and yesterday's results still sit
+    under the same problem name, describing a setup that no longer exists
+    anywhere. `problem_id` does not save you — edit a problem in place and the
+    guid is unchanged while the configuration differs.
+
+    `metadata` is the right place: it is in `Results.__data__`, restored by
+    `__from_data__`, and so survives a session save and re-import.
+
+    Everything stamped is a PRIMITIVE, deliberately. This is a record, not a live
+    object: `contact_model.__data__` is a plain dict (it is also the only way to
+    read `mu`, which is a property over `_mu` and not a public attribute), and
+    storing the Data object instead would make an old result unloadable the day
+    compas_dem renames the class.
+
+    `setdefault` throughout, so a backend that starts writing its own values wins.
+    """
+    if results is None:
+        return
+
+    # WHICH backend. `results.tension_contacts` depends on this: 3DEC tension must
+    # be read from native normal subcontact forces, because the affine vertex
+    # values a 3DEC-to-DEM conversion produces carry negative weights that are not
+    # tension. No compas_dem backend writes it, so before this stamp existed that
+    # guard never fired and 3DEC tension was over-reported.
+    if solver is not None:
+        results.metadata.setdefault("solver", solver.name)
+        results.metadata.setdefault("solver_parameters", dict(getattr(solver, "parameters", None) or {}))
+
+    if problem is None:
+        return
+
+    results.metadata.setdefault("problem_name", problem.name)
+
+    contact_model = getattr(problem.contact_properties, "contact_model", None)
+    if contact_model is not None:
+        try:
+            results.metadata.setdefault("contact_model", dict(contact_model.__data__))
+        except Exception:
+            # a contact model that cannot describe itself is not worth failing a
+            # solve over — the rest of the stamp is still useful
+            results.metadata.setdefault("contact_model", {"name": type(contact_model).__name__})
+
+    results.metadata.setdefault("boundary_conditions", [group.name for group in problem.boundary_conditions])
+
+
 def solve(problem, progress_callback=None, event_pump=None):
     """Run the problem's solver over every boundary condition it carries.
 
@@ -131,11 +194,15 @@ def solve(problem, progress_callback=None, event_pump=None):
     try:
         solver = Session.solver_of(problem)
         if solver is not None and solver.name == "3DEC" and (progress_callback is not None or event_pump is not None):
-            return problem.solve(
+            results = problem.solve(
                 progress_callback=progress_callback,
                 event_pump=event_pump,
             )
-        return problem.solve()
+        else:
+            results = problem.solve()
+
+        stamp_provenance(results, problem, solver)
+        return results
     except ImportError as e:
         # the solver backends (compas_cra, compas_lmgc90, ...) are optional
         warn(f"The solver backend is not installed: {e}")
@@ -299,14 +366,9 @@ def RunCommand():
         for index, stage in enumerate(stages, start=1):
             print("  {}. {}".format(index, " + ".join(stage)))
 
-    # ipopt is an executable, looked up on PATH by compas_cra's pyomo model
-    if solver.name in ("CRA", "RBE"):
-        ipopt = session.ensure_solver_path()
-        if ipopt:
-            print(f"ipopt: {ipopt}")
-        else:
-            warn(f"ipopt was not found on PATH, nor in settings.solver_bin ({session.settings.solver_bin}).")
-            print("CRA and RBE solve through it, so this will fail. Set the directory in Session_settings > Solver Executables Directory.")
+    # A CRA/RBE ipopt-on-PATH check lived here and was removed on 2026-08-31:
+    # compas_cra 0.8.0 solves in-process and never looks up an executable, so
+    # the check warned "this will fail" at installations that solve perfectly.
 
     groups = problem.boundary_conditions
     if groups:

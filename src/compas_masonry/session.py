@@ -718,6 +718,22 @@ class MasonrySession(LazyLoadSession):
         # problem it deserializes — which is the whole reason the model and the
         # problems share one key.
 
+    def redraw_document(self) -> None:
+        """Rebuild the WHOLE document from session data — model, problems, results.
+
+        Not the same job as `redraw()`, and the difference is the reason
+        `Session_redraw` used to leave a half-empty document. `redraw()` only
+        refreshes the scene objects (the blocks) and re-tags their guids; it
+        creates no problem, boundary-condition or results layers, because those
+        are drawn by the commands that own them. So a Rhino session that closed
+        without saving came back with the session data intact and none of the
+        layers the commands had created, and only undo — which routes through
+        `_restore_state` — put them back.
+
+        This is that same rebuild, without moving through history.
+        """
+        self._redraw_state()
+
     def _redraw_state(self) -> None:
         """Empty the document and redraw it from the restored session data.
 
@@ -1329,6 +1345,24 @@ class MasonrySession(LazyLoadSession):
     COLOR_SELFWEIGHT = (100, 116, 139)  # per-block weight, the yardstick for the rest
     COLOR_NORMAL = (124, 58, 237)  # normal component of a contact resultant
     COLOR_FRICTION = (202, 138, 4)  # tangential (friction) component
+    COLOR_HORIZONTAL = (13, 148, 136)  # world-XY (thrust) part of a resultant
+    COLOR_VERTICAL = (109, 40, 217)  # world-Z (weight) part of a resultant
+
+    # Sublayer of "…::Results::<key>::Forces" for each drawn quantity, keyed by the
+    # name `draw_result_forces` uses. One layer per view, so each can be switched
+    # off in Rhino independently and each corresponds to exactly one `show_*`
+    # setting — a layer the user hides and a setting they clear now mean the same
+    # thing. "Values" is the reaction magnitude tags and predates the split.
+    RESULT_FORCE_LAYERS = {
+        "resultants": "Forces::Resultants",
+        "horizontal": "Forces::Resultants::Horizontal",
+        "vertical": "Forces::Resultants::Vertical",
+        "reactions": "Forces::Reactions::Interface",
+        "normal": "Forces::Reactions::Normal",
+        "friction": "Forces::Reactions::Friction",
+        "corners": "Forces::Corners",
+        "values": "Forces::Values",
+    }
     COLOR_DISPLACED = (255, 140, 0)  # displaced blocks, to read against the undisplaced model
     # Tensile corner forces. NOT COLOR_REACTION red, though red is the obvious
     # choice for "wrong": reactions are already red, and the two get drawn in the
@@ -1862,44 +1896,15 @@ class MasonrySession(LazyLoadSession):
             sc.doc.Views.Redraw()
         return drawn
 
-    # =============================================================================
-    # Solver executables
-    # =============================================================================
-
-    def ensure_solver_path(self) -> str:
-        """Make the solver executables findable, and report what was found.
-
-        The CRA/RBE backends go through compas_cra, which builds a pyomo model
-        and hands it to `SolverFactory("ipopt")` — a lookup of the `ipopt`
-        *executable* on PATH. Rhino launched from the Finder inherits the
-        launchd PATH, not a shell one, so a conda-installed ipopt is invisible
-        and the solve dies inside pyomo with a message that says nothing about
-        PATH.
-
-        `settings.solver_bin` is prepended only when the lookup already fails,
-        so a properly configured environment is never overridden.
-
-        Returns
-        -------
-        str
-            The resolved path to `ipopt`, or "" if it is still not found.
-
-        """
-        import os
-        import shutil
-
-        found = shutil.which("ipopt")
-        if found:
-            return found
-
-        solver_bin = self.settings.solver_bin
-        if solver_bin and os.path.isdir(solver_bin):
-            os.environ["PATH"] = solver_bin + os.pathsep + os.environ.get("PATH", "")
-            found = shutil.which("ipopt")
-            if found:
-                return found
-
-        return ""
+    # `ensure_solver_path()` lived here and was removed on 2026-08-31, together
+    # with `settings.solver_bin`. It prepended a directory to PATH so that
+    # compas_cra's pyomo model could find the `ipopt` EXECUTABLE, which Rhino
+    # launched from the Finder could not see. compas_cra 0.8.0 removed pyomo
+    # entirely and runs IPOPT in-process through `compas_cra._native`, so no
+    # executable is looked up and PATH is never consulted. Verified by solving
+    # the 20-block test arch with ipopt absent from PATH: identical reactions.
+    # Do not reintroduce a PATH workaround for CRA/RBE without first checking
+    # that compas_cra has gone back to an out-of-process solver.
 
     # =============================================================================
     # Result forces (CRA / RBE: the answer is on the contacts, not the blocks)
@@ -1940,9 +1945,23 @@ class MasonrySession(LazyLoadSession):
         if model is None or results is None:
             return 0
 
-        layer = self.results_layer(problem_name, key, "Forces")
-        create_layers_from_path(layer, separator="::")
-        clear_layer(layer)
+        # ONE LAYER PER DRAWN QUANTITY. Everything below used to land on a single
+        # "Forces" layer, which made a view impossible to switch off on its own and
+        # — the reason this changed — hid the corner forces underneath the
+        # resultants, so they were never once seen to draw despite the data being
+        # present on every FrictionContact.
+        #
+        # The grouping is the user's: normal and friction sit under Reactions
+        # because they are the interface force resolved in the joint's own frame,
+        # while horizontal and vertical sit under Resultants because they are the
+        # same force resolved in world axes. Note this means an INTERIOR contact's
+        # normal/friction also draw under Reactions; the split is by kind of
+        # decomposition, not by which contacts happen to touch a support.
+        layers = {name: self.results_layer(problem_name, key, path) for name, path in self.RESULT_FORCE_LAYERS.items()}
+        for path in layers.values():
+            create_layers_from_path(path, separator="::")
+            clear_layer(path)
+
         interfaces_layer = self.results_layer(problem_name, key, "Interfaces")
         create_layers_from_path(interfaces_layer, separator="::")
         clear_layer(interfaces_layer)
@@ -1958,19 +1977,43 @@ class MasonrySession(LazyLoadSession):
             return 0
 
         # dimensionless -> absolute: biggest force spans half the biggest block
+        #
+        # BUG 1, unfixed — the yardstick is orientation-dependent. `_max_block_size`
+        # measures the AXIS-ALIGNED bounding box diagonal, which grows when a block
+        # is tilted relative to world XYZ even though the block itself is unchanged.
+        # So rotating a model rescales all of its force arrows. On the 15-block arch
+        # this gives 0.639 where the compas_dem viewer, which uses an actual mesh
+        # edge length (`block.modelgeometry.edge_length([0, 1])`), gives 0.500 — our
+        # arrows come out 1.28x longer than the same result in the viewer, which is
+        # exactly the kind of mismatch that reads as "the numbers disagree" when the
+        # numbers are in fact identical. Fix by measuring something intrinsic to the
+        # block (an oriented bbox, or the mesh edge length the viewer uses); the
+        # viewer's choice is the one to match if the two pictures must be comparable.
         scale = self.settings.blockmodel.scale_forces * 0.5 * self._max_block_size(model) / largest
 
         # A resultant on a contact with a support block IS that support's
         # reaction, so it is drawn red rather than green — the two read very
         # differently and there is no other cue distinguishing them.
+        #
+        # BUG 2, unfixed — this draws one red line and one kN tag per support
+        # CONTACT, where a reaction is a property of the SUPPORT. They coincide
+        # only when a support touches the model once, which is why the arch looks
+        # right: one contact per abutment, 28.049 kN, matching the viewer exactly.
+        # A dome or a vault springs from a support across several contacts, and
+        # there this draws N red lines and N overlapping tags per support, none of
+        # which is the reaction — the reaction is their vector sum. The compas_dem
+        # viewer aggregates first: it aggregates a support's contacts into ONE line
+        # at the force-weighted position of the group. `results.support_reactions`
+        # already computes exactly that total and is what the reports print, so the
+        # drawing and the report currently disagree on a dome while agreeing on an
+        # arch. Fix by drawing reactions from `support_reactions` in a pass of their
+        # own, rather than as a red-coloured special case inside the contact loop.
         supports = {block.graphnode for block in model.elements() if block.is_support}
 
         # Reaction values go on their OWN sublayer, so the numbers can be switched
         # off without losing the arrows. Only reactions are labelled: a dot per
         # contact resultant is one per contact and buries the model.
-        tags_layer = self.results_layer(problem_name, key, "Forces::Values")
-        create_layers_from_path(tags_layer, separator="::")
-        clear_layer(tags_layer)
+        tags_layer = layers["values"]
 
         settings = self.settings.blockmodel
 
@@ -1983,14 +2026,14 @@ class MasonrySession(LazyLoadSession):
                 # the decompositions and the corner forces below are still drawn:
                 # normal, friction and per-corner are separate views, not extra
                 # detail on the resultant
-                self._draw_decomposition(layer, results, edge, point, scale, settings)
-                drawn += self._draw_cornerforces(layer, results, edge, scale, settings, problem_name, key)
+                self._draw_decomposition(layers, results, edge, point, scale, settings)
+                drawn += self._draw_cornerforces(layers["corners"], results, edge, scale, settings, problem_name, key)
                 continue
 
             self._draw_contact_geometry(interfaces_layer, results, edge)
             color = self.COLOR_REACTION if is_reaction else self.COLOR_FORCE
             guid = self._draw_centred_line(
-                layer,
+                layers["reactions"] if is_reaction else layers["resultants"],
                 point,
                 [c * scale for c in vector],
                 color=color,
@@ -2006,8 +2049,8 @@ class MasonrySession(LazyLoadSession):
             )
             if guid is None:
                 continue
-            self._draw_decomposition(layer, results, edge, point, scale, settings)
-            drawn += self._draw_cornerforces(layer, results, edge, scale, settings, problem_name, key)
+            self._draw_decomposition(layers, results, edge, point, scale, settings)
+            drawn += self._draw_cornerforces(layers["corners"], results, edge, scale, settings, problem_name, key)
             if is_reaction:
                 self._draw_value_tag(tags_layer, point, magnitude, edge, problem_name, key)
             drawn += 1
@@ -2177,34 +2220,57 @@ class MasonrySession(LazyLoadSession):
             drawn += 1
         return drawn
 
-    def _draw_decomposition(self, layer, results, edge, point, scale, settings):
-        """Draw the normal and/or friction part of one contact resultant.
+    def _draw_decomposition(self, layers, results, edge, point, scale, settings):
+        """Draw one contact resultant split two independent ways.
 
-        `resultant_local` is the same force as `resultant_global`, expressed in
-        the contact frame: z is the contact normal, x and y are the tangential
-        directions. So the normal part is `local[2] * frame.zaxis` and the
-        friction part is `local[0] * frame.xaxis + local[1] * frame.yaxis`, and
-        the two sum back to the resultant. Nothing new is computed here — this
-        is the stored answer, split.
+        **In the contact frame** — `resultant_local` is the same force as
+        `resultant_global` expressed there: z is the contact normal, x and y the
+        tangential directions. The normal part is `local[2] * frame.zaxis`, the
+        friction part `local[0] * frame.xaxis + local[1] * frame.yaxis`, and the
+        two sum back to the resultant. Answers "how does this force sit relative
+        to the joint" — whether it is sliding.
 
-        Both are off by default: drawing a resultant together with both of its
-        parts puts three lines through one contact point.
+        **In world axes** — horizontal is `(Fx, Fy, 0)` and vertical `(0, 0, Fz)`
+        of `resultant_global`. Answers "how much of it is thrust and how much is
+        weight", which is the masonry question and is NOT recoverable from the
+        normal/friction pair on an inclined joint: on a springing joint a large
+        normal force is mostly horizontal thrust, and the normal/friction split
+        cannot say so.
+
+        Nothing is computed that the solver did not already give: both are the
+        stored resultant, resolved on different axes. All four are off by default
+        — a resultant drawn with all of its parts is five lines through one point.
+
+        `layers` is the sublayer map from `draw_result_forces`; each component
+        goes to its own layer so it can be switched off on its own.
         """
-        if not (settings.show_normalforces or settings.show_frictionforces):
-            return
+        if settings.show_normalforces or settings.show_frictionforces:
+            local = results.resultant_local(edge)
+            frame = results.contact_frame(edge)
+            # CRA and RBE write no contact frame, so the frame-relative split is
+            # simply unavailable for them — the world-axis split below is not, and
+            # is the one that still works on a CRA result.
+            if local is not None and frame is not None:
+                if settings.show_normalforces:
+                    normal = [c * local[2] * scale for c in frame.zaxis]
+                    self._draw_centred_line(layers["normal"], point, normal, color=self.COLOR_NORMAL)
 
-        local = results.resultant_local(edge)
-        frame = results.contact_frame(edge)
-        if local is None or frame is None:
-            return
+                if settings.show_frictionforces:
+                    friction = [(x * local[0] + y * local[1]) * scale for x, y in zip(frame.xaxis, frame.yaxis)]
+                    self._draw_centred_line(layers["friction"], point, friction, color=self.COLOR_FRICTION)
 
-        if settings.show_normalforces:
-            normal = [c * local[2] * scale for c in frame.zaxis]
-            self._draw_centred_line(layer, point, normal, color=self.COLOR_NORMAL)
+        if settings.show_horizontalforces or settings.show_verticalforces:
+            resultant = results.resultant_global(edge)
+            if resultant is None:
+                return
 
-        if settings.show_frictionforces:
-            friction = [(x * local[0] + y * local[1]) * scale for x, y in zip(frame.xaxis, frame.yaxis)]
-            self._draw_centred_line(layer, point, friction, color=self.COLOR_FRICTION)
+            if settings.show_horizontalforces:
+                horizontal = [resultant[0] * scale, resultant[1] * scale, 0.0]
+                self._draw_centred_line(layers["horizontal"], point, horizontal, color=self.COLOR_HORIZONTAL)
+
+            if settings.show_verticalforces:
+                vertical = [0.0, 0.0, resultant[2] * scale]
+                self._draw_centred_line(layers["vertical"], point, vertical, color=self.COLOR_VERTICAL)
 
     def _draw_cornerforces(self, layer, results, edge, scale, settings, problem_name=None, key=None):
         """Draw the per-corner normal forces of one contact.
@@ -2229,6 +2295,47 @@ class MasonrySession(LazyLoadSession):
         Not every contact is a `FrictionContact`. LMGC90 stores an `EdgeContact` or
         a `VertexContact` for degenerate contacts, and those carry no per-corner
         forces at all — hence `getattr` rather than an attribute access.
+
+        UNVERIFIED IN RHINO — check this before trusting it. Nothing here has ever
+        been seen to draw in the document, and there is reason to think it does
+        not: this is the only result view with no confirmed sighting. Turn on
+        Session_settings > BlockModel > Show Corner Forces against a CRA arch and
+        confirm objects actually appear. Reference numbers to check against, from
+        a headless CRA solve of the 15-block arch (rise 3, span 6, t 0.5, d 0.5,
+        rho 2400), contact edge (0, 1): FOUR corners, normal forces 4085.70,
+        9689.05, 9689.05, 4085.70 N, zero tension corners. Four lines, two long
+        two short, on that one joint. If nothing is drawn, suspect the layer:
+        corner forces currently share the resultants' `Forces` layer, so they land
+        on top of the resultant lines and may simply be invisible under them.
+
+        THEY NEED THEIR OWN LAYER, and do not yet have one. Everything else that
+        is a separate view already got one — `Forces::Values` for the reaction
+        tags, `Interfaces` for contact geometry, `Selfweight` for block weights.
+        Corner forces are a distinct view of a distinct quantity and should be a
+        sibling sublayer (`Forces::Corners`, or its own `Corners`), so they can be
+        toggled without losing the resultants. Note the layer is passed IN as
+        `layer`, so this is a change at both call sites in `draw_result_forces`,
+        not here.
+
+        TWO KNOWN LIMITS, both measured, neither fixed:
+
+        1. **Normal component only.** `compressiondata`/`tensiondata` are built as
+           `point + frame.zaxis + [0.5 * (c_np - c_nn)]`, so `c_u` and `c_v` — the
+           two shear components — are discarded. On corner 0 of edge (0, 1) that
+           draws 4085.70 N and throws away 1317.10 N of shear; the full vertex
+           force is 4292.75 N. So this is a per-corner NORMAL FORCE view, and the
+           docstring above calling it "the force at every vertex" overstates it.
+           The compas_dem viewer's "Point Results" group draws the full vector,
+           `n * c_np + t1 * c_u + t2 * c_v`, which is what to match.
+        2. **`FrictionContact` only.** Confirmed by attribute check:
+           FrictionContact has `compressiondata`, EdgeContact and VertexContact do
+           not — but all three carry `.points` and `.forces`. So LMGC90's
+           degenerate contacts draw nothing here despite holding the data, and the
+           `getattr` guard makes that silent rather than reported.
+
+        Both limits dissolve the same way: read `contact.points` / `contact.forces`
+        directly and build the full vector per vertex, instead of going through
+        `compressiondata`/`tensiondata`.
 
         Returns
         -------
@@ -2270,16 +2377,25 @@ class MasonrySession(LazyLoadSession):
         return drawn
 
     def _draw_value_tag(self, layer, point, magnitude, edge, problem_name=None, key=None):
-        """Label a reaction in kN, as a TextDot at its contact point.
+        """Label a reaction as a TextDot at its contact point, in display units.
 
         A TextDot rather than text geometry keeps one screen size whatever the
         zoom and stays readable from any view direction. The stored mechanics
-        remain in N; only the human-readable display value is converted to kN.
+        remain in N; only the human-readable display value is converted.
+
+        The conversion comes from `compas_masonry.results` rather than being done
+        here. This tag used to divide by 1000 on its own while every report
+        printed raw newtons, so the label on a contact and the table row for the
+        same contact disagreed by 10^3 with nothing on screen to say which was
+        which.
         """
         import Rhino  # type: ignore
         import scriptcontext as sc  # type: ignore
 
-        magnitude_kN = magnitude / 1000.0
+        from compas_masonry.results import FORCE_UNIT
+        from compas_masonry.results import to_force_unit
+
+        display = to_force_unit(magnitude)
         attributes = self._result_attributes(
             layer,
             color=self.COLOR_REACTION,
@@ -2289,11 +2405,11 @@ class MasonrySession(LazyLoadSession):
                 "result_kind": "reaction_value",
                 "edge": list(edge),
                 "force_magnitude": magnitude,
-                "force_magnitude_kN": magnitude_kN,
-                "display_unit": "kN",
+                f"force_magnitude_{FORCE_UNIT}": display,
+                "display_unit": FORCE_UNIT,
             },
         )
-        text_dot = Rhino.Geometry.TextDot(f"{magnitude_kN:.4g} kN", Rhino.Geometry.Point3d(*point))
+        text_dot = Rhino.Geometry.TextDot(f"{display:.4g} {FORCE_UNIT}", Rhino.Geometry.Point3d(*point))
         guid = sc.doc.Objects.AddTextDot(text_dot, attributes)
         if guid is None:
             return None

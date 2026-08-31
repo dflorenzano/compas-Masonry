@@ -16,9 +16,9 @@ licensed Itasca 3DEC installation.
 
 - CRA / RBE are the ones installed in the Rhino environment. They return
   contact forces and NO displacements, so Results_show draws them as forces.
-- LMGC90 needs `compas_lmgc90`, which is not built for Rhino's python3.9 — the
-  option stays visible but says so instead of raising an ImportError deep in
-  the solve.
+- LMGC90 needs `compas_lmgc90`, which has shipped a cp39 wheel since 0.1.10 and
+  is installed in the Rhino environment. The option stays visible even where it
+  is missing, and says so instead of raising an ImportError deep in the solve.
 - 3DEC discovers the executable automatically when no explicit path is set.
   The Python adapter must be installed in the active environment.
 - PRD and BLA are dropped from the picker (still in compas_dem: build a
@@ -41,6 +41,7 @@ from compas_dem.models import BlockModel
 from compas_dem.problem import Solver
 from compas_masonry.inputs import Options
 from compas_masonry.session import MasonrySession as Session
+from compas_masonry.solvers import threedec_blocker
 from compas_rui.feedback import warn
 
 SOLVERS = ["CRA", "RBE", "LMGC90", "3DEC"]
@@ -49,22 +50,14 @@ SOLVERS = ["CRA", "RBE", "LMGC90", "3DEC"]
 def lmgc90_available() -> bool:
     """True if the LMGC90 backend can actually be imported.
 
-    compas_lmgc90 is a compiled (Fortran + nanobind) extension; the build in
-    the repo is cp312 while Rhino runs python3.9, so this is normally False
-    inside Rhino.
+    compas_lmgc90 is a compiled (Fortran + nanobind) extension. It has shipped a
+    cp39 wheel since 0.1.10, so this is normally True inside Rhino — the earlier
+    note here, that the build was cp312 and therefore unavailable, is obsolete.
+    It stays a runtime check because the wheel is still platform-specific and a
+    given environment may simply not have it.
     """
     try:
         import compas_lmgc90  # type: ignore # noqa: F401
-
-        return True
-    except Exception:
-        return False
-
-
-def threedec_available() -> bool:
-    """True if the Python adapter for the external 3DEC solver is importable."""
-    try:
-        import compas_3dec  # type: ignore # noqa: F401
 
         return True
     except Exception:
@@ -140,13 +133,14 @@ def get_solver():
         return Solver.RBE(timer=timer)
 
     if kind == "3DEC":
-        if not threedec_available():
-            warn("compas_3dec is not importable here, so a 3DEC solve would fail. Install compas_masonry[threedec] in this environment.")
-            print("The solver is still set, so the problem is ready for an environment that has it.")
+        blocker = threedec_blocker(values["version"], values["executable"].strip())
+        if blocker:
+            warn(blocker)
+            print("The solver is still set, so the problem is ready for a machine that can run it.")
         return make_threedec_solver(values)
 
     if not lmgc90_available():
-        warn("compas_lmgc90 is not importable here (it is not built for Rhino's python3.9), so an LMGC90 solve would fail.")
+        warn("compas_lmgc90 is not importable here, so an LMGC90 solve would fail. It ships a cp39 wheel, so `pip install compas_lmgc90` should work in this environment.")
         print("The solver is still set, so the problem is ready for an environment that has it.")
 
     # `verbose` is NOT passed. For LMGC90 it is not a flag but a PRINT INTERVAL:

@@ -38,7 +38,11 @@ def RunCommand():
     if not confirm("Redraw the current scene?"):
         return
 
-    session.redraw()
+    # `redraw_document()`, not `redraw()`: the latter only refreshes the block
+    # scene objects, so reopening Rhino after an unsaved close left every layer
+    # a command had created — problems, boundary conditions, results — missing,
+    # and only Session_undo brought them back.
+    session.redraw_document()
 
 
 # =============================================================================

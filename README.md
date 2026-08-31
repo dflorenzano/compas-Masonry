@@ -42,23 +42,37 @@ Equilibrium analysis runs through [compas_cra](https://github.com/blockresearchg
 * **RBE** — rigid block equilibrium
 * **CRA** — coupled rigid block analysis, with an optional penalty formulation
 
-Both return **contact forces** rather than displacements, and both solve through
-the `ipopt` executable, which must be on the `PATH` Rhino sees.
+Both return **contact forces** rather than displacements.
 
 > [!IMPORTANT]
-> These currently need **compas_cra 0.5.0**, which is not on PyPI yet, together
-> with **pyomo >= 6.7.3**. The published compas_cra 0.4.0 cannot be used with a
-> NumPy 2 environment, and only 0.5.0 accepts the external loads compas_dem
-> passes it. Until it is released, this is a manual install step.
+> These need **compas_cra >= 0.8.0**, which solves IPOPT **in-process** through a
+> bundled native binding. There is no `ipopt` executable to install and nothing
+> to put on `PATH`: wheels are published for CPython 3.9-3.13 on macOS (arm64 and
+> x86_64), manylinux and Windows, each carrying the compiled solver, so a plain
+> `pip install` is the whole setup. compas_cra 0.4.0 cannot be used in a NumPy 2
+> environment, and 0.5.0-0.7.0 have been withdrawn from PyPI.
+>
+> compas_cra still solves for self-weight only — `external_force_setup(assembly,
+> density)` takes no external load vector. A problem carrying any boundary
+> condition is therefore refused by `check_ready()` and has to go to LMGC90 or
+> 3DEC instead.
 
 **LMGC90** provides contact dynamics and displacements in-process through
 `compas_lmgc90`.
 
 **3DEC** provides staged gravity, load, and prescribed-displacement analyses
-through `compas_3dec` and a licensed external Itasca 3DEC installation. Install
-the optional Python adapter with `pip install -e ".[threedec]"`. The executable
-is discovered automatically, or its path and run workspace can be set in
-`CM_Problem_setsolver`.
+through `compas_3dec` and a **licensed external Itasca 3DEC installation**. The
+Python adapter ships as a base requirement, so a 3DEC solver can be configured
+and saved on any machine — the parameters belong to the problem, not to the
+computer that runs it. The 3DEC executable itself is discovered automatically,
+or its path and run workspace can be set in `CM_Problem_setsolver`.
+
+> [!NOTE]
+> 3DEC is Windows software, and `compas_3dec` discovers it only under the Windows
+> `Program Files\Itasca` locations. On macOS and Linux a 3DEC solve is refused up
+> front, before any stage prompt, rather than failing inside a subprocess launch.
+> An explicit executable path is honoured on every platform, so a reachable
+> licensed install is used wherever it is found.
 
 CRA and RBE exclude support blocks from the equilibrium system, so they have no
 displacement degrees of freedom and refuse a problem carrying a prescribed
