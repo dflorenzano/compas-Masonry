@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "compas_masonry"
-description = "COMPAS Masonry is a Rhino plugin providing a masonry assessment toolbox based on the COMPAS framework."
+description = "COMPAS Masonry is a masonry assessment toolbox for Rhino based on the COMPAS framework."
 keywords = []
 authors = [{ name = "tom van mele", email = "tom.v.mele@gmail.com" }]
 license = { file = "LICENSE" }
@@ -16,16 +16,16 @@ readme = "README.md"
 requires-python = ">=3.9"
 dynamic = ['dependencies', 'optional-dependencies', 'version']
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Topic :: Scientific/Engineering",
-    "Operating System :: Unix",
-    "Operating System :: POSIX",
-    "Operating System :: Microsoft :: Windows",
-    "Programming Language :: Python",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
+  "Development Status :: 4 - Beta",
+  "Topic :: Scientific/Engineering",
+  "Operating System :: Unix",
+  "Operating System :: POSIX",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
 ]
 
 [project.urls]
@@ -35,6 +35,10 @@ Repository = "https://github.com/blockresearchgroup/compas_masonry"
 Changelog = "https://github.com/blockresearchgroup/compas_masonry/blob/main/CHANGELOG.md"
 Issues = "https://github.com/blockresearchgroup/compas_masonry/issues"
 Forum = "https://forum.compas-framework.org/"
+
+# ============================================================================
+# scripts
+# ============================================================================
 
 # ============================================================================
 # setuptools config
@@ -48,7 +52,7 @@ zip-safe = false
 [tool.setuptools.dynamic]
 version = { attr = "compas_masonry.__version__" }
 dependencies = { file = "requirements.txt" }
-optional-dependencies = { dev = { file = "requirements-dev.txt" } }
+optional-dependencies = { dev = { file = "requirements-dev.txt" }, viz = { file = "requirements-viz.txt" } }
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -62,18 +66,18 @@ minversion = "6.0"
 testpaths = ["tests", "src/compas_masonry"]
 python_files = ["test_*.py", "*_test.py", "test.py"]
 addopts = [
-    "-ra",
-    "--strict-markers",
-    "--doctest-glob=*.rst",
-    "--tb=short",
-    "--import-mode=importlib",
+  "-ra",
+  "--strict-markers",
+  "--doctest-glob=*.rst",
+  "--tb=short",
+  "--import-mode=importlib",
 ]
 doctest_optionflags = [
-    "NORMALIZE_WHITESPACE",
-    "IGNORE_EXCEPTION_DETAIL",
-    "ALLOW_UNICODE",
-    "ALLOW_BYTES",
-    "NUMBER",
+  "NORMALIZE_WHITESPACE",
+  "IGNORE_EXCEPTION_DETAIL",
+  "ALLOW_UNICODE",
+  "ALLOW_BYTES",
+  "NUMBER",
 ]
 
 # ============================================================================
@@ -81,7 +85,7 @@ doctest_optionflags = [
 # ============================================================================
 
 [tool.bumpversion]
-current_version = "0.1.0"
+current_version = "0.3.0"
 message = "Bump version to {new_version}"
 commit = true
 tag = true
@@ -119,7 +123,15 @@ select = ["E", "F", "I"]
 [tool.ruff.lint.isort]
 force-single-line = true
 known-first-party = [
-    "compas_masonry",
+  "compas",
+  "compas_session",
+  "compas_rui",
+  "compas_masonry",
+  "compas_model",
+  "compas_tna",
+  "compas_tno",
+  "compas_dem",
+  "compas_rhino",
 ]
 
 [tool.ruff.lint.pydocstyle]

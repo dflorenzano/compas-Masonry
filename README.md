@@ -9,24 +9,26 @@
 COMPAS Masonry is a plugin for Rhino for the assessment of masonry structures,
 and for the stability analsis of Discrete Element Models in general.
 
-The current version of this plugin is based on COMPAS 2 and is available for Rhino 8.
+The current version of this plugin is based on COMPAS 2 and is only available for Rhino 8.
 
 ## Installation
 
 To install COMPAS-Masonry, use Rhino's package manager Yak.
 To open Yak, type `PackageManager` on the Rhino command line.
-
-![COMPAS-Masonry installation with Yak](/gitbook/.gitbook/assets/COMPAS-Masonry_yak.png)
+Then search for "COMPAS Masonry" and install.
 
 ## COMPAS Packages
 
 COMPAS-Masonry uses the following COMPAS packages:
 
 * [compas](https://github.com/compas-dev/compas)
-* [compas_assembly](https://github.com/blockresearchgroup/compas_assembly)
-* [compas_model](https://github.com/blockresearchgroup/compas_model)
+* [compas_cgal](https://github.com/compas-dev/compas_cgal)
+* [compas_dem](https://github.com/blockresearchgroup/compas_dem)
+* [compas_libigl](https://github.com/compas-dev/compas_libigl)
 * [compas_rui](https://github.com/blockresearchgroup/compas_rui)
 * [compas_session](https://github.com/blockresearchgroup/compas_session)
+* [compas_tna](https://github.com/blockresearchgroup/compas_tna)
+* [compas_tno](https://github.com/blockresearchgroup/compas_tno)
 
 After installing RhinoVAULT with Yak, these requirements will be installed automatically if necessary.
 The tool might be unresponsive during this process, which might take up to 1 or 2 mins.
@@ -39,16 +41,11 @@ The packages are installed in a separate virtual environment named `COMPAS-Mason
 
 ## User Interface
 
-COMPAS-Masonry defines the following Rhino commands:
+Currently, COMPAS-Masonry defines the following Rhino commands:
 
 * `Masonry`
-* `Masonry_session_undo`
-* `Masonry_session_redo`
-* `Masonry_session_open`
-* `Masonry_session_save`
-* `Masonry_scene_clear`
-* `Masonry_scene_redraw`
 * `Masonry_settings`
+* ...
 
 These commands can be executed using the Rhino command line (simply start typing the command name),
 or with the corresponding buttons of the COMPAS-Masonry toolbar.

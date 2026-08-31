@@ -1,5 +1,5 @@
-from .blockmodelviewer import BlockModelViewer
+from .masonryviewer import MasonryViewer
 
 __all__ = [
-    "BlockModelViewer",
+    "MasonryViewer",
 ]

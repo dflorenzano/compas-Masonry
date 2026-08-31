@@ -1,0 +1,29 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    stroke="currentColor" stroke-width="1.25"
+    stroke-linecap="round" stroke-linejoin="round" aria-label="Masonry Arch Icon" role="img">
+    <style>
+        /* Fallback colors if parent doesn't provide color */
+        :root { color: #222; }
+        @media (prefers-color-scheme: dark) {
+        :root { color: #fff; }
+        }
+    </style>
+
+    <!-- Ground line (slightly inset to maximize arch size) -->
+    <path d="M1 21 H23" />
+
+    <!-- Semi-circular arch: outer (extrados) and inner (intrados) -->
+    <!-- Center (12,21), outer R=11, inner R=8.5 for readable voussoirs -->
+    <path d="M1 21 A11 11 0 1 0 23 21" />
+    <path d="M3.5 21 A8.5 8.5 0 1 0 20.5 21" />
+
+    <!-- Radial joints (voussoir seams), inner -> outer -->
+    <line x1="4.147" y1="17.747" x2="1.837" y2="16.790" />
+    <line x1="5.990" y1="14.990" x2="4.222" y2="13.222" />
+    <line x1="8.747" y1="13.147" x2="7.790" y2="10.837" />
+    <line x1="12.000" y1="12.500" x2="12.000" y2="10.000" />
+    <line x1="15.253" y1="13.147" x2="16.210" y2="10.837" />
+    <line x1="18.010" y1="14.990" x2="19.778" y2="13.222" />
+    <line x1="19.853" y1="17.747" x2="22.163" y2="16.790" />
+</svg>
