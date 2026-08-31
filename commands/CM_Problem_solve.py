@@ -19,9 +19,10 @@ document.
 Three things about the environment shape this command, all verified rather than
 assumed:
 
-1. `ipopt` — compas_cra hands its pyomo model to `SolverFactory("ipopt")`, an
-   executable lookup on PATH. Rhino does not inherit a shell PATH, so
-   `session.ensure_solver_path()` runs first and reports what it found.
+1. **No external solver executable is needed for CRA/RBE.** compas_cra 0.8.0
+   runs IPOPT in-process through `compas_cra._native`; the pyomo model and its
+   `SolverFactory("ipopt")` PATH lookup are gone, and with them the PATH
+   workaround this command used to run first.
 2. **CRA and RBE ignore boundary conditions entirely.** `cra_solve` and
    `rbe_solve` take the problem, the model, a friction coefficient and a density
    — and never read `problem.boundary_conditions`. They solve self-weight
@@ -101,7 +102,7 @@ def check_ready(model, problem, name):
     # prompts. Asked of compas_3dec, not of sys.platform: see threedec_blocker.
     if solver_name == "3DEC":
         parameters = Session.solver_of(problem).parameters
-        blocker = threedec_blocker(parameters.get("version"), parameters.get("executable"), "")
+        blocker = threedec_blocker(parameters.get("version"), parameters.get("executable") or "")
         if blocker:
             return blocker
 
@@ -143,11 +144,23 @@ def solve(problem, progress_callback=None, event_pump=None):
     try:
         solver = Session.solver_of(problem)
         if solver is not None and solver.name == "3DEC" and (progress_callback is not None or event_pump is not None):
-            return problem.solve(
+            results = problem.solve(
                 progress_callback=progress_callback,
                 event_pump=event_pump,
             )
-        return problem.solve()
+        else:
+            results = problem.solve()
+
+        # Record WHICH backend produced these results. No compas_dem backend
+        # writes this, and `results.tension_contacts` depends on it: 3DEC tension
+        # must be read from native normal subcontact forces, because the affine
+        # vertex values a 3DEC-to-DEM conversion produces carry negative weights
+        # that are not tension. Without this stamp that guard never fired and
+        # 3DEC tension was over-reported. `setdefault`, so a backend that starts
+        # writing its own name keeps it.
+        if results is not None and solver is not None:
+            results.metadata.setdefault("solver", solver.name)
+        return results
     except ImportError as e:
         # the solver backends (compas_cra, compas_lmgc90, ...) are optional
         warn(f"The solver backend is not installed: {e}")
@@ -311,14 +324,9 @@ def RunCommand():
         for index, stage in enumerate(stages, start=1):
             print("  {}. {}".format(index, " + ".join(stage)))
 
-    # ipopt is an executable, looked up on PATH by compas_cra's pyomo model
-    if solver.name in ("CRA", "RBE"):
-        ipopt = session.ensure_solver_path()
-        if ipopt:
-            print(f"ipopt: {ipopt}")
-        else:
-            warn(f"ipopt was not found on PATH, nor in settings.solver_bin ({session.settings.solver_bin}).")
-            print("CRA and RBE solve through it, so this will fail. Set the directory in Session_settings > Solver Executables Directory.")
+    # A CRA/RBE ipopt-on-PATH check lived here and was removed on 2026-08-31:
+    # compas_cra 0.8.0 solves in-process and never looks up an executable, so
+    # the check warned "this will fail" at installations that solve perfectly.
 
     groups = problem.boundary_conditions
     if groups:

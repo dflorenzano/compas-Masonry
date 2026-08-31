@@ -8,7 +8,7 @@ def threedec_blocker(version=None, executable=""):
     try:
         from compas_3dec import find_3dec_executable
     except Exception:
-        msg = "compas_3dec is not importable here, so a 3DEC solve would fail. Install compas_masonry[threedec] in this environment."
+        msg = "compas_3dec is not importable here, so a 3DEC solve would fail. It is a base requirement, so this environment is incomplete: reinstall compas_masonry."
         return msg
 
     if executable:

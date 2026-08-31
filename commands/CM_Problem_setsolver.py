@@ -16,9 +16,9 @@ licensed Itasca 3DEC installation.
 
 - CRA / RBE are the ones installed in the Rhino environment. They return
   contact forces and NO displacements, so Results_show draws them as forces.
-- LMGC90 needs `compas_lmgc90`, which is not built for Rhino's python3.9 — the
-  option stays visible but says so instead of raising an ImportError deep in
-  the solve.
+- LMGC90 needs `compas_lmgc90`, which has shipped a cp39 wheel since 0.1.10 and
+  is installed in the Rhino environment. The option stays visible even where it
+  is missing, and says so instead of raising an ImportError deep in the solve.
 - 3DEC discovers the executable automatically when no explicit path is set.
   The Python adapter must be installed in the active environment.
 - PRD and BLA are dropped from the picker (still in compas_dem: build a
@@ -50,9 +50,11 @@ SOLVERS = ["CRA", "RBE", "LMGC90", "3DEC"]
 def lmgc90_available() -> bool:
     """True if the LMGC90 backend can actually be imported.
 
-    compas_lmgc90 is a compiled (Fortran + nanobind) extension; the build in
-    the repo is cp312 while Rhino runs python3.9, so this is normally False
-    inside Rhino.
+    compas_lmgc90 is a compiled (Fortran + nanobind) extension. It has shipped a
+    cp39 wheel since 0.1.10, so this is normally True inside Rhino — the earlier
+    note here, that the build was cp312 and therefore unavailable, is obsolete.
+    It stays a runtime check because the wheel is still platform-specific and a
+    given environment may simply not have it.
     """
     try:
         import compas_lmgc90  # type: ignore # noqa: F401
@@ -138,7 +140,7 @@ def get_solver():
         return make_threedec_solver(values)
 
     if not lmgc90_available():
-        warn("compas_lmgc90 is not importable here (it is not built for Rhino's python3.9), so an LMGC90 solve would fail.")
+        warn("compas_lmgc90 is not importable here, so an LMGC90 solve would fail. It ships a cp39 wheel, so `pip install compas_lmgc90` should work in this environment.")
         print("The solver is still set, so the problem is ready for an environment that has it.")
 
     # `verbose` is NOT passed. For LMGC90 it is not a flag but a PRINT INTERVAL:

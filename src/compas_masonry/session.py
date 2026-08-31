@@ -1862,44 +1862,15 @@ class MasonrySession(LazyLoadSession):
             sc.doc.Views.Redraw()
         return drawn
 
-    # =============================================================================
-    # Solver executables
-    # =============================================================================
-
-    def ensure_solver_path(self) -> str:
-        """Make the solver executables findable, and report what was found.
-
-        The CRA/RBE backends go through compas_cra, which builds a pyomo model
-        and hands it to `SolverFactory("ipopt")` — a lookup of the `ipopt`
-        *executable* on PATH. Rhino launched from the Finder inherits the
-        launchd PATH, not a shell one, so a conda-installed ipopt is invisible
-        and the solve dies inside pyomo with a message that says nothing about
-        PATH.
-
-        `settings.solver_bin` is prepended only when the lookup already fails,
-        so a properly configured environment is never overridden.
-
-        Returns
-        -------
-        str
-            The resolved path to `ipopt`, or "" if it is still not found.
-
-        """
-        import os
-        import shutil
-
-        found = shutil.which("ipopt")
-        if found:
-            return found
-
-        solver_bin = self.settings.solver_bin
-        if solver_bin and os.path.isdir(solver_bin):
-            os.environ["PATH"] = solver_bin + os.pathsep + os.environ.get("PATH", "")
-            found = shutil.which("ipopt")
-            if found:
-                return found
-
-        return ""
+    # `ensure_solver_path()` lived here and was removed on 2026-08-31, together
+    # with `settings.solver_bin`. It prepended a directory to PATH so that
+    # compas_cra's pyomo model could find the `ipopt` EXECUTABLE, which Rhino
+    # launched from the Finder could not see. compas_cra 0.8.0 removed pyomo
+    # entirely and runs IPOPT in-process through `compas_cra._native`, so no
+    # executable is looked up and PATH is never consulted. Verified by solving
+    # the 20-block test arch with ipopt absent from PATH: identical reactions.
+    # Do not reintroduce a PATH workaround for CRA/RBE without first checking
+    # that compas_cra has gone back to an out-of-process solver.
 
     # =============================================================================
     # Result forces (CRA / RBE: the answer is on the contacts, not the blocks)

@@ -127,12 +127,12 @@ class MasonrySettings(Settings):
     # Read by compas_masonry.inputs.Options.get().
     dialog_input: bool = Field(default=False, title="Use Dialogs For Command Input")
 
-    # Directory holding the solver executables the CRA/RBE backends shell out
-    # to. compas_cra builds its pyomo model against `ipopt`, which it looks up
-    # on PATH — and Rhino, launched from the Finder, does not inherit a shell
-    # PATH, so the conda binary is invisible to it. Prepended by
-    # MasonrySession.ensure_solver_path() only when the lookup already fails.
-    solver_bin: str = Field(default="/opt/anaconda3/envs/masonry/bin", title="Solver Executables Directory")
+    # `solver_bin` lived here and was removed on 2026-08-31. It pointed at a
+    # directory to prepend to PATH so compas_cra's pyomo model could find the
+    # `ipopt` executable; its default was a developer's own conda prefix, which
+    # shipped to every user as a path that exists on exactly one machine.
+    # compas_cra 0.8.0 runs IPOPT in-process (`compas_cra._native`) and consults
+    # no PATH at all, so the setting had nothing left to configure.
 
     formdiagram: FormDiagramSettings = FormDiagramSettings()
     envelope: EnvelopeSettings = EnvelopeSettings()

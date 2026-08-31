@@ -13,6 +13,8 @@ compas = pytest.importorskip("compas")
 
 from compas.geometry import Polygon  # noqa: E402
 from compas_masonry.results import CSV_HEADER  # noqa: E402
+from compas_masonry.results import application_point_report  # noqa: E402
+from compas_masonry.results import application_points  # noqa: E402
 from compas_masonry.results import block_result_rows  # noqa: E402
 from compas_masonry.results import contact_normal  # noqa: E402
 from compas_masonry.results import contact_openings  # noqa: E402
@@ -321,3 +323,57 @@ def test_a_block_with_no_contacts_still_gets_a_row():
     assert len(rows) == 1
     assert rows[0][0] == 4
     assert len(rows[0]) == len(CSV_HEADER)
+
+
+# =============================================================================
+# Application points
+#
+# `dropped` is the branch that matters. After the 2026-08-27 fix every compas_dem
+# backend writes a `contact_data` answering `resultantpoint`, so `centroid` is
+# nearly unreachable and `dropped` is what actually fires in the field: a 3DEC
+# edge split into several subcontacts gets a resultant and a magnitude and
+# nothing else, and is then missing from the drawing AND from every report while
+# still carrying force. Silence is the failure mode, so it is pinned here.
+# =============================================================================
+
+
+def test_application_point_is_solved_when_the_contact_carries_a_resultantpoint():
+    results = FakeResults(contact=FakeContact(resultantpoint=[0.25, 0.5, 0.0]))
+
+    solved, centroid, dropped = application_points(results)
+
+    assert (solved, centroid, dropped) == (["0-1"], [], [])
+    assert application_point_report(results) is None
+
+
+def test_application_point_falls_back_to_the_centroid_without_a_resultantpoint():
+    """A polygon is a position on the joint, not where the force acts."""
+    results = FakeResults(contact=FakeContact())
+
+    solved, centroid, dropped = application_points(results)
+
+    assert (solved, centroid, dropped) == ([], ["0-1"], [])
+    assert "joint centroid" in application_point_report(results)
+
+
+def test_a_contact_with_no_application_point_at_all_is_reported_as_dropped():
+    """The 3DEC multi-subcontact case: force present, nowhere to draw it."""
+    results = FakeResults(contact=FakeContact())
+    results.contact_polygon = lambda edge: None
+
+    solved, centroid, dropped = application_points(results)
+
+    assert (solved, centroid, dropped) == ([], [], ["0-1"])
+    message = application_point_report(results)
+    assert "no application point at all" in message
+    assert "missing from the drawing" in message
+
+
+def test_a_contact_carrying_no_force_is_not_counted_at_all():
+    """Only force-carrying contacts are classified; the rest are not findings."""
+    results = FakeResults(contact=FakeContact())
+    results.contact_polygon = lambda edge: None
+    results.resultant_global = lambda edge: None
+
+    assert application_points(results) == ([], [], [])
+    assert application_point_report(results) is None

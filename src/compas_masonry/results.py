@@ -388,6 +388,13 @@ def tension_contacts(results, tolerance=1e-9) -> list:
     # moment but are not native subcontact tension. 3DEC stores its actual
     # normal subcontact forces separately, positive in compression, so use
     # those for the mechanical state check.
+    #
+    # This branch was DISARMED until 2026-08-31: no backend wrote
+    # `metadata["solver"]`, so it never ran and 3DEC results silently took the
+    # generic path below — the exact over-reporting it exists to prevent.
+    # `CM_Problem_solve.solve()` now stamps the solver name onto the results, so
+    # it fires. NOT YET SEEN ON A REAL 3DEC RUN (3DEC is Windows-only and
+    # licensed); if 3DEC tension reporting looks wrong, start here.
     if results.metadata.get("solver") == "3DEC":
         for edge in results.edges():
             tensions = [abs(float(value)) for value in (results.force_normal(edge) or []) if float(value) < -tolerance]
