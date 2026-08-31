@@ -131,7 +131,17 @@ echo "==> 6/7  repackage and assert the archive carries it"
 # observed 2026-08-06 with 0.1.55-beta+23694, where it happened to choose correctly.
 # Delete first so there is nothing to choose between.
 rm -f "$BUILDDIR"/*.yak
-( cd "$BUILDDIR" && "$YAK" build --platform mac )
+# `yak build` needs the platform the package is FOR, and it does not read
+# --buildtarget. This was hardcoded to `mac` until 2026-08-31, which meant
+# --target/--builddir could aim a build at Windows and yak would still stamp it
+# as a mac package -- an archive that installs on neither with any confidence.
+case "$TARGET" in
+    *win*) PLATFORM=win ;;
+    *mac*|*macOS*) PLATFORM=mac ;;
+    *) PLATFORM=any ;;
+esac
+echo "    packaging for platform: $PLATFORM  (from --target $TARGET)"
+( cd "$BUILDDIR" && "$YAK" build --platform "$PLATFORM" )
 python3 - "$RUI" "$BUILDDIR" <<'PY'
 import glob
 import hashlib
