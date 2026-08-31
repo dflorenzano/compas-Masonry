@@ -32,9 +32,18 @@
 #
 set -euo pipefail
 
+# RHINOCODE and YAK are overridable on their own, not just through RHINO_APP:
+# Rhino lays its tools out differently per platform, so deriving both from one
+# app path only works on macOS. On Windows (Git Bash / WSL) point them straight
+# at the executables, which live in `System/` rather than `Contents/Resources/bin/`:
+#
+#   RHINOCODE="/c/Program Files/Rhino 8/System/rhinocode.exe" \
+#   YAK="/c/Program Files/Rhino 8/System/yak.exe" \
+#   ./resources/rui/build_plugin.sh 0.1.58-beta --skip-icons \
+#       --target "8.*-win" --builddir build/rh8-win
 RHINO_APP="${RHINO_APP:-/Applications/Rhino 8.app}"
-RHINOCODE="$RHINO_APP/Contents/Resources/bin/rhinocode"
-YAK="$RHINO_APP/Contents/Resources/bin/yak"
+RHINOCODE="${RHINOCODE:-$RHINO_APP/Contents/Resources/bin/rhinocode}"
+YAK="${YAK:-$RHINO_APP/Contents/Resources/bin/yak}"
 
 VERSION=""
 TARGET="8.*-macOS"
