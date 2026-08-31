@@ -14,6 +14,7 @@ document and is not covered — the drawing it does is `draw_model()` and
 """
 
 import json
+from types import SimpleNamespace
 
 import compas
 import pytest
@@ -875,22 +876,36 @@ def test_the_force_layer_tree_matches_the_agreed_grouping():
 class _ArrowRecorder:
     """Stands in for the session so the component maths can be read back.
 
-    `_draw_reaction_components` only needs `_draw_vector_arrow` and the reaction
-    colour, so an unbound call with this in place of `self` exercises the real
-    method without Rhino.
+    `_draw_reaction_components` needs `_draw_vector_arrow`, the colours and the
+    blockmodel settings, so an unbound call with this in place of `self`
+    exercises the real method without Rhino.
+
+    `show_horizontalforces` / `show_verticalforces` default OFF here, matching
+    the real settings, so the axis tests see only the X/Y/Z arrows.
     """
 
     COLOR_REACTION = (214, 40, 40)
+    COLOR_HORIZONTAL = (13, 148, 136)
+    COLOR_VERTICAL = (109, 40, 217)
 
-    def __init__(self):
+    def __init__(self, horizontal=False, vertical=False):
         self.calls = []
+        self.settings = SimpleNamespace(
+            blockmodel=SimpleNamespace(show_horizontalforces=horizontal, show_verticalforces=vertical)
+        )
 
     def _draw_vector_arrow(self, layer, point, vector, color=None, params=None):
         self.calls.append({"layer": layer, "point": tuple(point), "vector": tuple(vector), "params": params})
         return "guid"
 
 
-_LAYERS = {"reaction_x": "…::X", "reaction_y": "…::Y", "reaction_z": "…::Z"}
+_LAYERS = {
+    "reaction_x": "…::X",
+    "reaction_y": "…::Y",
+    "reaction_z": "…::Z",
+    "horizontal": "…::Horizontal",
+    "vertical": "…::Vertical",
+}
 
 
 def test_reaction_components_sum_back_to_the_reaction():
@@ -1009,3 +1024,35 @@ def test_rotating_a_model_does_not_rescale_its_force_arrows():
 def test_an_empty_model_still_gives_a_usable_yardstick():
     """Zero would make the scale a division by zero at the call site."""
     assert MasonrySession._max_block_size(None, _SizedModel([])) == 1.0
+
+
+def test_horizontal_and_vertical_are_drawn_only_when_asked_for():
+    """They are support-reaction views now, not per-contact ones.
+
+    Drawing thrust-vs-weight on all 14 contacts of an arch buried the two that
+    were being asked about, so `_draw_decomposition` no longer draws them at all.
+    """
+    off = _ArrowRecorder()
+    MasonrySession._draw_reaction_components(off, _LAYERS, [0.0, 0.0, 0.0], [-10.881, 0.0, 25.852], 1.0)
+    assert [c["layer"] for c in off.calls] == ["…::X", "…::Z"]
+
+    on = _ArrowRecorder(horizontal=True, vertical=True)
+    MasonrySession._draw_reaction_components(on, _LAYERS, [0.0, 0.0, 0.0], [-10.881, 0.0, 25.852], 1.0)
+    assert [c["layer"] for c in on.calls] == ["…::X", "…::Z", "…::Horizontal", "…::Vertical"]
+
+
+def test_every_component_carries_its_own_magnitude_as_user_text():
+    """A component is selectable on its own, so it has to answer "how big am I"
+    without the reader going back to the parent reaction."""
+    rec = _ArrowRecorder(horizontal=True, vertical=True)
+
+    MasonrySession._draw_reaction_components(rec, _LAYERS, [0.0, 0.0, 0.0], [-3000.0, 4000.0, 25852.0], 1.0)
+
+    by_axis = {c["params"]["component_axis"]: c["params"] for c in rec.calls}
+    assert by_axis["x"]["component_value"] == pytest.approx(-3000.0)
+    assert by_axis["x"]["component_value_kN"] == pytest.approx(-3.0)
+    # horizontal is the XY magnitude, not a signed axis value: 3-4-5 triangle
+    assert by_axis["xy"]["component_value"] == pytest.approx(5000.0)
+    assert by_axis["xy"]["component_value_kN"] == pytest.approx(5.0)
+    assert by_axis["z"]["component_value"] == pytest.approx(25852.0)
+    assert all(p["display_unit"] == "kN" for p in by_axis.values())

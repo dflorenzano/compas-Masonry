@@ -2104,6 +2104,24 @@ class MasonrySession(LazyLoadSession):
         except Exception:
             pass
 
+    @staticmethod
+    def _ensure_layer(layer: str) -> str:
+        """Make sure `layer` exists, and return it.
+
+        `rs.Add*` puts geometry on whatever layer is CURRENT in Rhino, and the
+        `rs.ObjectLayer(guid, layer)` that follows only moves it if the layer is
+        already there. So a missing layer leaves the object sitting in the user's
+        active layer — "Default", or whatever they were working in — untracked by
+        the session and removable only by hand.
+        """
+        import rhinoscriptsyntax as rs  # type: ignore
+
+        if not rs.IsLayer(layer):
+            from compas_rhino.layers import create_layers_from_path
+
+            create_layers_from_path(layer, separator="::")
+        return layer
+
     def _result_attributes(self, layer, color=None, params=None):
         """Build complete Rhino attributes before inserting a result object.
 
@@ -2121,12 +2139,32 @@ class MasonrySession(LazyLoadSession):
         from System.Drawing import Color  # type: ignore
 
         attributes = Rhino.DocObjects.ObjectAttributes()
+
+        # An object added with no LayerIndex goes to whatever layer is CURRENT in
+        # Rhino, silently. That is how result geometry ended up in "Default" (or
+        # in whichever layer the user happened to be working on) instead of under
+        # Masonry: this looked up the layer, found nothing when it did not exist
+        # yet, and left LayerIndex unset rather than saying so.
+        #
+        # Create it instead of falling through. Every caller here draws into a
+        # layer it owns and has usually already created; when it has not, making
+        # it is right and putting the object somewhere else never is.
+        if not rs.IsLayer(layer):
+            from compas_rhino.layers import create_layers_from_path
+
+            create_layers_from_path(layer, separator="::")
+
         layer_id = rs.LayerId(layer)
         if isinstance(layer_id, str):
             layer_id = System.Guid(layer_id)
         rhino_layer = sc.doc.Layers.FindId(layer_id) if layer_id is not None else None
         if rhino_layer is not None:
             attributes.LayerIndex = rhino_layer.Index
+        else:
+            # Creating it failed, which should not happen. Say so rather than
+            # leaking the object into the user's active layer, where it is
+            # untracked by the session and has to be found and deleted by hand.
+            raise RuntimeError(f"Could not resolve or create the Rhino layer {layer!r}; refusing to draw into the current layer instead.")
         if color is not None:
             attributes.ColorSource = Rhino.DocObjects.ObjectColorSource.ColorFromObject
             attributes.ObjectColor = Color.FromArgb(*tuple(color))
@@ -2268,22 +2306,11 @@ class MasonrySession(LazyLoadSession):
                     friction = [(x * local[0] + y * local[1]) * scale for x, y in zip(frame.xaxis, frame.yaxis)]
                     self._draw_centred_line(layers["friction"], point, friction, color=self.COLOR_FRICTION)
 
-        if settings.show_horizontalforces or settings.show_verticalforces:
-            resultant = results.resultant_global(edge)
-            if resultant is None:
-                return
-
-            # Arrows from the point, not centred lines: thrust and weight are read
-            # for their DIRECTION as much as their size — which way the arch pushes
-            # its abutment, which way the load bears — and a centred line draws a
-            # push and a pull identically.
-            if settings.show_horizontalforces:
-                horizontal = [resultant[0] * scale, resultant[1] * scale, 0.0]
-                self._draw_vector_arrow(layers["horizontal"], point, horizontal, color=self.COLOR_HORIZONTAL)
-
-            if settings.show_verticalforces:
-                vertical = [0.0, 0.0, resultant[2] * scale]
-                self._draw_vector_arrow(layers["vertical"], point, vertical, color=self.COLOR_VERTICAL)
+        # The horizontal/vertical split is drawn ONLY on support reactions, by
+        # `_draw_support_reactions`, not on every contact. Thrust against weight is
+        # a question about an abutment — what it has to be sized for — and drawing
+        # it on all 14 contacts of an arch buried the two that were being asked
+        # about. See `_draw_reaction_components`.
 
     def _draw_cornerforces(self, layer, results, edge, scale, settings, problem_name=None, key=None):
         """Draw the per-corner normal forces of one contact.
@@ -2536,8 +2563,28 @@ class MasonrySession(LazyLoadSession):
         still add a third arrow of about 1e-11 m to the document — an object you
         cannot see, cannot select and cannot explain.
         """
+        from compas_masonry.results import FORCE_UNIT
+        from compas_masonry.results import to_force_unit
+
         total = sum(c * c for c in vector) ** 0.5
         negligible = total * 1e-6
+
+        def tag(kind, axis_name, value, extra=None):
+            """User Text for one component, carrying its own magnitude.
+
+            Every component is selectable in Rhino and has to answer "how big am
+            I" on its own — reading it off the parent reaction's tag defeats the
+            point of splitting the force up. Both units are written: the stored
+            mechanics are newtons, the displayed number is kN.
+            """
+            out = dict(params or {})
+            out["result_kind"] = kind
+            out["component_axis"] = axis_name
+            out["component_value"] = value
+            out[f"component_value_{FORCE_UNIT}"] = to_force_unit(value)
+            out["display_unit"] = FORCE_UNIT
+            out.update(extra or {})
+            return out
 
         drawn = 0
         for axis, key in enumerate(("reaction_x", "reaction_y", "reaction_z")):
@@ -2545,12 +2592,30 @@ class MasonrySession(LazyLoadSession):
                 continue
             component = [0.0, 0.0, 0.0]
             component[axis] = vector[axis] * scale
-            tags = dict(params or {})
-            tags["result_kind"] = "support_reaction_component"
-            tags["component_axis"] = "xyz"[axis]
-            tags["component_value"] = vector[axis]
+            tags = tag("support_reaction_component", "xyz"[axis], vector[axis])
             if self._draw_vector_arrow(layers[key], point, component, color=self.COLOR_REACTION, params=tags) is not None:
                 drawn += 1
+
+        # Thrust and weight: the same reaction resolved into the pair an abutment
+        # is actually sized on. `vertical` is the Z component again by
+        # construction — kept as its own view because "the vertical part of the
+        # reaction" and "the Z axis component" are the same number asked for two
+        # different reasons, and they carry different layers and colours.
+        settings = self.settings.blockmodel
+
+        horizontal_magnitude = (vector[0] ** 2 + vector[1] ** 2) ** 0.5
+        if settings.show_horizontalforces and horizontal_magnitude > negligible:
+            horizontal = [vector[0] * scale, vector[1] * scale, 0.0]
+            tags = tag("support_reaction_horizontal", "xy", horizontal_magnitude, {"resultant_horizontal": [vector[0], vector[1], 0.0]})
+            if self._draw_vector_arrow(layers["horizontal"], point, horizontal, color=self.COLOR_HORIZONTAL, params=tags) is not None:
+                drawn += 1
+
+        if settings.show_verticalforces and abs(vector[2]) > negligible:
+            vertical = [0.0, 0.0, vector[2] * scale]
+            tags = tag("support_reaction_vertical", "z", vector[2], {"resultant_vertical": [0.0, 0.0, vector[2]]})
+            if self._draw_vector_arrow(layers["vertical"], point, vertical, color=self.COLOR_VERTICAL, params=tags) is not None:
+                drawn += 1
+
         return drawn
 
     def _draw_centred_line(self, layer, point, vector, color=None, params=None):
@@ -2660,7 +2725,7 @@ class MasonrySession(LazyLoadSession):
             return None
         guid = rs.AddLine(start, end)
         rs.CurveArrows(guid, 2)
-        rs.ObjectLayer(guid, layer)
+        rs.ObjectLayer(guid, self._ensure_layer(layer))
         self.set_object_color(guid, self._bc_color(kind))
         tags = {"load_kind": kind}
         tags.update(params or {})
@@ -2680,7 +2745,7 @@ class MasonrySession(LazyLoadSession):
         if guid is None:
             return None
 
-        rs.ObjectLayer(guid, layer)
+        rs.ObjectLayer(guid, self._ensure_layer(layer))
         self.set_object_color(guid, self._bc_color(kind))
         tags = {"load_kind": kind}
         tags.update(params or {})
@@ -2708,7 +2773,7 @@ class MasonrySession(LazyLoadSession):
         guid = rs.AddCircle(plane_to_rhino(plane), angle * scale)
         if guid is None:
             return None
-        rs.ObjectLayer(guid, layer)
+        rs.ObjectLayer(guid, self._ensure_layer(layer))
         self.set_object_color(guid, color or self.COLOR_DISPLACEMENT)
         self.set_user_params(guid, {"load_kind": kind, "rotation": list(rotation), "applied_angle_rad": angle * scale})
         return guid
