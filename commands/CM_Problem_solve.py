@@ -45,6 +45,7 @@ from compas_masonry.boundaryconditions import loads_of
 from compas_masonry.inputs import choose
 from compas_masonry.results import tension_report
 from compas_masonry.session import MasonrySession as Session
+from compas_masonry.solvers import threedec_blocker
 from compas_rui.feedback import warn
 
 
@@ -92,6 +93,17 @@ def check_ready(model, problem, name):
         return "The model has no supports. Run Model_supports first."
 
     solver_name = Session.solver_of(problem).name
+
+    # 3DEC is the one backend that shells out to external licensed software.
+    # Configuring it anywhere is fine and deliberate -- the parameters are
+    # portable -- but refuse to START a run that cannot reach an executable,
+    # rather than let it fail inside a subprocess launch after the stage
+    # prompts. Asked of compas_3dec, not of sys.platform: see threedec_blocker.
+    if solver_name == "3DEC":
+        parameters = Session.solver_of(problem).parameters
+        blocker = threedec_blocker(parameters.get("version"), parameters.get("executable"), "")
+        if blocker:
+            return blocker
 
     # CRA/RBE read no boundary conditions at all — they solve self-weight
     # equilibrium — so a problem carrying any would come back with a plausible

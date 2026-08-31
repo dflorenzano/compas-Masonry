@@ -41,6 +41,7 @@ from compas_dem.models import BlockModel
 from compas_dem.problem import Solver
 from compas_masonry.inputs import Options
 from compas_masonry.session import MasonrySession as Session
+from compas_masonry.solvers import threedec_blocker
 from compas_rui.feedback import warn
 
 SOLVERS = ["CRA", "RBE", "LMGC90", "3DEC"]
@@ -55,16 +56,6 @@ def lmgc90_available() -> bool:
     """
     try:
         import compas_lmgc90  # type: ignore # noqa: F401
-
-        return True
-    except Exception:
-        return False
-
-
-def threedec_available() -> bool:
-    """True if the Python adapter for the external 3DEC solver is importable."""
-    try:
-        import compas_3dec  # type: ignore # noqa: F401
 
         return True
     except Exception:
@@ -140,9 +131,10 @@ def get_solver():
         return Solver.RBE(timer=timer)
 
     if kind == "3DEC":
-        if not threedec_available():
-            warn("compas_3dec is not importable here, so a 3DEC solve would fail. Install compas_masonry[threedec] in this environment.")
-            print("The solver is still set, so the problem is ready for an environment that has it.")
+        blocker = threedec_blocker(values["version"], values["executable"].strip())
+        if blocker:
+            warn(blocker)
+            print("The solver is still set, so the problem is ready for a machine that can run it.")
         return make_threedec_solver(values)
 
     if not lmgc90_available():
