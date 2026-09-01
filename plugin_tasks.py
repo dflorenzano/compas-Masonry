@@ -118,13 +118,16 @@ def _assert_designed_rui(rui, builddir):
 @task(
     help={
         "version": "build version, e.g. 0.5.3-beta. Bump on EVERY rebuild -- Rhino keys packages by version and installs them side by side, so reusing one invites a stale load.",
-        "skip-icons": "use resources/COMPAS-Masonry.rui as it stands; skips the three generator scripts and their rsvg-convert dependency",
+        "regen-icons": (
+            "redraw the artwork from resources/icons/ before building. Only needed when an SVG there changed; requires rsvg-convert. "
+            "Without it the tracked resources/COMPAS-Masonry.rui is used as it stands, and step 2 still fails the build if it no longer matches."
+        ),
         "bump-rhproj": "also write VERSION into COMPAS-Masonry.rhproj identity.version",
         "target": "'mac' or 'win' (default: this machine), or a literal rhinocode buildtarget",
         "builddir": "override the output directory implied by --target",
     }
 )
-def build_plugin(ctx, version, skip_icons=False, bump_rhproj=False, target=None, builddir=None):
+def build_plugin(ctx, version, regen_icons=False, bump_rhproj=False, target=None, builddir=None):
     """Build the Rhino plugin with the DESIGNED toolbar, ready for `yak push`."""
     root = pathlib.Path(__file__).parent
     rui = root / "resources" / "COMPAS-Masonry.rui"
@@ -142,15 +145,21 @@ def build_plugin(ctx, version, skip_icons=False, bump_rhproj=False, target=None,
 
     rhinocode, yak = _tool("rhinocode"), _tool("yak")
 
-    print("==> 1/7  regenerate the icon sheet and compile the RUI")
-    if skip_icons:
-        print(f"    skipped (--skip-icons); {rui.name} is used as it stands")
-    else:
+    print("==> 1/7  icon sheet and compiled RUI")
+    if regen_icons:
         # Defaults reproduce the shipped look: the artwork AS DRAWN, --min-stroke
-        # 0.6. To use different values, run make_icons.py by hand and pass
-        # --skip-icons here.
+        # 0.6. To use different values, run make_icons.py by hand and omit
+        # --regen-icons here.
         for script in ("set_rhproj_icons.py", "make_icons.py", "generate_rui.py"):
             _run(ctx, [sys.executable, str(root / "resources" / "rui" / script)])
+    else:
+        # Opt-in rather than opt-out: regenerating needs rsvg-convert installed
+        # and rewrites three tracked files, which is the wrong price for a
+        # release where the artwork did not change. Nothing is lost by defaulting
+        # off -- step 2 compares the .rui against the artwork and fails the build
+        # if they have diverged, so a forgotten --regen-icons is caught there
+        # rather than shipping stale icons.
+        print(f"    using {rui.name} as it stands (pass --regen-icons if the artwork changed)")
 
     print("==> 2/7  verify both icon systems")
     # Exits 1 on a missing icon, an out-of-range index, an unfilled button size,
