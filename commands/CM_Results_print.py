@@ -1,6 +1,6 @@
 #! python3
 # venv: brg-csd
-# r: compas_masonry>=0.2.7
+# r: compas_masonry>=0.4.0
 
 """Results_print — print a stored result set in the command window.
 
@@ -138,10 +138,7 @@ def print_reactions(results, model) -> None:
     if not rows:
         return warn("No support reaction could be resolved — the model has no supports, or no contact reaches them.")
 
-    header = (
-        f"{'support':<12}{'|R| [' + FORCE_UNIT + ']':>14}{'Rx [' + FORCE_UNIT + ']':>14}"
-        f"{'Ry [' + FORCE_UNIT + ']':>14}{'Rz [' + FORCE_UNIT + ']':>14}"
-    )
+    header = f"{'support':<12}{'|R| [' + FORCE_UNIT + ']':>14}{'Rx [' + FORCE_UNIT + ']':>14}{'Ry [' + FORCE_UNIT + ']':>14}{'Rz [' + FORCE_UNIT + ']':>14}"
     print("\n" + header)
     print("-" * len(header))
     total = [0.0, 0.0, 0.0]

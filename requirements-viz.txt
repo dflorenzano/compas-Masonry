@@ -1,2 +1,1 @@
 compas_notebook
-compas_viewer

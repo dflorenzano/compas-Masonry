@@ -1,6 +1,6 @@
 #! python3
 # venv: brg-csd
-# r: compas_masonry>=0.2.7
+# r: compas_masonry>=0.4.0
 
 """Results_block — the result data of the blocks you select.
 
@@ -161,9 +161,7 @@ def tag_block(session, guid, key, report) -> None:
         {
             "result_key": key,
             "result_displacement": None if displacement is None else displacement[1],
-            "result_contacts": [
-                {"with": c["with"], "force_magnitude": c["magnitude"], "stress": c["stress"], "opening": c["opening"]} for c in report["contacts"]
-            ],
+            "result_contacts": [{"with": c["with"], "force_magnitude": c["magnitude"], "stress": c["stress"], "opening": c["opening"]} for c in report["contacts"]],
             "result_force_total": report["force_total"],
         },
     )

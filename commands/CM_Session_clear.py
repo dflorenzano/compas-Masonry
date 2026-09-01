@@ -1,6 +1,6 @@
 #! python3
 # venv: brg-csd
-# r: compas_masonry>=0.2.7
+# r: compas_masonry>=0.4.0
 
 """Session_clear — empty the session and the document of everything the plugin drew.
 

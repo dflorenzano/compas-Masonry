@@ -25,14 +25,3 @@ compas_cra >=0.8.0
 # the 20-block test arch: 1.8e-07 relative, IPOPT reporting "acceptable" where
 # 0.5.0 reported "optimal". Keep this until compas_dem drops the patch upstream.
 pyomo >=6.7.3,<6.9
-
-# Pyomo treats matplotlib as an OPTIONAL dependency and imports it lazily, so a
-# missing matplotlib surfaces as `DeferredImportError` -- a subclass of
-# ImportError, which Problem_solve's `except ImportError` reports as "the solver
-# backend is not installed". The backend is fine; the message is not.
-#
-# Nothing here imports matplotlib, and on macOS a CRA solve never reaches it. On
-# WINDOWS something in the solve path does, reproducibly, on compas_cra 0.8.0 --
-# not yet traced to a line. Declared because a wrong "backend not installed"
-# error costs more than the dependency does.
-matplotlib
