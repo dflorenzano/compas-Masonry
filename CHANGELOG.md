@@ -351,6 +351,23 @@ The `LoadCase` / `Results` API landed in compas_dem, and differs from the dev no
 * Nothing in the `*_options` set has been exercised inside Rhino yet.
 * The `*_options` commands are not registered in `COMPAS-Masonry.rhproj` / `resources/rui/ui.json` — they run from the script editor only.
 
+* Added `compas_masonry.algorithms.mesh_mesh_contacts`.
+* Added `compas_masonry.elements.BlockElement`.
+* Added `compas_masonry.interactions.ContactInterface`.
+* Added `compas_masonry.models.BlockModel`.
+* Added `compas_masonry.templates.Template`.
+* Added `compas_masonry.templates.ArchTemplate`.
+* Added `compas_masonry.viewers.BlockModelViewer`.
+* Added `compas_masonry.materials.Material`.
+* Added `compas.masonry.materials.Stone`.
+
+### Changed
+
+* Changed `compute_aabb and compute_obb in compas_masonry.elements.BlockElement`.
+
+### Removed
+
+* Removed `frame attribute from compas_masonry.elements.BlockElement`.
 
 ## [0.3.0] 2025-09-10
 
@@ -441,7 +458,3 @@ The `LoadCase` / `Results` API landed in compas_dem, and differs from the dev no
 ## [0.1.1] 2025-09-07
 
 ### Added
-
-### Changed
-
-### Removed
