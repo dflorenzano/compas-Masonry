@@ -118,6 +118,7 @@ generated/
 libs/**
 !libs/PLACEHOLDER
 
+.claude/**
 temp/**
 !temp/PLACEHOLDER
 
@@ -138,3 +139,9 @@ docs/api/generated/
 scripts/
 
 .ruff_cache
+# The global gitignore's macOS Finder rule `Icon?` matches the `icons` DIRECTORY
+# on a case-insensitive filesystem (Icon + one char = icons), hiding the whole
+# command icon set. Re-include the directory: a file-level negation such as
+# `!resources/icons/*.svg` cannot work, because git never descends into an
+# excluded directory in the first place.
+!resources/icons/

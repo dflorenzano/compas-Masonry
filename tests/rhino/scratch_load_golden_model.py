@@ -1,0 +1,70 @@
+#! python3
+# venv: brg-csd
+# r: compas_masonry>=0.2.7
+
+"""Scratch script — run inside Rhino's ScriptEditor.
+
+Loads the golden arch model (tests/golden/fixtures/arch_model.json) into the
+Masonry session and draws it, exactly as Model_import would. Use this to iterate
+on scene/drawing code without modeling or re-running contact detection.
+
+Adjust REPO if your clone lives elsewhere.
+"""
+
+import pathlib
+
+import compas
+import compas_rhino.layers
+from compas_dem.elements import Block
+from compas_dem.interactions import FrictionContact
+from compas_masonry.session import MasonrySession as Session
+from compas_model.models import InteractionGraph
+
+REPO = pathlib.Path.home() / "Code" / "Libs" / "compas-Masonry"
+FIXTURE = REPO / "tests" / "golden" / "fixtures" / "arch_model.json"
+
+
+def RunCommand():
+    if not FIXTURE.exists():
+        print(f"Fixture missing: {FIXTURE}")
+        print("Generate it first (outside Rhino): python tests/golden/generate.py")
+        return
+
+    session = Session(basedir=pathlib.Path().home() / ".compas_session", name="COMPAS-Masonry")
+
+    # clear previous state (same dance as Model_import — replace with session
+    # helpers once they exist)
+    session.delete("blockmodel")
+    for itemtype in (Block, FrictionContact, InteractionGraph):
+        for obj in session.scene.find_all_by_itemtype(itemtype):
+            session.scene.remove(obj)
+    for layer in ("Blocks", "Interactions", "Contacts"):
+        compas_rhino.layers.clear_layer(f"Masonry::DEA::{layer}")
+
+    model = compas.json_load(FIXTURE)
+    session["blockmodel"] = model
+
+    print(f"blocks:   {len(list(model.elements()))}")
+    print(f"supports: {len(list(model.supports()))}")
+    print(f"contacts: {len(list(model.contacts()))}")
+
+    # same drawing pattern as Model_import
+    for block in model.elements():
+        node = block.graphnode
+        session.scene.add(
+            block,
+            name=f"Block_{node}",
+            group=f"Masonry::DEA::Blocks::{node}",
+            layer="Masonry::DEA::Blocks",
+        )
+
+    if model.graph.number_of_edges() > 0:
+        session.scene.add(model.graph, layer="Masonry::DEA::Interactions")
+        for contact in model.contacts():
+            session.scene.add(contact, layer="Masonry::DEA::Contacts")
+
+    session.scene.redraw()
+
+
+if __name__ == "__main__":
+    RunCommand()

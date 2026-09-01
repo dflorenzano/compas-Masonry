@@ -52,6 +52,10 @@ zip-safe = false
 [tool.setuptools.dynamic]
 version = { attr = "compas_masonry.__version__" }
 dependencies = { file = "requirements.txt" }
+# The `threedec` extra was removed on 2026-08-31: compas_3dec reached PyPI, and
+# at 324 KB of pure Python needing only compas it is now a base requirement, so
+# the 3DEC solver can be configured and correctly refused on every machine
+# rather than only where someone installed an extra.
 optional-dependencies = { dev = { file = "requirements-dev.txt" }, viz = { file = "requirements-viz.txt" } }
 
 [tool.setuptools.packages.find]
