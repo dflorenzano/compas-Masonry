@@ -63,51 +63,6 @@
       }
     },
     {
-      "id": "ab46f0b7-af18-45e7-9cd2-1a47cf7dc79c",
-      "language": {
-        "id": "*.*.python",
-        "version": "3.*.*"
-      },
-      "title": "CM_TNA_envelope",
-      "uri": "commands/CM_TNA_envelope.py"
-    },
-    {
-      "id": "312e6b4e-766e-4928-94a5-6711da712bd5",
-      "language": {
-        "id": "*.*.python",
-        "version": "3.*.*"
-      },
-      "title": "CM_TNA_formdiagram",
-      "uri": "commands/CM_TNA_formdiagram.py"
-    },
-    {
-      "id": "9655de32-90ea-4b80-af34-10886b0d0ce3",
-      "language": {
-        "id": "*.*.python",
-        "version": "3.*.*"
-      },
-      "title": "CM_TNA_supports",
-      "uri": "commands/CM_TNA_supports.py"
-    },
-    {
-      "id": "74893b13-523d-47b4-86f5-d0bd62cb78b8",
-      "language": {
-        "id": "*.*.python",
-        "version": "3.*.*"
-      },
-      "title": "CM_TNA_loads",
-      "uri": "commands/CM_TNA_loads.py"
-    },
-    {
-      "id": "b783b68a-141a-4b2c-a373-37699e641ae3",
-      "language": {
-        "id": "*.*.python",
-        "version": "3.*.*"
-      },
-      "title": "CM_TNA_analysis",
-      "uri": "commands/CM_TNA_analysis.py"
-    },
-    {
       "id": "838b4972-0e0b-4d2a-95f8-de31bd2f7cf2",
       "language": {
         "id": "*.*.python",
@@ -376,15 +331,6 @@
           }
         }
       }
-    },
-    {
-      "id": "0f7003fc-99cf-4ecc-8f06-dffd2893e08e",
-      "language": {
-        "id": "*.*.python",
-        "version": "3.*.*"
-      },
-      "title": "CM_TNA_blockexport",
-      "uri": "commands/CM_TNA_blockexport.py"
     },
     {
       "id": "9f2fda2d-8829-43ff-82eb-a9e722e18244",

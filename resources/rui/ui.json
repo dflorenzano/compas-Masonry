@@ -76,36 +76,6 @@
             "icon": 7
         },
         {
-            "name": "CM_TNA_envelope",
-            "script": "! _CM_TNA_envelope",
-            "tooltip": "Define the masonry envelope"
-        },
-        {
-            "name": "CM_TNA_formdiagram",
-            "script": "! _CM_TNA_formdiagram",
-            "tooltip": "Create the form diagram"
-        },
-        {
-            "name": "CM_TNA_supports",
-            "script": "! _CM_TNA_supports",
-            "tooltip": "Define TNA supports"
-        },
-        {
-            "name": "CM_TNA_loads",
-            "script": "! _CM_TNA_loads",
-            "tooltip": "Define TNA loads"
-        },
-        {
-            "name": "CM_TNA_analysis",
-            "script": "! _CM_TNA_analysis",
-            "tooltip": "Run TNA analysis"
-        },
-        {
-            "name": "CM_TNA_blockexport",
-            "script": "! _CM_TNA_blockexport",
-            "tooltip": "Export the thrust mesh to blocks"
-        },
-        {
             "name": "CM_Model_blocks",
             "script": "! _CM_Model_blocks",
             "tooltip": "Create a block model",
