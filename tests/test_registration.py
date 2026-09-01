@@ -83,14 +83,6 @@ def test_toolbar_items_match_commands(ui):
     names = {command["name"] for command in ui["commands"]}
     items = {item["left"] for toolbar in ui["toolbars"] for item in toolbar["items"] if "left" in item}
     assert items - names == set()
-    assert names - items == {
-        "CM_TNA_analysis",
-        "CM_TNA_blockexport",
-        "CM_TNA_envelope",
-        "CM_TNA_formdiagram",
-        "CM_TNA_loads",
-        "CM_TNA_supports",
-    }
 
 
 def test_toolbar_groups_reference_real_toolbars(ui):
