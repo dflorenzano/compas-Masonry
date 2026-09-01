@@ -29,7 +29,7 @@ displaced geometry.
 **Fixed supports are not edited here.** They live on the model
 (Model_supports -> `Block.is_support`) and the solvers read them from there.
 
-⚠ **CRA and RBE cannot apply prescribed movements.** They solve for the
+**CRA and RBE cannot apply prescribed movements.** They solve for the
 displacements of the free blocks; support blocks are excluded from the
 equilibrium system entirely and have no displacement degrees of freedom, so a
 settlement cannot be expressed. That is structural, not a missing feature. Those
