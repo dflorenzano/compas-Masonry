@@ -64,8 +64,7 @@ def test_command_writing_session_state_records_it(path):
         assert "session.clear_history()" in text
         return
     assert "session.record(" in text, (
-        f"{path.name} assigns a session key but never calls session.record(). "
-        "The change will not reach a snapshot, and the next undo will discard it silently."
+        f"{path.name} assigns a session key but never calls session.record(). The change will not reach a snapshot, and the next undo will discard it silently."
     )
 
 

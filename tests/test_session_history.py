@@ -890,9 +890,7 @@ class _ArrowRecorder:
 
     def __init__(self, horizontal=False, vertical=False):
         self.calls = []
-        self.settings = SimpleNamespace(
-            blockmodel=SimpleNamespace(show_horizontalforces=horizontal, show_verticalforces=vertical)
-        )
+        self.settings = SimpleNamespace(blockmodel=SimpleNamespace(show_horizontalforces=horizontal, show_verticalforces=vertical))
 
     def _draw_vector_arrow(self, layer, point, vector, color=None, params=None):
         self.calls.append({"layer": layer, "point": tuple(point), "vector": tuple(vector), "params": params})

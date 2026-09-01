@@ -129,7 +129,7 @@ def conditions_of(group) -> list:
 
 
 def group_kind(group):
-    """"load", "displacement", or None for an empty group.
+    """ "load", "displacement", or None for an empty group.
 
     Decided by CONTENT, so a group is whatever it actually holds — never by its
     name. compas_dem attaches no meaning to a group's name, so reading a kind out
@@ -319,8 +319,7 @@ def remove_condition(group, bc) -> bool:
             holder.remove(bc)
             if bc in holder:
                 raise RuntimeError(
-                    "Removing a boundary condition had no effect — compas_dem's group properties "
-                    "no longer return the live list, so this needs a different mechanism."
+                    "Removing a boundary condition had no effect — compas_dem's group properties no longer return the live list, so this needs a different mechanism."
                 )
             return True
     return False
@@ -338,7 +337,6 @@ def remove_group(problem, group) -> bool:
     groups.remove(group)
     if group in groups:
         raise RuntimeError(
-            "Removing a boundary condition group had no effect — `Problem.boundary_conditions` "
-            "no longer returns the live list, so this needs a different mechanism."
+            "Removing a boundary condition group had no effect — `Problem.boundary_conditions` no longer returns the live list, so this needs a different mechanism."
         )
     return True

@@ -413,9 +413,7 @@ def test_the_csv_header_names_its_units():
 
 
 def test_csv_rows_are_written_in_display_units():
-    report = _report(
-        [{"with": 5, "label": "4-5", "force": [1000.0, 2000.0, 3000.0], "magnitude": 45530.3331, "stress": 1.0e6, "opening": None}]
-    )
+    report = _report([{"with": 5, "label": "4-5", "force": [1000.0, 2000.0, 3000.0], "magnitude": 45530.3331, "stress": 1.0e6, "opening": None}])
 
     row = block_result_rows(report)[0]
 

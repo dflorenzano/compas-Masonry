@@ -22,7 +22,10 @@ import pathlib
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from svgtools import flatten_css, have_rasterizer, rasterize, wrap_for_rhino  # noqa: E402
+from svgtools import flatten_css  # noqa: E402
+from svgtools import have_rasterizer  # noqa: E402
+from svgtools import rasterize  # noqa: E402
+from svgtools import wrap_for_rhino  # noqa: E402
 
 ROOT = pathlib.Path(__file__).parent.parent.parent
 RHPROJ = ROOT / "COMPAS-Masonry.rhproj"
