@@ -1,0 +1,11 @@
+$schema: https://api.gitbook.com/gitbook-docs.yaml
+site:
+  title: COMPAS Masonry
+  structure:
+    - type: space
+      key: space-compas-masonry
+      title: COMPAS Masonry
+      path: docs
+      default: true
+      content:
+        directory: ./gitbook
