@@ -4,7 +4,7 @@ site:
   structure:
     - type: space
       key: space-compas-masonry
-      title: COMPAS Masonry
+      title: COMPAS Masonry WIP
       path: docs
       default: true
       content:
