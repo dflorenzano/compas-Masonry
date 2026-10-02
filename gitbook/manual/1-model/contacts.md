@@ -1,8 +1,8 @@
 # 1b. Contacts
 
 |  |  |  |
-| --- | --- | --- |
-| <img src="../../.gitbook/assets/icons/CM_Model_contacts.svg" alt="" data-size="original"> | <p><strong>Rhino command name</strong></p><p><code>CM_Model_contacts</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Model_contacts.py"><code>CM_Model_contacts.py</code></a></p> |
+| :-: | --- | --- |
+| <p align="center"><img src="../../.gitbook/assets/icons/CM_Model_contacts.svg" alt="" data-size="original"></p> | <p><strong>Rhino command name</strong></p><p><code>CM_Model_contacts</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Model_contacts.py"><code>CM_Model_contacts.py</code></a></p> |
 
 Computes the contacts (interfaces) between the blocks of the model. Tolerance and minimum contact area are asked together as command line options.
 

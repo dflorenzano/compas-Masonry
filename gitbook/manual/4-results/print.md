@@ -1,8 +1,8 @@
 # 4b. Print Results
 
 |  |  |  |
-| --- | --- | --- |
-| <img src="../../.gitbook/assets/icons/CM_Results_print.svg" alt="" data-size="original"> | <p><strong>Rhino command name</strong></p><p><code>CM_Results_print</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Results_print.py"><code>CM_Results_print.py</code></a></p> |
+| :-: | --- | --- |
+| <p align="center"><img src="../../.gitbook/assets/icons/CM_Results_print.svg" alt="" data-size="original"></p> | <p><strong>Rhino command name</strong></p><p><code>CM_Results_print</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Results_print.py"><code>CM_Results_print.py</code></a></p> |
 
 Prints a stored result set in the command window, without drawing anything.
 

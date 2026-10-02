@@ -1,8 +1,8 @@
 # 1a. Blocks
 
 |  |  |  |
-| --- | --- | --- |
-| <img src="../../.gitbook/assets/icons/CM_Model_blocks.svg" alt="" data-size="original"> | <p><strong>Rhino command name</strong></p><p><code>CM_Model_blocks</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Model_blocks.py"><code>CM_Model_blocks.py</code></a></p> |
+| :-: | --- | --- |
+| <p align="center"><img src="../../.gitbook/assets/icons/CM_Model_blocks.svg" alt="" data-size="original"></p> | <p><strong>Rhino command name</strong></p><p><code>CM_Model_blocks</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Model_blocks.py"><code>CM_Model_blocks.py</code></a></p> |
 
 Creates the block model: the set of rigid blocks that represents the structure. A block model can be generated from a template, built from Rhino geometry, or loaded from a JSON file.
 

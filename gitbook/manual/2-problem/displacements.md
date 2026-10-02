@@ -1,8 +1,8 @@
 # 2e. Displacements
 
 |  |  |  |
-| --- | --- | --- |
-| <img src="../../.gitbook/assets/icons/CM_Problem_displacements.svg" alt="" data-size="original"> | <p><strong>Rhino command name</strong></p><p><code>CM_Problem_displacements</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Problem_displacements.py"><code>CM_Problem_displacements.py</code></a></p> |
+| :-: | --- | --- |
+| <p align="center"><img src="../../.gitbook/assets/icons/CM_Problem_displacements.svg" alt="" data-size="original"></p> | <p><strong>Rhino command name</strong></p><p><code>CM_Problem_displacements</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Problem_displacements.py"><code>CM_Problem_displacements.py</code></a></p> |
 
 Adds or removes prescribed displacements and rotations on the active problem, organised in groups.
 

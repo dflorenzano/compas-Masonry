@@ -1,8 +1,8 @@
 # 1c. Supports
 
 |  |  |  |
-| --- | --- | --- |
-| <img src="../../.gitbook/assets/icons/CM_Model_supports.svg" alt="" data-size="original"> | <p><strong>Rhino command name</strong></p><p><code>CM_Model_supports</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Model_supports.py"><code>CM_Model_supports.py</code></a></p> |
+| :-: | --- | --- |
+| <p align="center"><img src="../../.gitbook/assets/icons/CM_Model_supports.svg" alt="" data-size="original"></p> | <p><strong>Rhino command name</strong></p><p><code>CM_Model_supports</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Model_supports.py"><code>CM_Model_supports.py</code></a></p> |
 
 Defines which blocks are supports.
 

@@ -1,8 +1,8 @@
 # 2b. Contact Law
 
 |  |  |  |
-| --- | --- | --- |
-| <img src="../../.gitbook/assets/icons/CM_Problem_contactlaw.svg" alt="" data-size="original"> | <p><strong>Rhino command name</strong></p><p><code>CM_Problem_contactlaw</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Problem_contactlaw.py"><code>CM_Problem_contactlaw.py</code></a></p> |
+| :-: | --- | --- |
+| <p align="center"><img src="../../.gitbook/assets/icons/CM_Problem_contactlaw.svg" alt="" data-size="original"></p> | <p><strong>Rhino command name</strong></p><p><code>CM_Problem_contactlaw</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Problem_contactlaw.py"><code>CM_Problem_contactlaw.py</code></a></p> |
 
 Sets the contact law (Mohr-Coulomb) and the joint model of the active problem, in one prompt. A problem holds one contact law and one joint model; setting them again overwrites them. To compare contact laws, duplicate the problem.
 

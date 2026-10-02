@@ -50,8 +50,8 @@ To open the "Toolbars" page, type `Toolbars` on the Rhino command line.
 To check the installation, press the left-most button on the toolbar, or run `CM_Masonry_start` in the Rhino command line.
 
 |  |  |  |
-| --- | --- | --- |
-| <img src="../.gitbook/assets/icons/CM_Masonry_start.svg" alt="" data-size="original"> | <p><strong>Rhino command name</strong></p><p><code>CM_Masonry_start</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Masonry_start.py"><code>CM_Masonry_start.py</code></a></p> |
+| :-: | --- | --- |
+| <p align="center"><img src="../.gitbook/assets/icons/CM_Masonry_start.svg" alt="" data-size="original"></p> | <p><strong>Rhino command name</strong></p><p><code>CM_Masonry_start</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Masonry_start.py"><code>CM_Masonry_start.py</code></a></p> |
 
 This starts a COMPAS Masonry session and shows the splash screen.
 

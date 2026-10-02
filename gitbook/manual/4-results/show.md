@@ -1,8 +1,8 @@
 # 4a. Show Results
 
 |  |  |  |
-| --- | --- | --- |
-| <img src="../../.gitbook/assets/icons/CM_Results_show.svg" alt="" data-size="original"> | <p><strong>Rhino command name</strong></p><p><code>CM_Results_show</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Results_show.py"><code>CM_Results_show.py</code></a></p> |
+| :-: | --- | --- |
+| <p align="center"><img src="../../.gitbook/assets/icons/CM_Results_show.svg" alt="" data-size="original"></p> | <p><strong>Rhino command name</strong></p><p><code>CM_Results_show</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Results_show.py"><code>CM_Results_show.py</code></a></p> |
 
 Draws a stored result set. Results are drawn under the problem's layer, `Masonry::<index>_<problem>::Results::<key>`.
 

@@ -3,8 +3,8 @@
 ## Manage materials
 
 |  |  |  |
-| --- | --- | --- |
-| <img src="../../.gitbook/assets/icons/CM_Model_material.svg" alt="" data-size="original"> | <p><strong>Rhino command name</strong></p><p><code>CM_Model_material</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Model_material.py"><code>CM_Model_material.py</code></a></p> |
+| :-: | --- | --- |
+| <p align="center"><img src="../../.gitbook/assets/icons/CM_Model_material.svg" alt="" data-size="original"></p> | <p><strong>Rhino command name</strong></p><p><code>CM_Model_material</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Model_material.py"><code>CM_Model_material.py</code></a></p> |
 
 Creates and manages the materials of the model.
 
@@ -35,8 +35,8 @@ Predefined materials are printed as a table with all their values before you pic
 ## Assign materials
 
 |  |  |  |
-| --- | --- | --- |
-| <img src="../../.gitbook/assets/icons/CM_Model_materialassign.svg" alt="" data-size="original"> | <p><strong>Rhino command name</strong></p><p><code>CM_Model_materialassign</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Model_materialassign.py"><code>CM_Model_materialassign.py</code></a></p> |
+| :-: | --- | --- |
+| <p align="center"><img src="../../.gitbook/assets/icons/CM_Model_materialassign.svg" alt="" data-size="original"></p> | <p><strong>Rhino command name</strong></p><p><code>CM_Model_materialassign</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Model_materialassign.py"><code>CM_Model_materialassign.py</code></a></p> |
 
 Assigns a material to blocks.
 

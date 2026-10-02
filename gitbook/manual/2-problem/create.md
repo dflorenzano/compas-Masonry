@@ -1,8 +1,8 @@
 # 2a. Create Problem
 
 |  |  |  |
-| --- | --- | --- |
-| <img src="../../.gitbook/assets/icons/CM_Problem_create.svg" alt="" data-size="original"> | <p><strong>Rhino command name</strong></p><p><code>CM_Problem_create</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Problem_create.py"><code>CM_Problem_create.py</code></a></p> |
+| :-: | --- | --- |
+| <p align="center"><img src="../../.gitbook/assets/icons/CM_Problem_create.svg" alt="" data-size="original"></p> | <p><strong>Rhino command name</strong></p><p><code>CM_Problem_create</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Problem_create.py"><code>CM_Problem_create.py</code></a></p> |
 
 Creates, duplicates, activates or deletes a problem. A problem is one analysis case on the model: one contact law, one solver, and a set of loads and prescribed displacements. The other Problem commands act on the **active** problem.
 

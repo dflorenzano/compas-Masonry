@@ -1,8 +1,8 @@
 # 4c. Block Results
 
 |  |  |  |
-| --- | --- | --- |
-| <img src="../../.gitbook/assets/icons/CM_Results_block.svg" alt="" data-size="original"> | <p><strong>Rhino command name</strong></p><p><code>CM_Results_block</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Results_block.py"><code>CM_Results_block.py</code></a></p> |
+| :-: | --- | --- |
+| <p align="center"><img src="../../.gitbook/assets/icons/CM_Results_block.svg" alt="" data-size="original"></p> | <p><strong>Rhino command name</strong></p><p><code>CM_Results_block</code></p> | <p><strong>source file</strong></p><p><a href="https://github.com/BlockResearchGroup/compas-Masonry/blob/main/commands/CM_Results_block.py"><code>CM_Results_block.py</code></a></p> |
 
 Shows the results of the blocks you select: the displacement of each block, and every contact it takes part in, with the force, stress and opening at each and the neighbour on the other side.
 
