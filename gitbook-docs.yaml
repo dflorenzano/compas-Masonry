@@ -1,6 +1,6 @@
 $schema: https://api.gitbook.com/gitbook-docs.yaml
 site:
-  title: COMPAS Masonry
+  title: COMPAS Masonry WIP
   structure:
     - type: space
       key: space-compas-masonry
